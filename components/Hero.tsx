@@ -20,7 +20,6 @@ export default function Hero() {
         </ul>
 
         <h1 className="font-display text-[2.75rem] font-semibold leading-[1.05] text-canopy-950 sm:text-6xl">
-          Calinan, grown from
           <br />
           <em className="text-durian-500 not-italic">durian, banana,</em> and
           <br />
@@ -30,7 +29,7 @@ export default function Hero() {
         <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-500">
           MyCalinan brings Calinan Poblacion&rsquo;s tourist spots, local
           Businesses, Barangay services, and community news onto one
-          platform — built for residents, Visitors, and officials alikeeeeeeeeeeeeeee.
+          platform — built for residents, Visitors, and officials alike.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-4">
