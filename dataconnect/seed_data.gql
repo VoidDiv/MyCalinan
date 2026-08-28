@@ -1,0 +1,27 @@
+mutation CreateSeedData @transaction {
+  user_insertMany(data: [
+    {id: "550e8400-e29b-41d4-a716-446655440001", email: "alice@example.com", displayName: "Alice"},
+    {id: "550e8400-e29b-41d4-a716-446655440002", email: "bob@example.com", displayName: "Bob"},
+    {id: "550e8400-e29b-41d4-a716-446655440003", email: "charlie@example.com", displayName: "Charlie"}
+  ])
+  project_insertMany(data: [
+    {id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01", title: "Web App", userId: "550e8400-e29b-41d4-a716-446655440001"},
+    {id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a02", title: "Mobile App", userId: "550e8400-e29b-41d4-a716-446655440002"},
+    {id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a03", title: "API Docs", userId: "550e8400-e29b-41d4-a716-446655440003"}
+  ])
+  task_insertMany(data: [
+    {id: "b1f00000-0000-0000-0000-000000000001", title: "Setup Repo", status: "TODO", projectId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a01"},
+    {id: "b1f00000-0000-0000-0000-000000000002", title: "Design UI", status: "IN_PROGRESS", projectId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a02"},
+    {id: "b1f00000-0000-0000-0000-000000000003", title: "Write Specs", status: "DONE", projectId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a03"}
+  ])
+  tag_insertMany(data: [
+    {id: "c2f00000-0000-0000-0000-000000000001", name: "Urgent", userId: "550e8400-e29b-41d4-a716-446655440001"},
+    {id: "c2f00000-0000-0000-0000-000000000002", name: "Feature", userId: "550e8400-e29b-41d4-a716-446655440002"},
+    {id: "c2f00000-0000-0000-0000-000000000003", name: "Bug", userId: "550e8400-e29b-41d4-a716-446655440003"}
+  ])
+  taskTag_insertMany(data: [
+    {taskId: "b1f00000-0000-0000-0000-000000000001", tagId: "c2f00000-0000-0000-0000-000000000001"},
+    {taskId: "b1f00000-0000-0000-0000-000000000002", tagId: "c2f00000-0000-0000-0000-000000000002"},
+    {taskId: "b1f00000-0000-0000-0000-000000000003", tagId: "c2f00000-0000-0000-0000-000000000003"}
+  ])
+}

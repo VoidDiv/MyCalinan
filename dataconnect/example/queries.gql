@@ -1,0 +1,87 @@
+mutation CreateUserData @auth(level: USER) {
+  user_upsert(data: {id_expr: "auth.uid", email: "user@example.com", displayName: "New User"})
+}
+
+mutation CreateProject @auth(level: USER) {
+  project_insert(data: {title: "New Project", userId_expr: "auth.uid"})
+}
+
+mutation CreateTask @auth(level: USER) {
+  task_insert(data: {title: "Buy groceries", status: "TODO", projectId: "550e8400-e29b-41d4-a716-446655440000"})
+}
+
+mutation CreateTag @auth(level: USER) {
+  tag_insert(data: {name: "Urgent", userId_expr: "auth.uid"})
+}
+
+mutation CreateTaskTag @auth(level: USER) {
+  taskTag_insert(data: {taskId: "770e8400-e29b-41d4-a716-446655440000", tagId: "880e8400-e29b-41d4-a716-446655440000"})
+}
+
+mutation UpdateUser @auth(level: USER) {
+  user_update(key: {id_expr: "auth.uid"}, data: {displayName: "Updated Name"})
+}
+
+mutation UpdateProject @auth(level: USER) {
+  project_update(id: "123e4567-e89b-12d3-a456-426614174000", data: {title: "New Title"})
+}
+
+mutation UpdateTask @auth(level: USER) {
+  task_update(id: "770e8400-e29b-41d4-a716-446655440000", data: {status: "DONE"})
+}
+
+mutation UpdateTag @auth(level: USER) {
+  tag_update(id: "880e8400-e29b-41d4-a716-446655440000", data: {color: "#FF0000"})
+}
+
+mutation UpdateTaskTag @auth(level: USER) {
+  taskTag_update(key: {taskId: "770e8400-e29b-41d4-a716-446655440000", tagId: "880e8400-e29b-41d4-a716-446655440000"}, data: {taskId: "770e8400-e29b-41d4-a716-446655440000"})
+}
+
+mutation DeleteUser @auth(level: USER) {
+  user_delete(key: {id_expr: "auth.uid"})
+}
+
+mutation DeleteProject @auth(level: USER) {
+  project_delete(id: "123e4567-e89b-12d3-a456-426614174000")
+}
+
+mutation DeleteTask @auth(level: USER) {
+  task_delete(id: "770e8400-e29b-41d4-a716-446655440000")
+}
+
+mutation DeleteTag @auth(level: USER) {
+  tag_delete(id: "880e8400-e29b-41d4-a716-446655440000")
+}
+
+mutation DeleteTaskTag @auth(level: USER) {
+  taskTag_delete(key: {taskId: "770e8400-e29b-41d4-a716-446655440000", tagId: "880e8400-e29b-41d4-a716-446655440000"})
+}
+
+query GetUserData @auth(level: USER) {
+  user(key: {id_expr: "auth.uid"}) { id email displayName }
+}
+
+query GetProject @auth(level: USER) {
+  project(id: "123e4567-e89b-12d3-a456-426614174000") { title description }
+}
+
+query GetTask @auth(level: USER) {
+  task(id: "770e8400-e29b-41d4-a716-446655440000") { title status }
+}
+
+query GetTag @auth(level: USER) {
+  tag(id: "880e8400-e29b-41d4-a716-446655440000") { name color }
+}
+
+query ListProjects @auth(level: USER) {
+  projects(where: {userId: {eq_expr: "auth.uid"}}) { id title }
+}
+
+query ListTasks @auth(level: USER) {
+  tasks(where: {project: {userId: {eq_expr: "auth.uid"}}}) { id title status }
+}
+
+query ListTags @auth(level: USER) {
+  tags(where: {userId: {eq_expr: "auth.uid"}}) { id name }
+}

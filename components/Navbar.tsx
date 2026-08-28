@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 const EXPLORE_LINKS = [
-  { label: "Health", href: "/explore/health" },
+  { label: "Health", href: "/explore/Healthcarepage" },
   { label: "Education", href: "/explore/education" },
   { label: "Transport & Utilities", href: "/explore/transport-utilities" },
   { label: "Finance", href: "/explore/finance" },
