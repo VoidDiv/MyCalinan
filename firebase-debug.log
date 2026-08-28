@@ -1,0 +1,26 @@
+[debug] [2026-08-27T05:48:17.381Z] ----------------------------------------------------------------------
+[debug] [2026-08-27T05:48:17.383Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Admin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-08-27T05:48:17.384Z] CLI Version:   15.28.1
+[debug] [2026-08-27T05:48:17.384Z] Platform:      win32
+[debug] [2026-08-27T05:48:17.384Z] Node Version:  v24.19.0
+[debug] [2026-08-27T05:48:17.384Z] Detected Agent: unknown
+[debug] [2026-08-27T05:48:17.384Z] Time:          Thu Aug 27 2026 13:48:17 GMT+0800 (Taiwan Standard Time)
+[debug] [2026-08-27T05:48:17.384Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\Admin\Desktop\MyCalinan
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
