@@ -2,29 +2,62 @@ import React from 'react';
 
 export default function CommunityPage() {
   return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      <div className="community-header text-center my-8">
-        <h1 className="text-4xl font-bold mb-4">Welcome sa Atong Community!</h1>
-        <p className="text-lg opacity-90">
-          Usa ka lugar para sa pag-explore, pag-share, ug pag-connect.
+    <div className="community-container">
+      {/* HERO SECTION */}
+      <section className="community-hero">
+        <h2>Calinan Community Hub</h2>
+        <p>
+          Padayon sa pag-explore sa mga lokal nga nga lugar, balita, ug mga updates sa atong komunidad sa Calinan.
         </p>
+      </section>
+
+      {/* TOOLBAR & FILTERS */}
+      <div className="community-toolbar">
+        <span className="text-xs text-gray-500 font-medium mr-2">Filter:</span>
+        <button className="community-chip active">Tanan</button>
+        <button className="community-chip">Healthcare</button>
+        <button className="community-chip">Pampubliko</button>
+        <button className="community-chip">Edukasyon</button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 my-8">
-        <div className="community-card p-6 rounded-lg border shadow-sm">
-          <h2 className="text-xl font-semibold mb-2">📢 Announcements</h2>
-          <p>
-            Welcome sa bag-ong update sa atong website! Mag-explore ta ug magkat-on nga padayon.
-          </p>
+      {/* CARDS GRID */}
+      <main className="community-grid">
+        {/* CARD 1 */}
+        <div className="community-card">
+          <div className="community-card-content">
+            <span className="community-tag">Healthcare</span>
+            <h3 className="text-base font-semibold text-green-900 mt-1">Calinan Health Center</h3>
+            <p className="text-xs text-gray-600">
+              Panguna nga sentro sa kalusugan nga naghatag og libreng serbisyo alang sa mga residente.
+            </p>
+            <button className="community-btn">Tan-awon sa Map</button>
+          </div>
         </div>
 
-        <div className="community-card p-6 rounded-lg border shadow-sm">
-          <h2 className="text-xl font-semibold mb-2">💬 Discussions</h2>
-          <p>
-            Puwede ka diri makipag-storya ug mag-share sa imong mga nadiskobrehan sa tsx ug components.
-          </p>
+        {/* CARD 2 */}
+        <div className="community-card">
+          <div className="community-card-content">
+            <span className="community-tag">Pampubliko</span>
+            <h3 className="text-base font-semibold text-green-900 mt-1">Calinan Public Market</h3>
+            <p className="text-xs text-gray-600">
+              Ang sentro sa palitanan sa mga preskong prutas, gulay, ug uban pang panginahanglanon.
+            </p>
+            <button className="community-btn">Tan-awon sa Map</button>
+          </div>
         </div>
-      </div>
-    </main>
+
+        {/* CARD 3 */}
+        <div className="community-card">
+          <div className="community-card-content">
+            <span className="community-tag">Edukasyon</span>
+            <h3 className="text-base font-semibold text-green-900 mt-1">Calinan National High School</h3>
+            <p className="text-xs text-gray-600">
+              Sentrong tunghaan alang sa sekundaryang edukasyon sa mga kabataan sa komunidad.
+            </p>
+            <button className="community-btn">Tan-awon sa Map</button>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }
