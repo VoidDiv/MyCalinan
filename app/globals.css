@@ -1,152 +1,97 @@
-/* ================================================
-   COMMUNITY – CALINAN STYLES
-   ================================================ */
+@import "tailwindcss";
 
+/* ============================================================
+   MyCalinan design tokens
+   Palette grounded in the brief: Calinan is Davao's "fruit
+   basket" — durian, banana, deep-canopy green farmland, and
+   the woven bamboo crates the produce travels in. Kept the
+   site's existing canopy-green identity, added a ripe-durian
+   gold as the one accent, and swapped pure black/white for a
+   warmer market-paper cream and ink-brown so the palette reads
+   as agricultural rather than corporate.
+   ============================================================ */
 :root {
-  --green:        #2b6b45;
-  --green-dark:   #1f4d33;
-  --green-light:  #e6f4ed;
-  --green-mid:    #4a9468;
-  --accent:       #f0faf5;
-  --text-main:    #1a1a1a;
-  --text-soft:    #555;
-  --text-muted:   #888;
-  --border:       #d8ead2;
-  --card-bg:      #ffffff;
-  --page-bg:      #f4f8f5;
-  --radius:       14px;
-  --radius-sm:    8px;
-  --shadow:       0 2px 12px rgba(0,0,0,0.07);
-  --shadow-hover: 0 6px 24px rgba(0,0,0,0.12);
-  --green-700:    #1f6f4a;
-  --green-600:    #2e8b57;
-  --green-500:    #3fa66f;
-  --green-400:    #62c08a;
-  --green-soft:   #eaf7ef;
-  --white:        #ffffff;
-  --text:         #1e2a23;
-  --muted:        #5b6b63;
+  --canopy-950: #142b1c;
+  --canopy-800: #1f4d33;
+  --canopy-700: #2b6b45;
+  --canopy-600: #3c8a5d;
+  --canopy-400: #7fc79b;
+  --canopy-100: #eaf6ef;
+
+  --durian-500: #d99b34;
+  --durian-400: #e8b45c;
+
+  --cream: #faf6ee;
+  --ink-900: #241f18;
+  --ink-500: #6b6152;
+
+  --radius-stall: 4px 16px 4px 16px; /* asymmetric "stall sign" corner */
 }
 
-.community-container {
-  background: var(--page-bg);
-  color: var(--text-main);
-  min-height: 100vh;
-  line-height: 1.6;
-  font-family: 'Poppins', sans-serif;
+@theme inline {
+  --color-canopy-950: var(--canopy-950);
+  --color-canopy-800: var(--canopy-800);
+  --color-canopy-700: var(--canopy-700);
+  --color-canopy-600: var(--canopy-600);
+  --color-canopy-400: var(--canopy-400);
+  --color-canopy-100: var(--canopy-100);
+  --color-durian-500: var(--durian-500);
+  --color-durian-400: var(--durian-400);
+  --color-cream: var(--cream);
+  --color-ink-900: var(--ink-900);
+  --color-ink-500: var(--ink-500);
+
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
 }
 
-.community-hero {
-  background: linear-gradient(135deg, #2b6b45 0%, #1f4d33 100%);
-  color: white;
-  padding: 40px 24px 32px;
-  text-align: center;
+* {
+  box-sizing: border-box;
 }
 
-.community-hero h2 {
-  font-size: 26px;
-  font-weight: 700;
-  margin-bottom: 10px;
-  color: white;
+html {
+  scroll-behavior: smooth;
 }
 
-.community-hero p {
-  font-size: 14px;
-  color: rgba(255,255,255,0.8);
-  max-width: 520px;
-  margin: 0 auto 20px;
-  line-height: 1.6;
+body {
+  background: var(--cream);
+  color: var(--ink-900);
+  font-family: var(--font-body), Arial, sans-serif;
 }
 
-.community-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 16px 24px;
-  background: white;
-  border-bottom: 1px solid var(--border);
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-.community-chip {
-  padding: 6px 14px;
-  border-radius: 20px;
-  border: 1.5px solid var(--border);
-  background: white;
-  color: var(--text-soft);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s;
+/* visible keyboard focus everywhere, on top of Tailwind resets */
+:focus-visible {
+  outline: 2px solid var(--durian-500);
+  outline-offset: 2px;
 }
-
-.community-chip.active {
-  background: var(--green);
-  color: white;
-  border-color: var(--green);
-}
-
-.community-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+/* Community Page Custom Styles */
+.community-header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  color: #ffffff;
+  padding: 2.5rem 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .community-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: box-shadow 0.22s, transform 0.22s;
+  background-color: #ffffff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .community-card:hover {
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-3px);
-}
-
-.community-card-content {
-  padding: 18px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.community-tag {
-  display: inline-block;
-  background: var(--green-light);
-  color: var(--green-dark);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-  width: fit-content;
-}
-
-.community-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--green);
-  color: white;
-  border: none;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s;
-  justify-content: center;
-  width: 100%;
-  margin-top: 10px;
-}
-
-.community-btn:hover {
-  background: var(--green-dark);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
 }
