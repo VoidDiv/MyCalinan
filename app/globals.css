@@ -1,15 +1,9 @@
 @import "tailwindcss";
 
 /* ============================================================
-   MyCalinan design tokens
-   Palette grounded in the brief: Calinan is Davao's "fruit
-   basket" — durian, banana, deep-canopy green farmland, and
-   the woven bamboo crates the produce travels in. Kept the
-   site's existing canopy-green identity, added a ripe-durian
-   gold as the one accent, and swapped pure black/white for a
-   warmer market-paper cream and ink-brown so the palette reads
-   as agricultural rather than corporate.
+   MyCalinan DESIGN TOKENS
    ============================================================ */
+
 :root {
   --canopy-950: #142b1c;
   --canopy-800: #1f4d33;
@@ -25,7 +19,7 @@
   --ink-900: #241f18;
   --ink-500: #6b6152;
 
-  --radius-stall: 4px 16px 4px 16px; /* asymmetric "stall sign" corner */
+  --radius-stall: 4px 16px 4px 16px;
 }
 
 @theme inline {
@@ -35,8 +29,10 @@
   --color-canopy-600: var(--canopy-600);
   --color-canopy-400: var(--canopy-400);
   --color-canopy-100: var(--canopy-100);
+
   --color-durian-500: var(--durian-500);
   --color-durian-400: var(--durian-400);
+
   --color-cream: var(--cream);
   --color-ink-900: var(--ink-900);
   --color-ink-500: var(--ink-500);
@@ -45,6 +41,10 @@
   --font-body: var(--font-inter);
   --font-mono: var(--font-plex-mono);
 }
+
+/* ============================================================
+   GLOBAL
+   ============================================================ */
 
 * {
   box-sizing: border-box;
@@ -60,10 +60,16 @@ body {
   font-family: var(--font-body), Arial, sans-serif;
 }
 
+:focus-visible {
+  outline: 2px solid var(--durian-500);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
+
   * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -72,10 +78,1370 @@ body {
   }
 }
 
-/* visible keyboard focus everywhere, on top of Tailwind resets */
-:focus-visible {
-  outline: 2px solid var(--durian-500);
-  outline-offset: 2px;
+
+/* ============================================================
+   COMMUNITY PAGE
+   ============================================================ */
+
+.community-page {
+  --green: #2b6b45;
+  --green-dark: #1f4d33;
+  --green-light: #e6f4ed;
+  --green-mid: #4a9468;
+
+  --accent: #f0faf5;
+
+  --text-main: #1a1a1a;
+  --text-soft: #555;
+  --text-muted: #888;
+
+  --border: #d8ead2;
+  --card-bg: #ffffff;
+  --page-bg: #f4f8f5;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+  --shadow-hover: 0 6px 24px rgba(0, 0, 0, 0.12);
+
+  --green-700: #1f6f4a;
+  --green-600: #2e8b57;
+  --green-500: #3fa66f;
+  --green-400: #62c08a;
+  --green-soft: #eaf7ef;
+
+  background: var(--page-bg);
+  color: var(--text-main);
+  min-height: 100vh;
+  line-height: 1.6;
+  font-family: "Poppins", sans-serif;
+}
+
+.community-page *,
+.community-page *::before,
+.community-page *::after {
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+
+.community-page h1 {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.community-page h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--green-700);
+}
+
+.community-page p {
+  font-size: 15px;
+  color: var(--muted, var(--text-soft));
+}
+
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.community-page .header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  background: var(--green);
+
+  padding: 14px 24px;
+
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+}
+
+.community-page .header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.community-page .back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+
+  text-decoration: none;
+
+  padding: 7px 14px;
+  border-radius: 20px;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  transition: background 0.2s;
+}
+
+.community-page .back-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.community-page .logo {
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
+
+.community-page .search-wrap {
+  flex: 1;
+  min-width: 200px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.community-page .search-box {
+  flex: 1;
+  position: relative;
+}
+
+.community-page .search-box input {
+  width: 100%;
+
+  padding: 10px 16px 10px 40px;
+
+  border-radius: 24px;
+  border: none;
+
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+
+  font-size: 14px;
+  outline: none;
+
+  transition: background 0.2s;
+}
+
+.community-page .search-box input::placeholder {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.community-page .search-box input:focus {
+  background: rgba(255, 255, 255, 0.28);
+
+  box-shadow:
+    0 0 0 3px rgba(63, 166, 111, 0.15);
+}
+
+.community-page .search-icon {
+  position: absolute;
+
+  left: 13px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  font-size: 15px;
+
+  color: rgba(255, 255, 255, 0.7);
+
+  pointer-events: none;
+}
+
+
+/* ============================================================
+   LOCATE ME BUTTON
+   ============================================================ */
+
+.community-page #locate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  padding: 9px 16px;
+
+  background: white;
+  color: var(--green);
+
+  border: none;
+  border-radius: 24px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  white-space: nowrap;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
+  flex-shrink: 0;
+
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+
+.community-page #locate-btn:hover {
+  background: #f0faf5;
+  transform: translateY(-1px);
+}
+
+.community-page #locate-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.community-page #locate-btn .spinner {
+  width: 14px;
+  height: 14px;
+
+  border: 2px solid var(--green);
+  border-top-color: transparent;
+
+  border-radius: 50%;
+
+  animation: community-spin 0.7s linear infinite;
+
+  display: none;
+}
+
+.community-page #locate-btn.loading .spinner {
+  display: block;
+}
+
+.community-page #locate-btn.loading .btn-label {
+  display: none;
+}
+
+@keyframes community-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* ============================================================
+   HERO
+   ============================================================ */
+
+.community-page .hero {
+  background:
+    linear-gradient(
+      135deg,
+      #2b6b45 0%,
+      #1f4d33 100%
+    );
+
+  color: white;
+
+  padding: 40px 24px 32px;
+
+  text-align: center;
+}
+
+.community-page .hero h2 {
+  font-size: 26px;
+  font-weight: 700;
+
+  margin-bottom: 10px;
+
+  color: white;
+}
+
+.community-page .hero p {
+  font-size: 14px;
+
+  color: rgba(255, 255, 255, 0.8);
+
+  max-width: 520px;
+
+  margin: 0 auto 20px;
+
+  line-height: 1.6;
+}
+
+
+/* ============================================================
+   LOCATION STATUS
+   ============================================================ */
+
+.community-page #location-status {
+  display: none;
+
+  align-items: center;
+  gap: 10px;
+
+  background: rgba(255, 255, 255, 0.15);
+
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  border-radius: 12px;
+
+  padding: 10px 18px;
+
+  font-size: 13px;
+  color: white;
+
+  max-width: 480px;
+
+  margin: 0 auto;
+
+  backdrop-filter: blur(4px);
+}
+
+.community-page #location-status.visible {
+  display: flex;
+}
+
+.community-page #location-status .loc-dot {
+  width: 10px;
+  height: 10px;
+
+  border-radius: 50%;
+
+  background: #4ade80;
+
+  flex-shrink: 0;
+
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.3);
+
+  animation: community-pulse-dot 2s ease-in-out infinite;
+}
+
+.community-page #location-status .loc-err {
+  background: #f87171;
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes community-pulse-dot {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(74, 222, 128, 0.3);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 7px rgba(74, 222, 128, 0.1);
+  }
+}
+
+
+/* ============================================================
+   TOOLBAR
+   ============================================================ */
+
+.community-page .toolbar {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  flex-wrap: wrap;
+
+  padding: 16px 24px;
+
+  background: white;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.community-page .toolbar-label {
+  font-size: 13px;
+
+  color: var(--text-muted);
+
+  font-weight: 500;
+
+  margin-right: 4px;
+}
+
+.community-page .filter-chip {
+  padding: 6px 14px;
+
+  border-radius: 20px;
+
+  border: 1.5px solid var(--border);
+
+  background: white;
+
+  color: var(--text-soft);
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: all 0.18s;
+}
+
+.community-page .filter-chip:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.community-page .filter-chip.active {
+  background: var(--green);
+
+  color: white;
+
+  border-color: var(--green);
+}
+
+.community-page .sort-btn {
+  margin-left: auto;
+
+  padding: 7px 15px;
+
+  border-radius: 20px;
+
+  border: 1.5px solid var(--border);
+
+  background: white;
+
+  color: var(--text-soft);
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+
+  transition: all 0.18s;
+}
+
+.community-page .sort-btn.active {
+  background: var(--green-light);
+
+  color: var(--green);
+
+  border-color: var(--green);
+}
+
+.community-page .sort-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+
+/* ============================================================
+   RESULT COUNT
+   ============================================================ */
+
+.community-page #result-count {
+  font-size: 12px;
+
+  color: var(--text-muted);
+
+  padding: 0 24px 10px;
+
+  background: white;
+}
+
+
+/* ============================================================
+   CARDS CONTAINER
+   ============================================================ */
+
+.community-page .container {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      auto-fill,
+      minmax(300px, 1fr)
+    );
+
+  gap: 20px;
+
+  padding: 24px;
+
+  max-width: 1200px;
+
+  margin: 0 auto;
+
+  position: relative;
+}
+
+.community-page .container::before {
+  content: "";
+
+  position: absolute;
+
+  inset: 0;
+
+  background:
+    radial-gradient(
+      circle at top,
+      rgba(63, 166, 111, 0.08),
+      transparent 60%
+    );
+
+  z-index: -1;
+}
+
+
+/* ============================================================
+   COMMUNITY CARD
+   ============================================================ */
+
+.community-page .card,
+.community-page .community-card {
+  background: var(--card-bg);
+
+  border-radius: var(--radius);
+
+  border: 1px solid var(--border);
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  transition:
+    box-shadow 0.22s,
+    transform 0.22s;
+
+  position: relative;
+
+  animation:
+    community-fade-up 0.6s ease both;
+}
+
+.community-page .card:hover,
+.community-page .community-card:hover {
+  box-shadow: var(--shadow-hover);
+
+  transform: translateY(-3px);
+}
+
+.community-page .card.hidden {
+  display: none;
+}
+
+@keyframes community-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* ============================================================
+   CARD IMAGE
+   ============================================================ */
+
+.community-page .card-image {
+  width: 100%;
+  height: 180px;
+
+  overflow: hidden;
+
+  background: #e8f2ec;
+
+  cursor: pointer;
+}
+
+.community-page .card-image img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+
+  cursor: pointer;
+
+  transition: transform 0.35s;
+}
+
+.community-page .card:hover .card-image img {
+  transform: scale(1.04);
+}
+
+
+/* ============================================================
+   CARD CONTENT
+   ============================================================ */
+
+.community-page .card-content {
+  padding: 18px;
+
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.community-page .card-content h3 {
+  font-size: 15px;
+
+  font-weight: 600;
+
+  line-height: 1.4;
+}
+
+.community-page .card-content h3 a {
+  color: var(--green-dark);
+
+  text-decoration: none;
+}
+
+.community-page .card-content h3 a:hover {
+  text-decoration: underline;
+}
+
+.community-page .card-content p {
+  font-size: 13px;
+
+  color: var(--text-soft);
+
+  line-height: 1.6;
+
+  flex: 1;
+}
+
+
+/* ============================================================
+   TAG
+   ============================================================ */
+
+.community-page .tag {
+  display: inline-block;
+
+  background: var(--green-light);
+
+  color: var(--green-dark);
+
+  font-size: 11px;
+
+  font-weight: 600;
+
+  padding: 4px 10px;
+
+  border-radius: 20px;
+
+  letter-spacing: 0.02em;
+}
+
+
+/* ============================================================
+   DISTANCE BADGE
+   ============================================================ */
+
+.community-page .dist-badge {
+  display: none;
+
+  align-items: center;
+
+  gap: 5px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: var(--green);
+
+  background: var(--green-light);
+
+  padding: 4px 10px;
+
+  border-radius: 20px;
+
+  width: fit-content;
+}
+
+.community-page .dist-badge.visible {
+  display: flex;
+}
+
+.community-page .dist-badge .dot {
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: var(--green);
+}
+
+
+/* ============================================================
+   CARD ACTIONS
+   ============================================================ */
+
+.community-page .card-actions {
+  display: flex;
+
+  gap: 8px;
+
+  flex-wrap: wrap;
+
+  margin-top: 4px;
+}
+
+.community-page .view-map-btn {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  padding: 8px 16px;
+
+  background: var(--green);
+
+  color: white;
+
+  border: none;
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  flex: 1;
+
+  transition:
+    background 0.18s,
+    transform 0.15s;
+}
+
+.community-page .view-map-btn:hover {
+  background: var(--green-dark);
+
+  transform: translateY(-1px);
+}
+
+
+/* ============================================================
+   ROUTE BUTTON
+   ============================================================ */
+
+.community-page .route-btn {
+  display: none;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  padding: 8px 16px;
+
+  background: white;
+
+  color: var(--green);
+
+  border: 2px solid var(--green);
+
+  border-radius: 20px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  flex: 1;
+
+  transition: all 0.18s;
+}
+
+.community-page .route-btn.visible {
+  display: inline-flex;
+}
+
+.community-page .route-btn:hover {
+  background: var(--green-light);
+}
+
+.community-page .route-btn.loading {
+  opacity: 0.6;
+
+  pointer-events: none;
+}
+
+
+/* ============================================================
+   IMAGE MODAL
+   ============================================================ */
+
+.community-page .image-modal {
+  display: none;
+
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 9998;
+
+  background: rgba(0, 0, 0, 0.85);
+
+  justify-content: center;
+  align-items: center;
+}
+
+.community-page .image-modal.active {
+  display: flex;
+}
+
+.community-page .image-modal img,
+.community-page .modal-content {
+  max-width: 90vw;
+
+  max-height: 85vh;
+
+  border-radius: 10px;
+
+  animation: community-zoom-in 0.3s ease;
+}
+
+.community-page .image-modal .close,
+.community-page .close {
+  position: absolute;
+
+  top: 20px;
+  right: 26px;
+
+  color: white;
+
+  font-size: 32px;
+
+  cursor: pointer;
+
+  line-height: 1;
+
+  opacity: 0.8;
+}
+
+.community-page .image-modal .close:hover,
+.community-page .close:hover {
+  opacity: 1;
+}
+
+@keyframes community-zoom-in {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+
+/* ============================================================
+   MAP PANEL
+   ============================================================ */
+
+.community-page #map-panel {
+  display: none;
+
+  position: fixed;
+
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  height: 400px;
+
+  background: white;
+
+  border-top: 3px solid var(--green);
+
+  box-shadow:
+    0 -8px 30px rgba(0, 0, 0, 0.18);
+
+  z-index: 9000;
+
+  flex-direction: column;
+}
+
+.community-page #map-panel.active {
+  display: flex;
+}
+
+.community-page #map-panel-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 10px 18px;
+
+  background: var(--green);
+
+  color: white;
+
+  flex-shrink: 0;
+}
+
+.community-page #map-panel-title {
+  font-size: 14px;
+
+  font-weight: 700;
+}
+
+.community-page #map-panel-subtitle {
+  font-size: 11px;
+
+  opacity: 0.8;
+
+  margin-top: 1px;
+}
+
+.community-page #map-panel-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+}
+
+.community-page #map-directions-link {
+  display: none;
+
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 5px 13px;
+
+  background: rgba(255, 255, 255, 0.2);
+
+  color: white;
+
+  border-radius: 16px;
+
+  text-decoration: none;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.community-page #map-directions-link.visible {
+  display: flex;
+}
+
+.community-page #map-directions-link:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.community-page #map-panel-close {
+  background: none;
+
+  border: none;
+
+  color: white;
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  line-height: 1;
+
+  padding: 0 4px;
+}
+
+.community-page #map-panel-close:hover {
+  opacity: 0.75;
+}
+
+.community-page #community-map {
+  flex: 1;
+
+  width: 100%;
+}
+
+
+/* ============================================================
+   ROUTE INFO BAR
+   ============================================================ */
+
+.community-page #route-info {
+  display: none;
+
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 8px 18px;
+
+  background: var(--green-light);
+
+  border-top: 1px solid var(--border);
+
+  font-size: 13px;
+
+  color: var(--green-dark);
+
+  font-weight: 500;
+
+  flex-shrink: 0;
+}
+
+.community-page #route-info.visible {
+  display: flex;
+}
+
+.community-page #route-info span {
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+}
+
+.community-page #map-panel-spacer {
+  transition: height 0.3s;
+}
+
+.community-page #map-panel-spacer.active {
+  height: 403px;
+}
+
+
+/* ============================================================
+   MAP POPUPS
+   ============================================================ */
+
+.community-page .community-popup {
+  font-family: "Poppins", sans-serif;
+}
+
+.community-page .community-popup h4 {
+  color: var(--green-dark);
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  margin-bottom: 4px;
+}
+
+.community-page .community-popup .popup-tag {
+  font-size: 11px;
+
+  color: var(--green-mid);
+
+  font-weight: 600;
+
+  margin-bottom: 6px;
+}
+
+.community-page .community-popup p {
+  font-size: 12px;
+
+  color: #555;
+
+  margin-bottom: 8px;
+
+  line-height: 1.5;
+}
+
+.community-page .community-popup a {
+  display: inline-block;
+
+  padding: 6px 14px;
+
+  background: var(--green);
+
+  color: white;
+
+  border-radius: 12px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  text-decoration: none;
+}
+
+.community-page .community-popup a:hover {
+  background: var(--green-dark);
+}
+
+.community-page .user-popup h4 {
+  color: #1d4ed8;
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  margin-bottom: 2px;
+}
+
+.community-page .user-popup p {
+  font-size: 12px;
+
+  color: #555;
+}
+
+
+/* ============================================================
+   USER LOCATION DOT
+   ============================================================ */
+
+.community-page .user-dot-wrapper {
+  position: relative;
+
+  width: 22px;
+  height: 22px;
+}
+
+.community-page .user-dot-ring {
+  position: absolute;
+
+  inset: 0;
+
+  border-radius: 50%;
+
+  border: 2px solid #3b82f6;
+
+  animation:
+    community-ring-pulse 2s ease-out infinite;
+}
+
+.community-page .user-dot-inner {
+  position: absolute;
+
+  inset: 4px;
+
+  background: #3b82f6;
+
+  border-radius: 50%;
+
+  border: 2px solid white;
+}
+
+@keyframes community-ring-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+
+.community-page #empty-state {
+  display: none;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  padding: 60px 24px;
+
+  text-align: center;
+
+  grid-column: 1 / -1;
+}
+
+.community-page #empty-state svg {
+  margin-bottom: 16px;
+
+  opacity: 0.3;
+}
+
+.community-page #empty-state h3 {
+  font-size: 16px;
+
+  color: var(--text-soft);
+
+  margin-bottom: 6px;
+}
+
+.community-page #empty-state p {
+  font-size: 13px;
+
+  color: var(--text-muted);
+}
+
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+
+.community-page #toast {
+  position: fixed;
+
+  bottom: 24px;
+  left: 50%;
+
+  transform:
+    translateX(-50%)
+    translateY(60px);
+
+  background: #1a1a1a;
+
+  color: white;
+
+  padding: 12px 22px;
+
+  border-radius: 24px;
+
+  font-size: 13px;
+
+  font-weight: 500;
+
+  z-index: 99999;
+
+  opacity: 0;
+
+  transition: all 0.3s ease;
+
+  white-space: nowrap;
+
+  pointer-events: none;
+}
+
+.community-page #toast.show {
+  opacity: 1;
+
+  transform:
+    translateX(-50%)
+    translateY(0);
+}
+
+
+/* ============================================================
+   OLD COMMUNITY HEADER OVERRIDE
+   Prevents the previous blue design from appearing
+   ============================================================ */
+
+.community-header {
+  background:
+    linear-gradient(
+      135deg,
+      #2b6b45 0%,
+      #1f4d33 100%
+    );
+
+  color: #ffffff;
+
+  padding: 2.5rem 1.5rem;
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.community-card {
+  background-color: #ffffff;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.community-card:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .community-page .card {
+    flex-direction: column;
+
+    text-align: center;
+  }
+
+  .community-page .card-image {
+    width: 100%;
+
+    height: 200px;
+  }
+
+  .community-page .card-content {
+    text-align: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .community-page .header {
+    padding: 10px 14px;
+  }
+
+  .community-page .logo {
+    font-size: 17px;
+  }
+
+  .community-page .hero h2 {
+    font-size: 20px;
+  }
+
+  .community-page .container {
+    grid-template-columns: 1fr;
+
+    padding: 14px;
+  }
+
+  .community-page .toolbar {
+    padding: 12px 14px;
+  }
+
+  .community-page #map-panel {
+    height: 340px;
+  }
+
+  .community-page #map-panel-spacer.active {
+    height: 343px;
+  }
 }
 
 /* ============================================================
