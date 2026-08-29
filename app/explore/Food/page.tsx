@@ -514,7 +514,6 @@ export default function FoodDiningPage() {
     <main className="food-dining-page">
       <header className="food-header">
         <div className="food-header-left">
-        import Link from "next/link";
          <Link href="/" className="back-btn">
             ← Home
         </Link>
