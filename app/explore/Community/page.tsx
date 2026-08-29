@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
-
+import Link from "next/link";
 
 export default function CommunityPage() {
   const [mounted, setMounted] = useState(false);
@@ -41,7 +41,9 @@ export default function CommunityPage() {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-          <a href="/HomePage.html" className="back-btn">← Home</a>
+        <Link href="/" className="back-btn">
+      ← Home
+      </Link>
           <h1 className="logo">Community</h1>
         </div>
         <div className="search-wrap">
