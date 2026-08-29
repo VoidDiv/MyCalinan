@@ -1,8 +1,19 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import Link from "next/link";
+
+// ----------------------------------------------------------------------
+// Leaflet is loaded dynamically (client-only) below — never imported
+// statically, since evaluating the leaflet module touches `window` and
+// crashes Next.js's server-side prerendering step even in a "use client"
+// component. All Leaflet types here are TYPE-ONLY imports, which are
+// erased at compile time and never trigger a runtime import.
+// ----------------------------------------------------------------------
+type LeafletModule = typeof import('leaflet');
+type LMap = import('leaflet').Map;
+type LMarker = import('leaflet').Marker;
+type LPolyline = import('leaflet').Polyline;
+
 // ----------------------------------------------------------------------
 // Types & Interfaces
 // ----------------------------------------------------------------------
@@ -428,12 +439,16 @@ export const ShoppingStorePage: React.FC = () => {
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingStoreId, setRoutingStoreId] = useState<string | null>(null);
 
+  // --- Leaflet: loaded dynamically, client-side only ---
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const leafletRef = useRef<LeafletModule | null>(null);
+
   // Refs for Leaflet mapping
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const userMarkerRef = useRef<L.Marker | null>(null);
-  const activeMarkerRef = useRef<L.Marker | null>(null);
-  const routeLayerRef = useRef<L.Polyline | null>(null);
+  const mapInstanceRef = useRef<LMap | null>(null);
+  const userMarkerRef = useRef<LMarker | null>(null);
+  const activeMarkerRef = useRef<LMarker | null>(null);
+  const routeLayerRef = useRef<LPolyline | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
   const showToast = useCallback((msg: string, duration = 3000) => {
@@ -441,6 +456,19 @@ export const ShoppingStorePage: React.FC = () => {
     setTimeout(() => {
       setToastMessage(null);
     }, duration);
+  }, []);
+
+  // --- Load Leaflet dynamically once, client-side only ---
+  useEffect(() => {
+    let mounted = true;
+    import('leaflet').then((mod) => {
+      if (!mounted) return;
+      leafletRef.current = mod;
+      setLeafletLoaded(true);
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Location request handler
@@ -492,7 +520,8 @@ export const ShoppingStorePage: React.FC = () => {
 
   // Map Initialization
   useEffect(() => {
-    if (isMapPanelOpen && mapContainerRef.current && !mapInstanceRef.current) {
+    const L = leafletRef.current;
+    if (isMapPanelOpen && mapContainerRef.current && !mapInstanceRef.current && L) {
       const map = L.map(mapContainerRef.current, { zoomControl: true }).setView(
         [7.189, 125.454],
         14
@@ -505,12 +534,13 @@ export const ShoppingStorePage: React.FC = () => {
 
       mapInstanceRef.current = map;
     }
-  }, [isMapPanelOpen]);
+  }, [isMapPanelOpen, leafletLoaded]);
 
   // Sync user location marker
   useEffect(() => {
+    const L = leafletRef.current;
     const map = mapInstanceRef.current;
-    if (!map || !userLoc) return;
+    if (!map || !userLoc || !L) return;
 
     if (userMarkerRef.current) map.removeLayer(userMarkerRef.current);
 
@@ -529,10 +559,16 @@ export const ShoppingStorePage: React.FC = () => {
     userMarkerRef.current = L.marker([userLoc.lat, userLoc.lng], { icon: userIcon })
       .addTo(map)
       .bindPopup('<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>');
-  }, [userLoc, isMapPanelOpen]);
+  }, [userLoc, isMapPanelOpen, leafletLoaded]);
 
   // Map View Pin
   const handleShowOnMap = (item: StoreItem) => {
+    const L = leafletRef.current;
+    if (!L) {
+      showToast('Map is still loading — try again in a moment.');
+      return;
+    }
+
     setSelectedStore(item);
     setIsMapPanelOpen(true);
     setRouteInfo(null);
@@ -587,6 +623,12 @@ export const ShoppingStorePage: React.FC = () => {
 
   // Route calculation using OSRM
   const handleGetDirections = async (item: StoreItem) => {
+    const L = leafletRef.current;
+    if (!L) {
+      showToast('Map is still loading — try again in a moment.');
+      return;
+    }
+
     if (!userLoc) {
       showToast('📍 Enable location first to get directions.');
       return;
@@ -683,6 +725,9 @@ export const ShoppingStorePage: React.FC = () => {
 
   return (
     <div>
+      {/* Leaflet CSS via CDN — avoids bundler issues with importing .css from node_modules in this setup */}
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
@@ -881,4 +926,3 @@ export const ShoppingStorePage: React.FC = () => {
 };
 
 export default ShoppingStorePage;
-
