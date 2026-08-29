@@ -1,11 +1,10 @@
-
 "use client";
 
 
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Script from 'next/script';
-import Link from "next/link";
+
 
 export default function CommunityPage() {
   const [mounted, setMounted] = useState(false);
@@ -42,9 +41,7 @@ export default function CommunityPage() {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-         <Link href="/" className="back-btn">
-            ← Home
-        </Link>
+          <a href="/HomePage.html" className="back-btn">← Home</a>
           <h1 className="logo">Community</h1>
         </div>
         <div className="search-wrap">
