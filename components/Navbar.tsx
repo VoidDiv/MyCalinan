@@ -9,7 +9,7 @@ const EXPLORE_LINKS = [
   // app/explore/HealthCare/page.tsx -> served at /explore/HealthCare
   { label: "Health", href: "/explore/HealthCare" },
   { label: "Education", href: "/explore/Education" },
-  { label: "Transport & Utilities", href: "/explore/transport-utilities" },
+  { label: "Transport & Utilities", href: "/explore/Transportation" },
   { label: "Finance", href: "/explore/Finance" },
   { label: "Community", href: "/explore/Community" },
   { label: "Lifestyle", href: "/explore/Lifestyle" },

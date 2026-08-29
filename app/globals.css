@@ -2023,12 +2023,6 @@ body {
   color: white;
 }
 
-#health-map {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-
 #route-info {
   display: none;
   gap: 1.5rem;
@@ -3917,4 +3911,30 @@ body {
   .events-empty {
     padding: 45px 15px;
   }
+}
+
+
+/* ============================================================
+   transportation-page.css — TransportUtilitiesPage.tsx
+   Previously had its own scoped `.transport-page` theme (green
+   pill header/search, white "Locate Me" pill) mirrored from the
+   original static Transport & Utilities mockup. That's why it
+   looked inconsistent with Finance/Healthcare, which both use
+   the shared, unscoped "category-directory.css" template above
+   (canopy-800 header, durian-500 "Locate Me" pill, serif hero,
+   dashed sort button, etc.). Removed the standalone theme —
+   TransportUtilitiesPage.tsx now uses the exact same unscoped
+   classNames/ids as Healthcare and Finance (.header, #locate-btn,
+   .hero, .toolbar, .filter-chip, .sort-btn, .container, .card,
+   .view-map-btn, .route-btn, #map-panel, .place-popup, etc.) so
+   it inherits that look automatically with zero page-specific
+   CSS. The only addition needed: extend the shared map-container
+   selector to include Transportation's map id.
+   ============================================================ */
+
+#health-map,
+#transport-map {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
