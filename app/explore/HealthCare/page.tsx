@@ -25,7 +25,7 @@ import {
   type ChangeEvent,
 } from "react";
 import mapboxgl from "mapbox-gl";
-
+import Link from "next/link";
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";
@@ -675,9 +675,9 @@ export default function HealthcarePage() {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-          <a href="/" className="back-btn">
-            ← Home
-          </a>
+  <Link href="/" className="back-btn">
+     ← Home
+  </Link>
           <h1 className="logo">Healthcare</h1>
         </div>
         <div className="search-wrap">

@@ -4,31 +4,38 @@ import Link from "next/link";
 import { useState } from "react";
 
 const EXPLORE_LINKS = [
-  { label: "Health", href: "/explore/Healthcarepage" },
-  { label: "Education", href: "/explore/education" },
+  // ✅ href must be a URL path (what you'd type in the browser),
+  // NOT a file path in your project. This matches your folder at
+  // app/explore/HealthCare/page.tsx -> served at /explore/HealthCare
+  { label: "Health", href: "/explore/HealthCare" },
+  { label: "Education", href: "/explore/Education" },
   { label: "Transport & Utilities", href: "/explore/transport-utilities" },
-  { label: "Finance", href: "/explore/finance" },
-  { label: "Community", href: "/explore/community" },
-  { label: "Lifestyle", href: "/explore/lifestyle" },
-  { label: "Shopping & Stores", href: "/explore/shopping" },
-  { label: "Food & Dining", href: "/explore/food-dining" },
-  { label: "Hotspots", href: "/explore/hotspots" },
+  { label: "Finance", href: "/explore/Finance" },
+  { label: "Community", href: "/explore/Community" },
+  { label: "Lifestyle", href: "/explore/Lifestyle" },
+  { label: "Shopping & Stores", href: "/explore/Shopping" },
+  { label: "Food & Dining", href: "/explore/Food" },
+  { label: "Hotspots", href: "/explore/Hotspots" },
 ];
 
 const DOCUMENT_LINKS = [
-  { label: "Police Clearance", href: "/documents/police-clearance" },
-  { label: "Barangay Clearance", href: "/documents/barangay-clearance" },
-  { label: "Barangay Certification", href: "/documents/barangay-certification" },
-  { label: "Cedula", href: "/documents/cedula" },
-  { label: "Get Postal ID", href: "/documents/postal-id" },
+  { label: "Police Clearance", href: "/documents/PoliceClearance" },
+  { label: "Barangay Clearance", href: "/documents/BarangayClearance" },
+  { label: "Barangay Certification", href: "/documents/BarangayCertificate" },
+  { label: "Cedula", href: "/documents/Cedula" },
+  { label: "Get Postal ID", href: "/documents/Postal" },
 ];
 
 const DIRECT_LINKS = [
   { label: "Barangay Map", href: "/map" },
-  { label: "History", href: "/history" },
-  { label: "Hotlines", href: "/hotlines" },
-  { label: "Announcements", href: "/announcements" },
-  { label: "Events", href: "/events" },
+  // app/others/History/page.tsx -> served at /others/History.
+  // Must start with "/" — without it, Next.js's <Link> treats the
+  // href as relative to the CURRENT page instead of the site root,
+  // so it only worked by coincidence when clicked from "/".
+  { label: "History", href: "/others/History" },
+  { label: "Hotlines", href: "/others/Hotlines" },
+  { label: "Announcements", href: "/others/Announcements" },
+  { label: "Events", href: "/others/Events" },
 ];
 
 function NavDropdown({
