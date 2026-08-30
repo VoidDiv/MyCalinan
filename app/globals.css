@@ -2176,15 +2176,13 @@ body {
 /* ============================================================
    food-dining-page.css
    Styles for the Food & Dining directory page (FoodDiningPage.tsx)
-   These selectors match FoodDiningPage.tsx's actual classNames —
-   the previous stylesheet only had Healthcare-page selectors
-   (.card, .header, #locate-btn, etc.), so this page was rendering
-   completely unstyled.
    ============================================================ */
 
 .food-dining-page {
   padding-bottom: 3rem;
 }
+
+/* ---------- HEADER ---------- */
 
 .food-header {
   position: sticky;
@@ -2268,6 +2266,8 @@ body {
   opacity: 0.85;
 }
 
+/* ---------- HERO ---------- */
+
 .food-hero {
   text-align: center;
   padding: 2.5rem 1.5rem 1.5rem;
@@ -2288,24 +2288,28 @@ body {
   font-size: 0.95rem;
 }
 
-.location-success,
-.location-error {
+/* ---------- LOCATION STATUS ---------- */
+
+#location-status {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
   margin: 1rem auto 0;
   padding: 0.45rem 1rem;
   width: fit-content;
   background: white;
   border-radius: 999px;
   font-size: 0.8rem;
+  color: var(--ink-900);
   box-shadow: 0 1px 4px rgba(20, 43, 28, 0.1);
 }
 
-.location-success {
-  color: var(--canopy-700);
+#location-status.visible {
+  display: flex;
 }
 
-.location-error {
-  color: #c94b3f;
-}
+/* ---------- TOOLBAR ---------- */
 
 .food-toolbar {
   display: flex;
@@ -2372,6 +2376,8 @@ body {
   color: var(--ink-500);
 }
 
+/* ---------- CARD GRID ---------- */
+
 .food-card-grid {
   max-width: 1200px;
   margin: 0 auto;
@@ -2399,6 +2405,7 @@ body {
 .food-card-image {
   aspect-ratio: 16 / 10;
   overflow: hidden;
+  cursor: zoom-in;
   background: var(--canopy-100);
 }
 
@@ -2453,13 +2460,18 @@ body {
   font-weight: 600;
 }
 
+/* hidden until a real distance is known */
 .food-distance {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.78rem;
   color: var(--canopy-700);
   font-weight: 600;
+}
+
+.food-distance.visible {
+  display: flex;
 }
 
 .food-card-actions {
@@ -2489,6 +2501,14 @@ body {
   color: white;
 }
 
+.food-card-actions button.loading {
+  opacity: 0.7;
+  cursor: progress;
+  pointer-events: none;
+}
+
+/* ---------- EMPTY STATE ---------- */
+
 .food-empty-state {
   grid-column: 1 / -1;
   display: flex;
@@ -2513,6 +2533,241 @@ body {
   font-size: 0.9rem;
 }
 
+/* ---------- IMAGE MODAL ---------- */
+
+.image-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 43, 28, 0.85);
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.image-modal.active {
+  display: flex;
+}
+
+.image-modal img,
+.image-modal .modal-content {
+  max-width: min(90vw, 800px);
+  max-height: 85vh;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.image-modal .close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.75rem;
+  font-size: 2rem;
+  line-height: 1;
+  color: white;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.image-modal .close:hover {
+  opacity: 1;
+}
+
+/* ---------- MAP PANEL ---------- */
+
+.food-map-panel-spacer {
+  height: 0;
+  transition: height 0.25s ease;
+}
+
+.food-map-panel-spacer.active {
+  height: var(--map-panel-height, 420px);
+}
+
+.food-map-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  height: var(--map-panel-height, 420px);
+  background: white;
+  border-top: 3px solid var(--canopy-700);
+  box-shadow: 0 -8px 30px rgba(20, 43, 28, 0.18);
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.food-map-panel.active {
+  transform: translateY(0);
+}
+
+.food-map-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--canopy-100);
+}
+
+.food-map-panel-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--canopy-950);
+}
+
+.food-map-panel-subtitle {
+  font-size: 0.78rem;
+  color: var(--ink-500);
+  margin-top: 0.15rem;
+}
+
+.food-map-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.food-map-directions-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--canopy-700);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.food-map-directions-link:hover {
+  text-decoration: underline;
+}
+
+.food-map-panel-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--canopy-100);
+  color: var(--ink-900);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.food-map-panel-close:hover {
+  background: var(--canopy-400);
+  color: white;
+}
+
+.food-route-info {
+  display: none;
+  gap: 1.5rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--canopy-100);
+  font-size: 0.82rem;
+  color: var(--canopy-950);
+}
+
+.food-route-info.visible {
+  display: flex;
+}
+
+/* ---------- USER LOCATION DOT (food map) ---------- */
+
+.food-user-dot-wrapper {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+
+.food-user-dot-inner {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: #2b6bff;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.food-user-dot-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(43, 107, 255, 0.25);
+  animation: user-ring 1.8s ease-out infinite;
+}
+
+/* ---------- MAP POPUPS (food place + user) ---------- */
+
+.food-user-popup h4,
+.food-place-popup h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.9rem;
+  color: var(--canopy-950);
+}
+
+.food-user-popup p,
+.food-place-popup p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-500);
+}
+
+.food-popup-tag {
+  display: inline-block;
+  margin-bottom: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--canopy-100);
+  color: var(--canopy-800);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.food-place-popup a {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--canopy-700);
+  text-decoration: none;
+}
+
+.food-place-popup a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- TOAST ---------- */
+
+.food-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  z-index: 200;
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  pointer-events: none;
+  max-width: min(90vw, 420px);
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  background: var(--ink-900);
+  color: white;
+  font-size: 0.85rem;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.food-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- RESPONSIVE ---------- */
+
 @media (max-width: 720px) {
   .food-header {
     justify-content: center;
@@ -2535,7 +2790,6 @@ body {
     flex: 1 1 100%;
   }
 }
-
 /* ============================================================
    documents.css
    Styles for the government-document guide pages (Police
@@ -3934,7 +4188,15 @@ body {
 
 #health-map,
 #transport-map,
-#edu-map {
+#edu-map,
+#finance-map,
+#food-map,
+#transport-map,
+#community-map,
+#lifestyle-map,
+#shopping-map,
+#hotspot-map
+{
   flex: 1;
   min-height: 0;
   width: 100%;

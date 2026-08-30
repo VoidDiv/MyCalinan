@@ -3,7 +3,7 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, LineString } from "geojson";
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -13,9 +13,11 @@ import React, {
 } from "react";
 import Link from "next/link";
 
-const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
-mapboxgl.accessToken = token!;
+/* ══════════════════════════════════════════
+   TYPES
+══════════════════════════════════════════ */
 
 type Category =
   | "Restaurant"
@@ -48,6 +50,10 @@ interface RouteInfo {
   distance: string;
   time: string;
 }
+
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
 
 const foodPlaces: FoodPlace[] = [
   {
@@ -413,67 +419,69 @@ const categories: Array<"All" | Category> = [
   "Bar",
 ];
 
-/* ============================================================
+/* ══════════════════════════════════════════
    HELPERS
-   ============================================================ */
+══════════════════════════════════════════ */
 
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const earthRadius = 6371;
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function formatDistance(distance: number): string {
-  if (distance < 1) return `${Math.round(distance * 1000)} m away`;
-  return `${distance.toFixed(1)} km away`;
-}
-
-function formatDuration(mins: number): string {
-  return mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+function formatDistance(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 }
 
 function googleMapsSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
 
-/* ============================================================
+/* ══════════════════════════════════════════
    COMPONENT
-   ============================================================ */
+   Map lifecycle mirrors TransportUtilitiesPage: string-id
+   container, map torn down whenever the panel closes, route
+   drawn via OSRM, marker placement done inside a short
+   setTimeout after the panel opens/map mounts.
+══════════════════════════════════════════ */
 
 export default function FoodDiningPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<"All" | Category>("All");
+  const [sortNearest, setSortNearest] = useState(false);
 
-  // User location states (live tracking, matches Education/Shopping/Transport/Hotspot)
   const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locStatusText, setLocStatusText] = useState("Detecting your location…");
   const [isLocError, setIsLocError] = useState(false);
   const [hasLocationActive, setHasLocationActive] = useState(false);
-  const [sortNearest, setSortNearest] = useState(false);
 
   const [selectedPlace, setSelectedPlace] = useState<FoodPlace | null>(null);
   const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingId, setRoutingId] = useState<string | null>(null);
 
-  // Image modal state (was missing entirely — added for parity with the other pages)
   const [modalImage, setModalImage] = useState<string | null>(null);
-
   const [toast, setToast] = useState<string | null>(null);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const routeSourceAddedRef = useRef(false);
+  const mapLoadedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ---------- toast ---------- */
 
   const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
@@ -487,7 +495,7 @@ export default function FoodDiningPage() {
     };
   }, []);
 
-  /* ---------- image modal: ESC to close (added for parity) ---------- */
+  /* ---------- ESC closes image modal ---------- */
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -497,33 +505,7 @@ export default function FoodDiningPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  /* ---------- filtering / sorting ---------- */
-
-  const filteredPlaces = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    const result = foodPlaces.filter((place) => {
-      const matchesSearch =
-        !query ||
-        place.name.toLowerCase().includes(query) ||
-        place.category.toLowerCase().includes(query) ||
-        place.tag.toLowerCase().includes(query);
-      const matchesCategory = activeCategory === "All" || place.category === activeCategory;
-      return matchesSearch && matchesCategory;
-    });
-
-    if (sortNearest && userLoc) {
-      result.sort(
-        (a, b) =>
-          calculateDistance(userLoc.lat, userLoc.lng, a.lat, a.lng) -
-          calculateDistance(userLoc.lat, userLoc.lng, b.lat, b.lng)
-      );
-    }
-
-    return result;
-  }, [search, activeCategory, sortNearest, userLoc]);
-
-  /* ---------- locate me (live tracking, matches the other four pages) ---------- */
+  /* ---------- locate me (live tracking) ---------- */
 
   function startLocating() {
     if (!navigator.geolocation) {
@@ -550,14 +532,12 @@ export default function FoodDiningPage() {
         setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
       },
       (error) => {
-        let message = "Unable to get your location.";
-        if (error.code === error.PERMISSION_DENIED) {
-          message = "Location permission was denied. Please allow location access.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          message = "Your location is currently unavailable.";
-        } else if (error.code === error.TIMEOUT) {
-          message = "Location request timed out. Please try again.";
-        }
+        const errorMessages: Record<number, string> = {
+          1: "Location permission was denied. Please allow location access.",
+          2: "Your location is currently unavailable.",
+          3: "Location request timed out. Please try again.",
+        };
+        const message = errorMessages[error.code] || "Unable to get your location.";
         setIsLocating(false);
         setIsLocError(true);
         setLocStatusText(message);
@@ -575,10 +555,36 @@ export default function FoodDiningPage() {
     };
   }, []);
 
-  /* ---------- map lifecycle ---------- */
+  /* ---------- filtering / sorting ---------- */
+
+  const filteredPlaces = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    let result = foodPlaces.filter((place) => {
+      const matchesSearch =
+        !query ||
+        place.name.toLowerCase().includes(query) ||
+        place.category.toLowerCase().includes(query) ||
+        place.tag.toLowerCase().includes(query);
+      const matchesCategory = activeCategory === "All" || place.category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+
+    if (sortNearest && userLoc) {
+      result = [...result].sort(
+        (a, b) =>
+          haversineKm(userLoc.lat, userLoc.lng, a.lat, a.lng) -
+          haversineKm(userLoc.lat, userLoc.lng, b.lat, b.lng)
+      );
+    }
+
+    return result;
+  }, [search, activeCategory, sortNearest, userLoc]);
+
+  /* ---------- map init & lifetime (mirrors Transportation) ---------- */
 
   useEffect(() => {
-    if (!isMapPanelOpen || !selectedPlace) return;
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
       showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -586,40 +592,44 @@ export default function FoodDiningPage() {
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "food-map",
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [selectedPlace.lng, selectedPlace.lat],
-        zoom: 16,
+        center: [125.4535, 7.1885],
+        zoom: 15,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#c0392b", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
     } else {
-      mapRef.current.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 16 });
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    const map = mapRef.current;
+  // Tear down the map whenever the panel closes, same as Transportation
+  useEffect(() => {
+    if (!isMapPanelOpen && mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+      mapLoadedRef.current = false;
+      userMarkerRef.current = null;
+      activeMarkerRef.current = null;
+    }
+  }, [isMapPanelOpen]);
 
-    if (markerRef.current) markerRef.current.remove();
-
-    const popupHtml = `
-      <div class="food-place-popup">
-        <span class="food-popup-tag">${selectedPlace.tag}</span>
-        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-        <p>${selectedPlace.description}</p>
-        <a href="${googleMapsSearchUrl(selectedPlace.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      </div>
-    `;
-
-    markerRef.current = new mapboxgl.Marker({ color: "#c0392b" })
-      .setLngLat([selectedPlace.lng, selectedPlace.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-      .addTo(map);
-    markerRef.current.togglePopup();
-
-    setTimeout(() => map.resize(), 250);
-  }, [isMapPanelOpen, selectedPlace, showToast]);
-
-  // Sync user location marker independently, so it updates live as userLoc changes
+  // Sync user location marker independently of the selected place
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLoc) return;
@@ -629,6 +639,7 @@ export default function FoodDiningPage() {
     const el = document.createElement("div");
     el.className = "food-user-dot-wrapper";
     el.innerHTML = '<div class="food-user-dot-ring"></div><div class="food-user-dot-inner"></div>';
+
     userMarkerRef.current = new mapboxgl.Marker({ element: el })
       .setLngLat([userLoc.lng, userLoc.lat])
       .setPopup(
@@ -639,20 +650,45 @@ export default function FoodDiningPage() {
       .addTo(map);
   }, [userLoc, isMapPanelOpen]);
 
-  useEffect(() => {
-    if (!isMapPanelOpen && mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-      markerRef.current = null;
-      userMarkerRef.current = null;
-      routeSourceAddedRef.current = false;
-    }
-  }, [isMapPanelOpen]);
-
   function showOnMap(place: FoodPlace) {
     setSelectedPlace(place);
-    setRouteInfo(null);
     setIsMapPanelOpen(true);
+    setRouteInfo(null);
+
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
+      };
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
+
+      const popupHtml = `
+        <div class="food-place-popup">
+          <span class="food-popup-tag">${place.tag}</span>
+          <h4>${place.pin} ${place.name}</h4>
+          <p>${place.description}</p>
+          <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        </div>
+      `;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ color: "#c0392b" })
+        .setLngLat([place.lng, place.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [place.lng, place.lat], zoom: 16, duration: 1000 });
+      map.resize();
+    }, 100);
   }
 
   function closeMap() {
@@ -661,74 +697,62 @@ export default function FoodDiningPage() {
     setRouteInfo(null);
   }
 
-  const waitForMap = useCallback((): Promise<mapboxgl.Map | null> => {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      const check = () => {
-        if (mapRef.current) {
-          resolve(mapRef.current);
-        } else if (Date.now() - start > 2000) {
-          resolve(null);
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-      check();
-    });
-  }, []);
+  /* ---------- directions / route (OSRM, draws the actual road path) ---------- */
 
   async function getRoute(place: FoodPlace) {
     if (!userLoc) {
       showToast("📍 Enable location first to get directions.");
       return;
     }
-    setSelectedPlace(place);
-    setIsMapPanelOpen(true);
+
     setRoutingId(place.id);
-    setRouteInfo(null);
+    showOnMap(place);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`;
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`
-      );
+      const res = await fetch(url);
       const data = await res.json();
       const route = data?.routes?.[0];
-      if (route) {
-        const km = route.distance / 1000;
-        const mins = Math.round(route.duration / 60);
 
-        const map = await waitForMap();
-        if (map) {
-          if (routeSourceAddedRef.current && map.getSource("route")) {
-            (map.getSource("route") as mapboxgl.GeoJSONSource).setData(route.geometry);
-          } else {
-            map.addSource("route", { type: "geojson", data: route.geometry });
-            map.addLayer({
-              id: "route-line",
-              type: "line",
-              source: "route",
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: { "line-color": "#c0392b", "line-width": 5, "line-opacity": 0.85 },
-            });
-            routeSourceAddedRef.current = true;
-          }
-          const coords: [number, number][] = route.geometry.coordinates;
-          const bounds = coords.reduce(
-            (b, c) => b.extend(c as [number, number]),
-            new mapboxgl.LngLatBounds(coords[0], coords[0])
-          );
-          map.fitBounds(bounds, { padding: 40 });
-        }
-
-        const distText = formatDistance(km);
-        const timeText = formatDuration(mins);
-        setRouteInfo({ distance: distText, time: timeText });
-        showToast(`🧭 Route to ${place.name}: ${distText} · ${timeText}`);
-      } else {
+      if (!route) {
         showToast("⚠️ Couldn't calculate a route.");
+        return;
       }
+
+      const coordinates: [number, number][] = route.geometry.coordinates;
+      const km = route.distance / 1000;
+      const mins = Math.round(route.duration / 60);
+      const timeLabel = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
+
+        const bounds = coordinates.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
+      }
+
+      setRouteInfo({ distance: formatDistance(km), time: timeLabel });
+      showToast(`🧭 Route to ${place.name}: ${formatDistance(km)} · ${timeLabel}`);
     } catch {
-      showToast("⚠️ Couldn't reach the routing service.");
+      showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
       setRoutingId(null);
     }
@@ -743,7 +767,6 @@ export default function FoodDiningPage() {
           <Link href="/" className="back-btn">
             ← Home
           </Link>
-
           <h1>Food &amp; Dining</h1>
         </div>
 
@@ -760,13 +783,13 @@ export default function FoodDiningPage() {
             />
           </div>
 
-          <button type="button" onClick={startLocating} disabled={isLocating}>
+          <button type="button" className={isLocating ? "loading" : ""} onClick={startLocating} disabled={isLocating}>
             {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
           </button>
         </div>
       </header>
 
-      {/* IMAGE MODAL (added — was missing entirely) */}
+      {/* IMAGE MODAL */}
       <div
         className={`image-modal ${modalImage ? "active" : ""}`}
         onClick={(e) => {
@@ -781,7 +804,6 @@ export default function FoodDiningPage() {
 
       <section className="food-hero">
         <h2>Savor the Flavors of Calinan</h2>
-
         <p>Discover restaurants, eateries, cafés, bakeshops, and other food places around the Calinan area.</p>
 
         <div id="location-status" className={hasLocationActive ? "visible" : ""}>
@@ -826,17 +848,12 @@ export default function FoodDiningPage() {
       ) : (
         <section className="food-card-grid">
           {filteredPlaces.map((place) => {
-            const distance = userLoc
-              ? calculateDistance(userLoc.lat, userLoc.lng, place.lat, place.lng)
-              : null;
+            const distance = userLoc ? haversineKm(userLoc.lat, userLoc.lng, place.lat, place.lng) : null;
 
             return (
               <article className="food-card" key={place.id}>
                 {place.image ? (
-                  <div
-                    className="food-card-image"
-                    onClick={() => setModalImage(place.image!)}
-                  >
+                  <div className="food-card-image" onClick={() => setModalImage(place.image!)}>
                     <img
                       src={place.image}
                       alt={place.name}
@@ -851,18 +868,17 @@ export default function FoodDiningPage() {
 
                 <div className="food-card-content">
                   <h3>{place.name}</h3>
-
                   <p>{place.description}</p>
-
                   <span className="food-tag">{place.tag}</span>
 
-                  {distance !== null && <div className="food-distance">📍 {formatDistance(distance)}</div>}
+                  <div className={`food-distance${distance !== null ? " visible" : ""}`}>
+                    📍 {distance !== null ? formatDistance(distance) + " away" : ""}
+                  </div>
 
                   <div className="food-card-actions">
                     <button type="button" onClick={() => showOnMap(place)}>
                       📍 View on Map
                     </button>
-
                     <button type="button" onClick={() => getRoute(place)}>
                       {routingId === place.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                     </button>
