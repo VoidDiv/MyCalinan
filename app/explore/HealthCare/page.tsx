@@ -14,6 +14,15 @@
  *   that into your global stylesheet. This component only relies on
  *   matching class/id names, plus a couple of small additions for the
  *   Mapbox marker elements (see bottom of the CSS notes below).
+ *
+ * FIX: `clearRouteLayer` was previously defined but never called. That
+ * meant clicking "View on Map" on a different clinic while the panel was
+ * already open with a route drawn to a *previous* clinic left the old
+ * route line on the map, pointing at the wrong destination — only
+ * `getRoute` ever overwrote the line's data, and switching clinics via
+ * "View on Map" doesn't call `getRoute`. `showOnMap` now clears the route
+ * layer whenever a new clinic is selected, so an old route never lingers
+ * unless the person explicitly asks for directions to the new one.
  */
 
 import {
@@ -580,18 +589,28 @@ export default function HealthcarePage() {
   }, [selectedClinic, userLocation, mapPanelOpen]);
 
   /* ── ACTIONS ── */
-  const showOnMap = useCallback((clinic: Clinic) => {
-    setSelectedClinic(clinic);
-    setRouteInfo(null);
-    setMapPanelOpen(true);
-  }, []);
 
+  // Resets the route line back to empty. Declared before showOnMap so
+  // showOnMap can call it when switching to a new clinic (see FIX note
+  // at the top of the file).
   const clearRouteLayer = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
     const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     source?.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } });
   }, []);
+
+  const showOnMap = useCallback(
+    (clinic: Clinic) => {
+      setSelectedClinic(clinic);
+      setRouteInfo(null);
+      // FIX: clear any route drawn for a previously-selected clinic so it
+      // doesn't linger on the map pointing at the wrong destination.
+      clearRouteLayer();
+      setMapPanelOpen(true);
+    },
+    [clearRouteLayer]
+  );
 
   const closeMap = useCallback(() => {
     setMapPanelOpen(false);
@@ -675,9 +694,9 @@ export default function HealthcarePage() {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-  <Link href="/" className="back-btn">
-     ← Home
-  </Link>
+          <Link href="/" className="back-btn">
+            ← Home
+          </Link>
           <h1 className="logo">Healthcare</h1>
         </div>
         <div className="search-wrap">

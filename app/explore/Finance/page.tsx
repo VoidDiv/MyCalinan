@@ -1,18 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-// import './style/Finance.css'; // Ensure your CSS file is imported here
-
-// Declare Leaflet global variable for TypeScript
-declare const L: any;
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
+
 // ----------------------------------------------------------------------
 // Types & Data Structure
 // ----------------------------------------------------------------------
 export interface FinanceLocation {
   id: string;
   name: string;
-  category: 'Bank' | 'Remittance';
+  category: "Bank" | "Remittance";
   lat: number;
   lng: number;
   tag: string;
@@ -20,130 +19,141 @@ export interface FinanceLocation {
   mapsQuery: string;
   image: string;
   description: string;
-  mapsUrl: string;
 }
 
 const FINANCE_LOCATIONS: FinanceLocation[] = [
   {
-    id: 'bdo-calinan',
-    name: 'BDO Calinan',
-    category: 'Bank',
+    id: "bdo-calinan",
+    name: "BDO Calinan",
+    category: "Bank",
     lat: 7.1876,
     lng: 125.4524,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'BDO+Calinan+WTKC+Realty+Bldg+Davao+Bukidnon+National+Highway+Calinan+Davao+City+Davao+del+Sur',
-    image: 'image/BDO.png',
-    description: 'WTKC Realty Bldg., Davao–Bukidnon National Highway, Calinan — Branch of Banco de Oro Unibank, one of the largest banks in the Philippines, serving retail and commercial banking needs in the Calinan district.',
-    mapsUrl: 'https://maps.google.com/?q=BDO+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "BDO+Calinan+WTKC+Realty+Bldg+Davao+Bukidnon+National+Highway+Calinan+Davao+City+Davao+del+Sur",
+    image: "image/BDO.png",
+    description:
+      "WTKC Realty Bldg., Davao–Bukidnon National Highway, Calinan — Branch of Banco de Oro Unibank, one of the largest banks in the Philippines, serving retail and commercial banking needs in the Calinan district.",
   },
   {
-    id: 'bdo-network-bank',
-    name: 'BDO Network Bank',
-    category: 'Bank',
-    lat: 7.1850,
+    id: "bdo-network-bank",
+    name: "BDO Network Bank",
+    category: "Bank",
+    lat: 7.185,
     lng: 125.4498,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'BDO+Network+Bank+ONB+Calinan+Building+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur',
-    image: 'image/BDO Network Bank.jpg',
-    description: 'ONB Calinan Building, Davao–Buda National Hwy — Formerly One Network Bank (ONB), serving farmers, employees, small businesses, and residents with savings, loans, ATM access, and money transfers.',
-    mapsUrl: 'https://maps.google.com/?q=BDO+Network+Bank+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "BDO+Network+Bank+ONB+Calinan+Building+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
+    image: "image/BDO Network Bank.jpg",
+    description:
+      "ONB Calinan Building, Davao–Buda National Hwy — Formerly One Network Bank (ONB), serving farmers, employees, small businesses, and residents with savings, loans, ATM access, and money transfers.",
   },
   {
-    id: 'pnb',
-    name: 'PNB',
-    category: 'Bank',
+    id: "pnb",
+    name: "PNB",
+    category: "Bank",
     lat: 7.1882,
     lng: 125.4548,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'PNB+Davao+Calinan+LTH+Building+Davao+Bukidnon+Hwy+Calinan+Davao+City+Davao+del+Sur',
-    image: 'image/PNB.png',
-    description: 'LTH Building, Davao–Bukidnon Hwy, Calinan — Full-service branch of the Philippine National Bank providing a range of banking and financial services to residents and businesses along the highway corridor.',
-    mapsUrl: 'https://maps.google.com/?q=PNB+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "PNB+Davao+Calinan+LTH+Building+Davao+Bukidnon+Hwy+Calinan+Davao+City+Davao+del+Sur",
+    image: "image/PNB.png",
+    description:
+      "LTH Building, Davao–Bukidnon Hwy, Calinan — Full-service branch of the Philippine National Bank providing a range of banking and financial services to residents and businesses along the highway corridor.",
   },
   {
-    id: 'chinabank',
-    name: 'ChinaBank',
-    category: 'Bank',
+    id: "chinabank",
+    name: "ChinaBank",
+    category: "Bank",
     lat: 7.1888,
     lng: 125.4552,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'China+Bank+Honesto+Garcia+St+Calinan+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur',
-    image: 'image/ChinaBank1.png',
-    description: "Honesto Garcia St., Calinan District — Branch of China Banking Corporation, one of the Philippines' oldest private universal banks, serving individuals, businesses, and agricultural clients in the area.",
-    mapsUrl: 'https://maps.google.com/?q=ChinaBank+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "China+Bank+Honesto+Garcia+St+Calinan+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
+    image: "image/ChinaBank1.png",
+    description:
+      "Honesto Garcia St., Calinan District — Branch of China Banking Corporation, one of the Philippines' oldest private universal banks, serving individuals, businesses, and agricultural clients in the area.",
   },
   {
-    id: 'landbank-1',
-    name: 'Landbank',
-    category: 'Bank',
+    id: "landbank-1",
+    name: "Landbank",
+    category: "Bank",
     lat: 7.1878,
     lng: 125.4546,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur',
-    image: 'image/Landbank1.png',
-    description: 'Purok 13, Palarca Street, Calinan Poblacion — Government bank branch offering savings accounts, ATM, loans, fund transfers, and government-related transactions for residents, farmers, and pensioners.',
-    mapsUrl: 'https://maps.google.com/?q=Landbank+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur",
+    image: "image/Landbank1.png",
+    description:
+      "Purok 13, Palarca Street, Calinan Poblacion — Government bank branch offering savings accounts, ATM, loans, fund transfers, and government-related transactions for residents, farmers, and pensioners.",
   },
   {
-    id: 'landbank-2',
-    name: 'Landbank',
-    category: 'Bank',
+    id: "landbank-2",
+    name: "Landbank",
+    category: "Bank",
     lat: 7.1879,
     lng: 125.4547,
-    tag: 'Bank',
-    pin: '🏦',
-    mapsQuery: 'Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur',
-    image: 'image/Landbank2.jpg',
-    description: 'Purok 13, Palarca Street, Calinan Poblacion — Convenient financial access for the Calinan community without traveling to downtown Davao, with full banking services and government transaction support.',
-    mapsUrl: 'https://maps.google.com/?q=Landbank+Calinan'
+    tag: "Bank",
+    pin: "🏦",
+    mapsQuery:
+      "Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur",
+    image: "image/Landbank2.jpg",
+    description:
+      "Purok 13, Palarca Street, Calinan Poblacion — Convenient financial access for the Calinan community without traveling to downtown Davao, with full banking services and government transaction support.",
   },
   {
-    id: 'm-lhuillier',
-    name: 'M Lhuillier',
-    category: 'Remittance',
-    lat: 7.1870,
+    id: "m-lhuillier",
+    name: "M Lhuillier",
+    category: "Remittance",
+    lat: 7.187,
     lng: 125.4512,
-    tag: 'Remittance Center',
-    pin: '💸',
-    mapsQuery: 'M+Lhuillier+Calinan+Davao+Bukidnon+Hwy+Calinan+District+Davao+City+Davao+del+Sur',
-    image: 'image/M Lhuillier.jpg',
-    description: 'Davao–Bukidnon Highway, Calinan — Branch of M Lhuillier Financial Services providing quick-access pawning, money remittance, and financial solutions for the local community.',
-    mapsUrl: 'https://maps.google.com/?q=M+Lhuillier+Calinan'
+    tag: "Remittance Center",
+    pin: "💸",
+    mapsQuery:
+      "M+Lhuillier+Calinan+Davao+Bukidnon+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
+    image: "image/M Lhuillier.jpg",
+    description:
+      "Davao–Bukidnon Highway, Calinan — Branch of M Lhuillier Financial Services providing quick-access pawning, money remittance, and financial solutions for the local community.",
   },
   {
-    id: 'palawan-1',
-    name: 'Palawan Pawnshop',
-    category: 'Remittance',
+    id: "palawan-1",
+    name: "Palawan Pawnshop",
+    category: "Remittance",
     lat: 7.1886,
-    lng: 125.4560,
-    tag: 'Remittance Center',
-    pin: '💸',
-    mapsQuery: 'Palawan+Pawnshop+Villafuerte+St+Calinan+District+Davao+City+Davao+del+Sur',
-    image: 'image/Palawan Pawnshop.png',
-    description: 'Villafuerte St., Calinan — Palawan Express branch providing pawnbroking, money remittance, and payment solutions for residents and businesses in the Calinan Poblacion area.',
-    mapsUrl: 'https://maps.google.com/?q=Palawan+Pawnshop+Villafuerte+Calinan'
+    lng: 125.456,
+    tag: "Remittance Center",
+    pin: "💸",
+    mapsQuery:
+      "Palawan+Pawnshop+Villafuerte+St+Calinan+District+Davao+City+Davao+del+Sur",
+    image: "image/Palawan Pawnshop.png",
+    description:
+      "Villafuerte St., Calinan — Palawan Express branch providing pawnbroking, money remittance, and payment solutions for residents and businesses in the Calinan Poblacion area.",
   },
   {
-    id: 'palawan-2',
-    name: 'Palawan Pawnshop',
-    category: 'Remittance',
+    id: "palawan-2",
+    name: "Palawan Pawnshop",
+    category: "Remittance",
     lat: 7.1865,
     lng: 125.4518,
-    tag: 'Remittance Center',
-    pin: '💸',
-    mapsQuery: 'Palawan+Pawnshop+Davao+Bukidnon+Hwy+Calinan+Calinan+District+Davao+City+Davao+del+Sur',
-    image: 'image/Palawan Pawnshop1.png',
-    description: 'Davao–Bukidnon Highway, Calinan — Accessible pawnbroking, money remittance, and payment services for residents and businesses along the main highway in Calinan District.',
-    mapsUrl: 'https://maps.google.com/?q=Palawan+Pawnshop+Highway+Calinan'
-  }
+    tag: "Remittance Center",
+    pin: "💸",
+    mapsQuery:
+      "Palawan+Pawnshop+Davao+Bukidnon+Hwy+Calinan+Calinan+District+Davao+City+Davao+del+Sur",
+    image: "image/Palawan Pawnshop1.png",
+    description:
+      "Davao–Bukidnon Highway, Calinan — Accessible pawnbroking, money remittance, and payment services for residents and businesses along the main highway in Calinan District.",
+  },
 ];
 
-// Helper: Haversine distance formula (in km)
+// ----------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -159,18 +169,32 @@ function formatDist(km: number): string {
   return `${km.toFixed(1)} km away`;
 }
 
+function googleMapsSearchUrl(query: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+}
+
+const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
+  1: "Location access denied. Please allow it in your browser settings.",
+  2: "Location unavailable. Check your GPS or network.",
+  3: "Location request timed out. Try again.",
+};
+
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
 export const FinancePage: React.FC = () => {
   // --- States ---
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'Bank' | 'Remittance'>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState<"all" | "Bank" | "Remittance">("all");
   const [sortByNearest, setSortByNearest] = useState(false);
 
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(
+    null
+  );
   const [isLocating, setIsLocating] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('Detecting your location…');
+  const [locationStatus, setLocationStatus] = useState("Detecting your location…");
   const [locationError, setLocationError] = useState(false);
 
   const [modalImage, setModalImage] = useState<string | null>(null);
@@ -183,51 +207,38 @@ export const FinancePage: React.FC = () => {
   const [loadingRouteId, setLoadingRouteId] = useState<string | null>(null);
 
   // --- Refs ---
-  const mapRef = useRef<any>(null);
-  const userMarkerRef = useRef<any>(null);
-  const activeMarkerRef = useRef<any>(null);
-  const routeLayerRef = useRef<any>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const routeSourceAddedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // --- Dynamically Load Leaflet Assets ---
   useEffect(() => {
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-    if (!document.getElementById('leaflet-js')) {
-      const script = document.createElement('script');
-      script.id = 'leaflet-js';
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      document.head.appendChild(script);
-    }
-
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
   // --- Toast Trigger ---
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
-  };
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMsg(null), 3000);
+  }, []);
 
-  // --- Geolocation ---
+  // --- Geolocation (continuous tracking via watchPosition) ---
   const startLocating = () => {
     if (!navigator.geolocation) {
-      showToast('⚠️ Geolocation is not supported by your browser.');
+      showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
     setIsLocating(true);
     setLocationError(false);
-    setLocationStatus('Detecting your location…');
+    setLocationStatus("Detecting your location…");
 
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -244,163 +255,196 @@ export const FinancePage: React.FC = () => {
         setIsLocating(false);
         setLocationError(false);
         setLocationStatus(`Location active · ±${coords.accuracy} m accuracy`);
-        updateUserMarkerOnMap(coords.lat, coords.lng);
       },
       (err) => {
         setIsLocating(false);
         setLocationError(true);
-        const msgs: Record<number, string> = {
-          1: 'Location access denied. Please allow it in your browser settings.',
-          2: 'Location unavailable. Check your GPS or network.',
-          3: 'Location request timed out. Try again.',
-        };
-        const errorMsg = msgs[err.code] || 'Could not get location.';
+        const errorMsg = GEOLOCATION_ERROR_MESSAGES[err.code] || "Could not get location.";
         setLocationStatus(errorMsg);
-        showToast('⚠️ ' + errorMsg);
+        showToast("⚠️ " + errorMsg);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   };
 
-  // --- Map Operations ---
-  const initMapIfNeeded = () => {
-    if (mapRef.current || typeof L === 'undefined') return;
-    mapRef.current = L.map(mapContainerRef.current, { zoomControl: true }).setView([7.1876, 125.453], 15);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-    }).addTo(mapRef.current);
+  // --- Map: init once the panel is opened ---
+  useEffect(() => {
+    if (!isMapActive) return;
 
-    if (userLocation) {
-      updateUserMarkerOnMap(userLocation.lat, userLocation.lng);
+    if (!mapboxgl.accessToken) {
+      showToast("⚠️ Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
+      return;
     }
-  };
 
-  const updateUserMarkerOnMap = (lat: number, lng: number) => {
-    if (!mapRef.current || typeof L === 'undefined') return;
-    if (userMarkerRef.current) mapRef.current.removeLayer(userMarkerRef.current);
+    if (!mapRef.current) {
+      mapRef.current = new mapboxgl.Map({
+        container: "finance-map",
+        style: "mapbox://styles/mapbox/streets-v12",
+        center: [125.453, 7.1876],
+        zoom: 15,
+      });
+      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    }
 
-    const icon = L.divIcon({
-      className: '',
-      html: `<div class="user-dot-wrapper">
-               <div class="user-dot-ring"></div>
-               <div class="user-dot-inner"></div>
-             </div>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
-      popupAnchor: [0, -14],
-    });
+    setTimeout(() => mapRef.current?.resize(), 100);
 
-    userMarkerRef.current = L.marker([lat, lng], { icon })
-      .addTo(mapRef.current)
-      .bindPopup('<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>');
-  };
+    return () => {
+      if (!isMapActive && mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        userMarkerRef.current = null;
+        activeMarkerRef.current = null;
+        routeSourceAddedRef.current = false;
+      }
+    };
+  }, [isMapActive, showToast]);
 
-  const showOnMap = (loc: FinanceLocation) => {
+  // --- Map: keep the user marker in sync ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLocation) return;
+
+    if (userMarkerRef.current) userMarkerRef.current.remove();
+
+    const el = document.createElement("div");
+    el.className = "user-dot-wrapper";
+    el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLocation.lng, userLocation.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLocation, isMapActive]);
+
+  // --- Map: place/refresh the active marker and fly to it ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !activeLocation) return;
+
+    if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+    const el = document.createElement("div");
+    el.innerHTML = `<div style="background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${activeLocation.pin}</span></div>`;
+    const iconEl = el.firstElementChild as HTMLElement;
+
+    const distText = userLocation
+      ? `<br><strong>${formatDist(
+          haversine(userLocation.lat, userLocation.lng, activeLocation.lat, activeLocation.lng)
+        )}</strong> straight-line from you`
+      : "";
+
+    activeMarkerRef.current = new mapboxgl.Marker({ element: iconEl, anchor: "bottom" })
+      .setLngLat([activeLocation.lng, activeLocation.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 24, maxWidth: "250px" }).setHTML(
+          `<div class="finance-popup">
+            <h4>${activeLocation.name}</h4>
+            <div class="popup-tag">${activeLocation.tag}</div>
+            <p>${distText}</p>
+            <a href="${googleMapsSearchUrl(activeLocation.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+          </div>`
+        )
+      )
+      .addTo(map);
+    activeMarkerRef.current.togglePopup();
+
+    map.flyTo({ center: [activeLocation.lng, activeLocation.lat], zoom: 17, duration: 1000 });
+    setTimeout(() => map.resize(), 320);
+
+    document.getElementById("map-panel")?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [activeLocation, userLocation, isMapActive]);
+
+  const showOnMap = useCallback((loc: FinanceLocation) => {
     setIsMapActive(true);
     setActiveLocation(loc);
     setRouteInfo(null);
+  }, []);
 
-    setTimeout(() => {
-      initMapIfNeeded();
-      if (!mapRef.current || typeof L === 'undefined') return;
+  const closeMap = useCallback(() => {
+    setIsMapActive(false);
+    setActiveLocation(null);
+    setRouteInfo(null);
+    const map = mapRef.current;
+    if (map && routeSourceAddedRef.current && map.getSource("route")) {
+      if (map.getLayer("route-line")) map.removeLayer("route-line");
+      map.removeSource("route");
+      routeSourceAddedRef.current = false;
+    }
+  }, []);
 
-      if (activeMarkerRef.current) mapRef.current.removeLayer(activeMarkerRef.current);
-      if (routeLayerRef.current) {
-        mapRef.current.removeLayer(routeLayerRef.current);
-        routeLayerRef.current = null;
-      }
+  // Waits (up to ~2s) for the Mapbox map instance to exist before
+  // returning, in case the route resolves before the panel/map mounts.
+  const waitForMap = useCallback((): Promise<mapboxgl.Map | null> => {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        if (mapRef.current) {
+          resolve(mapRef.current);
+        } else if (Date.now() - start > 2000) {
+          resolve(null);
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
+  }, []);
 
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="
-          background:#2b6b45; color:white; font-size:16px;
-          width:36px; height:36px; border-radius:50% 50% 50% 0;
-          transform:rotate(-45deg); display:flex; align-items:center; justify-content:center;
-          box-shadow:0 3px 10px rgba(0,0,0,0.3); border:2px solid white;">
-          <span style="transform:rotate(45deg)">${loc.pin}</span></div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -40],
-      });
-
-      const distText = userLocation
-        ? `<br><strong>${formatDist(haversine(userLocation.lat, userLocation.lng, loc.lat, loc.lng))}</strong> straight-line from you`
-        : '';
-
-      activeMarkerRef.current = L.marker([loc.lat, loc.lng], { icon })
-        .addTo(mapRef.current)
-        .bindPopup(
-          `<div class="finance-popup">
-            <h4>${loc.name}</h4>
-            <div class="popup-tag">${loc.tag}</div>
-            <p>${distText}</p>
-            <a href="https://maps.google.com/?q=${loc.mapsQuery}" target="_blank">🧭 Open in Google Maps</a>
-          </div>`,
-          { maxWidth: 250 }
-        )
-        .openPopup();
-
-      mapRef.current.flyTo([loc.lat, loc.lng], 17, { duration: 1.0 });
-      setTimeout(() => mapRef.current.invalidateSize(), 320);
-
-      document.getElementById('map-panel')?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 50);
-  };
-
-  const getRoute = (loc: FinanceLocation) => {
+  const getRoute = async (loc: FinanceLocation) => {
     if (!userLocation) {
-      showToast('📍 Enable location first to get directions.');
+      showToast("📍 Enable location first to get directions.");
       return;
     }
 
     setLoadingRouteId(loc.id);
     showOnMap(loc);
 
-    const url = `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${loc.lng},${loc.lat}?overview=full&geometries=geojson`;
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${loc.lng},${loc.lat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-    fetch(url)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.routes || data.routes.length === 0) throw new Error('No route found');
+      if (!data.routes || data.routes.length === 0) throw new Error("No route found");
 
-        const route = data.routes[0];
-        const coords = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
-        const distKm = (route.distance / 1000).toFixed(1);
-        const mins = Math.round(route.duration / 60);
-        const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+      const route = data.routes[0];
+      const distKm = (route.distance / 1000).toFixed(1);
+      const mins = Math.round(route.duration / 60);
+      const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 
-        if (mapRef.current && typeof L !== 'undefined') {
-          if (routeLayerRef.current) mapRef.current.removeLayer(routeLayerRef.current);
-
-          routeLayerRef.current = L.polyline(coords, {
-            color: '#2b6b45',
-            weight: 5,
-            opacity: 0.85,
-            lineCap: 'round',
-            lineJoin: 'round',
-          }).addTo(mapRef.current);
-
-          mapRef.current.fitBounds(routeLayerRef.current.getBounds(), { padding: [40, 40] });
+      const map = await waitForMap();
+      if (map) {
+        if (routeSourceAddedRef.current && map.getSource("route")) {
+          (map.getSource("route") as mapboxgl.GeoJSONSource).setData(route.geometry);
+        } else {
+          map.addSource("route", { type: "geojson", data: route.geometry });
+          map.addLayer({
+            id: "route-line",
+            type: "line",
+            source: "route",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
+          });
+          routeSourceAddedRef.current = true;
         }
 
-        setRouteInfo({ dist: `${distKm} km`, time: timeStr });
-        showToast(`🧭 Route to ${loc.name}: ${distKm} km · ${timeStr}`);
-      })
-      .catch(() => {
-        showToast('⚠️ Could not load route. Check your internet connection.');
-      })
-      .finally(() => {
-        setLoadingRouteId(null);
-      });
-  };
+        const coords: [number, number][] = route.geometry.coordinates;
+        const bounds = coords.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coords[0], coords[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      }
 
-  const closeMap = () => {
-    setIsMapActive(false);
-    setRouteInfo(null);
-    if (routeLayerRef.current && mapRef.current) {
-      mapRef.current.removeLayer(routeLayerRef.current);
-      routeLayerRef.current = null;
+      setRouteInfo({ dist: `${distKm} km`, time: timeStr });
+      showToast(`🧭 Route to ${loc.name}: ${distKm} km · ${timeStr}`);
+    } catch {
+      showToast("⚠️ Could not load route. Check your internet connection.");
+    } finally {
+      setLoadingRouteId(null);
     }
   };
 
@@ -415,7 +459,7 @@ export const FinancePage: React.FC = () => {
         item.category.toLowerCase().includes(q) ||
         item.tag.toLowerCase().includes(q);
 
-      const matchFilter = activeFilter === 'all' || item.category.toLowerCase() === activeFilter.toLowerCase();
+      const matchFilter = activeFilter === "all" || item.category.toLowerCase() === activeFilter.toLowerCase();
 
       return matchSearch && matchFilter;
     });
@@ -436,9 +480,9 @@ export const FinancePage: React.FC = () => {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-         <Link href="/" className="back-btn">
+          <Link href="/" className="back-btn">
             ← Home
-        </Link>
+          </Link>
           <h1 className="logo">Finance</h1>
         </div>
         <div className="search-wrap">
@@ -455,23 +499,23 @@ export const FinancePage: React.FC = () => {
           </div>
           <button
             id="locate-btn"
-            className={isLocating ? 'loading' : ''}
+            className={isLocating ? "loading" : ""}
             onClick={startLocating}
             disabled={isLocating}
             title="Find my location"
           >
             <div className="spinner"></div>
-            <span className="btn-label">{userLocation ? '📍 Tracking' : '📍 Locate Me'}</span>
+            <span className="btn-label">{userLocation ? "📍 Tracking" : "📍 Locate Me"}</span>
           </button>
         </div>
       </header>
 
       {/* IMAGE MODAL */}
       <div
-        className={`image-modal ${modalImage ? 'active' : ''}`}
+        className={`image-modal ${modalImage ? "active" : ""}`}
         id="imageModal"
         onClick={(e) => {
-          if ((e.target as HTMLElement).id !== 'modalImg') setModalImage(null);
+          if ((e.target as HTMLElement).id !== "modalImg") setModalImage(null);
         }}
       >
         <span className="close" onClick={() => setModalImage(null)}>
@@ -483,9 +527,12 @@ export const FinancePage: React.FC = () => {
       {/* HERO */}
       <section className="hero">
         <h2>Finance Services in Calinan</h2>
-        <p>Find banks, remittance centers, and financial institutions near you. Enable location to see distances and get directions.</p>
-        <div className={`location-status ${userLocation || locationError ? 'visible' : ''}`}>
-          <div className={`loc-dot ${locationError ? 'loc-err' : ''}`} id="loc-dot"></div>
+        <p>
+          Find banks, remittance centers, and financial institutions near you. Enable location to see
+          distances and get directions.
+        </p>
+        <div className={`location-status ${userLocation || locationError ? "visible" : ""}`}>
+          <div className={`loc-dot ${locationError ? "loc-err" : ""}`} id="loc-dot"></div>
           <span id="loc-text">{locationStatus}</span>
         </div>
       </section>
@@ -494,37 +541,37 @@ export const FinancePage: React.FC = () => {
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
         <button
-          className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
-          onClick={() => setActiveFilter('all')}
+          className={`filter-chip ${activeFilter === "all" ? "active" : ""}`}
+          onClick={() => setActiveFilter("all")}
         >
           All
         </button>
         <button
-          className={`filter-chip ${activeFilter === 'Bank' ? 'active' : ''}`}
-          onClick={() => setActiveFilter('Bank')}
+          className={`filter-chip ${activeFilter === "Bank" ? "active" : ""}`}
+          onClick={() => setActiveFilter("Bank")}
         >
           Banks
         </button>
         <button
-          className={`filter-chip ${activeFilter === 'Remittance' ? 'active' : ''}`}
-          onClick={() => setActiveFilter('Remittance')}
+          className={`filter-chip ${activeFilter === "Remittance" ? "active" : ""}`}
+          onClick={() => setActiveFilter("Remittance")}
         >
           Remittance
         </button>
         <button
-          className={`sort-btn ${sortByNearest ? 'active' : ''}`}
+          className={`sort-btn ${sortByNearest ? "active" : ""}`}
           disabled={!userLocation}
           onClick={() => setSortByNearest(!sortByNearest)}
-          title={!userLocation ? 'Enable location first' : 'Sort locations by distance'}
+          title={!userLocation ? "Enable location first" : "Sort locations by distance"}
         >
-          {sortByNearest ? '✅ Sorted by nearest' : '📶 Sort by nearest'}
+          {sortByNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
 
       <div id="result-count">
         {filteredLocations.length > 0
           ? `Showing ${filteredLocations.length} of ${FINANCE_LOCATIONS.length} locations`
-          : ''}
+          : ""}
       </div>
 
       {/* CARDS */}
@@ -539,7 +586,7 @@ export const FinancePage: React.FC = () => {
               </div>
               <div className="card-content">
                 <h3>
-                  <a href={loc.mapsUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={googleMapsSearchUrl(loc.mapsQuery)} target="_blank" rel="noopener noreferrer">
                     {loc.name}
                   </a>
                 </h3>
@@ -558,10 +605,12 @@ export const FinancePage: React.FC = () => {
                     📍 View on Map
                   </button>
                   <button
-                    className={`route-btn ${userLocation ? 'visible' : ''} ${loadingRouteId === loc.id ? 'loading' : ''}`}
+                    className={`route-btn ${userLocation ? "visible" : ""} ${
+                      loadingRouteId === loc.id ? "loading" : ""
+                    }`}
                     onClick={() => getRoute(loc)}
                   >
-                    {loadingRouteId === loc.id ? '⏳ Loading route…' : '🧭 Get Directions'}
+                    {loadingRouteId === loc.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                   </button>
                 </div>
               </div>
@@ -571,9 +620,13 @@ export const FinancePage: React.FC = () => {
 
         {/* Empty state */}
         {filteredLocations.length === 0 && (
-          <div id="empty-state" style={{ display: 'flex' }}>
+          <div id="empty-state" style={{ display: "flex" }}>
             <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth="1.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+              />
             </svg>
             <h3>No results found</h3>
             <p>Try a different search term or filter.</p>
@@ -582,13 +635,13 @@ export const FinancePage: React.FC = () => {
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={isMapActive ? 'active' : ''}></div>
+      <div id="map-panel-spacer" className={isMapActive ? "active" : ""}></div>
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={isMapActive ? 'active' : ''}>
+      <div id="map-panel" className={isMapActive ? "active" : ""}>
         <div id="map-panel-header">
           <div>
-            <div id="map-panel-title">📍 {activeLocation ? activeLocation.name : 'Map'}</div>
+            <div id="map-panel-title">📍 {activeLocation ? activeLocation.name : "Map"}</div>
             <div id="map-panel-subtitle">{activeLocation?.tag}</div>
           </div>
           <div id="map-panel-actions">
@@ -596,7 +649,7 @@ export const FinancePage: React.FC = () => {
               <a
                 id="map-directions-link"
                 className="visible"
-                href={`https://maps.google.com/?q=${activeLocation.mapsQuery}`}
+                href={googleMapsSearchUrl(activeLocation.mapsQuery)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -609,7 +662,7 @@ export const FinancePage: React.FC = () => {
           </div>
         </div>
 
-        <div id="finance-map" ref={mapContainerRef}></div>
+        <div id="finance-map"></div>
 
         {routeInfo && (
           <div id="route-info" className="visible">
@@ -624,7 +677,7 @@ export const FinancePage: React.FC = () => {
       </div>
 
       {/* TOAST */}
-      <div id="toast" className={toastMsg ? 'show' : ''}>
+      <div id="toast" className={toastMsg ? "show" : ""}>
         {toastMsg}
       </div>
     </div>
