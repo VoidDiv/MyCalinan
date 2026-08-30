@@ -1,21 +1,5 @@
 "use client";
 
-/**
- * Healthcare directory page — converted from the original static
- * HTML/vanilla-JS page into a typed React component, using Mapbox GL JS.
- *
- * Setup:
- * - `npm install mapbox-gl` (+ `npm install -D @types/mapbox-gl`)
- * - Import "mapbox-gl/dist/mapbox-gl.css" once globally (e.g. root layout).
- * - Set NEXT_PUBLIC_MAPBOX_TOKEN in your env — used both for the map style
- *   and for the Directions API routing calls (Mapbox Directions replaces
- *   the old OSRM call).
- * - Card/toolbar/map-panel styling lives in category-directory.css — paste
- *   that into your global stylesheet. This component only relies on
- *   matching class/id names, plus a couple of small additions for the
- *   Mapbox marker elements (see bottom of the CSS notes below).
- */
-
 import {
   useCallback,
   useEffect,
@@ -26,6 +10,10 @@ import {
 } from "react";
 import mapboxgl from "mapbox-gl";
 import Link from "next/link";
+
+const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+mapboxgl.accessToken = token!;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";
@@ -580,18 +568,28 @@ export default function HealthcarePage() {
   }, [selectedClinic, userLocation, mapPanelOpen]);
 
   /* ── ACTIONS ── */
-  const showOnMap = useCallback((clinic: Clinic) => {
-    setSelectedClinic(clinic);
-    setRouteInfo(null);
-    setMapPanelOpen(true);
-  }, []);
 
+  // Resets the route line back to empty. Declared before showOnMap so
+  // showOnMap can call it when switching to a new clinic (see FIX note
+  // at the top of the file).
   const clearRouteLayer = useCallback(() => {
     const map = mapRef.current;
     if (!map || !mapLoadedRef.current) return;
     const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     source?.setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } });
   }, []);
+
+  const showOnMap = useCallback(
+    (clinic: Clinic) => {
+      setSelectedClinic(clinic);
+      setRouteInfo(null);
+      // FIX: clear any route drawn for a previously-selected clinic so it
+      // doesn't linger on the map pointing at the wrong destination.
+      clearRouteLayer();
+      setMapPanelOpen(true);
+    },
+    [clearRouteLayer]
+  );
 
   const closeMap = useCallback(() => {
     setMapPanelOpen(false);
@@ -675,9 +673,9 @@ export default function HealthcarePage() {
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
-  <Link href="/" className="back-btn">
-     ← Home
-  </Link>
+          <Link href="/" className="back-btn">
+            ← Home
+          </Link>
           <h1 className="logo">Healthcare</h1>
         </div>
         <div className="search-wrap">

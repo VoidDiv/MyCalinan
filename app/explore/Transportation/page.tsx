@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import type { Feature, LineString } from "geojson";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
-import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
+
+const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+mapboxgl.accessToken = token!;
 
 /* ============================================================
    DATA
@@ -249,6 +262,8 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
 /* ============================================================
    COMPONENT
    ============================================================ */
@@ -278,10 +293,9 @@ export default function TransportUtilitiesPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const mapRef = useRef<LeafletMap | null>(null);
-  const markersRef = useRef<LeafletMarker[]>([]);
-  const userMarkerRef = useRef<LeafletMarker | null>(null);
-  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---------- toast ---------- */
@@ -353,83 +367,67 @@ export default function TransportUtilitiesPage() {
   useEffect(() => {
     if (!mapOpen || !selectedPlace) return;
 
-    let cancelled = false;
+    if (!mapboxgl.accessToken) {
+      showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
+      return;
+    }
 
-    (async () => {
-      const L = leafletRef.current ?? (await import("leaflet"));
-      leafletRef.current = L;
-      if (cancelled) return;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl:
-          "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl:
-          "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    if (!mapRef.current) {
+      mapRef.current = new mapboxgl.Map({
+        container: "transport-map",
+        style: "mapbox://styles/mapbox/streets-v12",
+        center: [selectedPlace.lng, selectedPlace.lat],
+        zoom: 16,
       });
+      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    } else {
+      mapRef.current.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 16 });
+    }
 
-      if (!mapRef.current) {
-        mapRef.current = L.map("transport-map").setView(
-          [selectedPlace.lat, selectedPlace.lng],
-          16
-        );
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-        }).addTo(mapRef.current);
-      } else {
-        mapRef.current.setView([selectedPlace.lat, selectedPlace.lng], 16);
+    const map = mapRef.current;
+
+    // clear old markers
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    const popupHtml = `
+      <div class="place-popup">
+        <span class="popup-tag">${selectedPlace.tag}</span>
+        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
+        <p>${selectedPlace.description}</p>
+        <a href="${googleMapsSearchUrl(
+          selectedPlace.mapsQuery
+        )}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+      </div>
+    `;
+
+    const marker = new mapboxgl.Marker({ color: "#2b6b45" })
+      .setLngLat([selectedPlace.lng, selectedPlace.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+      .addTo(map);
+    marker.togglePopup();
+    markersRef.current.push(marker);
+
+    if (userLocation) {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
       }
+      const el = document.createElement("div");
+      el.className = "user-dot-wrapper";
+      el.innerHTML =
+        '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
 
-      // clear old markers
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
-
-      const popupHtml = `
-        <div class="place-popup">
-          <span class="popup-tag">${selectedPlace.tag}</span>
-          <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-          <p>${selectedPlace.description}</p>
-          <a href="${googleMapsSearchUrl(
-            selectedPlace.mapsQuery
-          )}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-        </div>
-      `;
-
-      const marker = L.marker([selectedPlace.lat, selectedPlace.lng])
-        .addTo(mapRef.current)
-        .bindPopup(popupHtml)
-        .openPopup();
-      markersRef.current.push(marker);
-
-      if (userLocation) {
-        if (userMarkerRef.current) {
-          userMarkerRef.current.remove();
-        }
-        const userIcon = L.divIcon({
-          className: "",
-          html:
-            '<div class="user-dot-wrapper"><div class="user-dot-ring"></div><div class="user-dot-inner"></div></div>',
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
-        });
-        userMarkerRef.current = L.marker(
-          [userLocation.lat, userLocation.lng],
-          { icon: userIcon }
-        )
-          .addTo(mapRef.current)
-          .bindPopup(
+      userMarkerRef.current = new mapboxgl.Marker({ element: el })
+        .setLngLat([userLocation.lng, userLocation.lat])
+        .setPopup(
+          new mapboxgl.Popup({ offset: 16 }).setHTML(
             '<div class="user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          );
-      }
+          )
+        )
+        .addTo(map);
+    }
 
-      setTimeout(() => mapRef.current?.invalidateSize(), 250);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    setTimeout(() => map.resize(), 250);
   }, [mapOpen, selectedPlace, userLocation]);
 
   useEffect(() => {
