@@ -1,30 +1,5 @@
 "use client";
 
-/**
- * Healthcare directory page — converted from the original static
- * HTML/vanilla-JS page into a typed React component, using Mapbox GL JS.
- *
- * Setup:
- * - `npm install mapbox-gl` (+ `npm install -D @types/mapbox-gl`)
- * - Import "mapbox-gl/dist/mapbox-gl.css" once globally (e.g. root layout).
- * - Set NEXT_PUBLIC_MAPBOX_TOKEN in your env — used both for the map style
- *   and for the Directions API routing calls (Mapbox Directions replaces
- *   the old OSRM call).
- * - Card/toolbar/map-panel styling lives in category-directory.css — paste
- *   that into your global stylesheet. This component only relies on
- *   matching class/id names, plus a couple of small additions for the
- *   Mapbox marker elements (see bottom of the CSS notes below).
- *
- * FIX: `clearRouteLayer` was previously defined but never called. That
- * meant clicking "View on Map" on a different clinic while the panel was
- * already open with a route drawn to a *previous* clinic left the old
- * route line on the map, pointing at the wrong destination — only
- * `getRoute` ever overwrote the line's data, and switching clinics via
- * "View on Map" doesn't call `getRoute`. `showOnMap` now clears the route
- * layer whenever a new clinic is selected, so an old route never lingers
- * unless the person explicitly asks for directions to the new one.
- */
-
 import {
   useCallback,
   useEffect,
@@ -35,6 +10,10 @@ import {
 } from "react";
 import mapboxgl from "mapbox-gl";
 import Link from "next/link";
+
+const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+mapboxgl.accessToken = token!;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";

@@ -13,6 +13,10 @@ import React, {
 } from "react";
 import Link from "next/link";
 
+const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+mapboxgl.accessToken = token!;
+
 // ----------------------------------------------------------------------
 // Types & Interfaces
 // ----------------------------------------------------------------------

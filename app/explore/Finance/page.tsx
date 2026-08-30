@@ -2,8 +2,20 @@
 
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { Feature, LineString } from "geojson";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
+
+const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+
+mapboxgl.accessToken = token!;
 
 // ----------------------------------------------------------------------
 // Types & Data Structure
