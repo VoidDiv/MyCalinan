@@ -106,6 +106,12 @@ const LOCATIONS_DATA: LocationItem[] = [
   },
 ];
 
+const FILTERS: { label: string; value: "all" | "Gym" | "Hotel" }[] = [
+  { label: "All", value: "all" },
+  { label: "Gym", value: "Gym" },
+  { label: "Hotel", value: "Hotel" },
+];
+
 // ----------------------------------------------------------------------
 // Utility Functions
 // ----------------------------------------------------------------------
@@ -124,6 +130,10 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 function formatDist(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} m away`;
   return `${km.toFixed(1)} km away`;
+}
+
+function googleMapsSearchUrl(query: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
@@ -345,7 +355,7 @@ export const LifestylePage: React.FC = () => {
           <h4>${item.name}</h4>
           <div class="popup-tag">${item.tag}</div>
           <p>${distText}</p>
-          <a href="https://www.google.com/maps/search/?api=1&query=${item.mapsQuery}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+          <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
         </div>`;
 
       activeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
@@ -424,29 +434,31 @@ export const LifestylePage: React.FC = () => {
   };
 
   // --- Filtering & Sorting Data ---
-  const processedLocations = LOCATIONS_DATA.map((item) => {
-    const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
-    return { ...item, distance };
-  })
-    .filter((item) => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q) ||
-        item.tag.toLowerCase().includes(q);
-
-      const matchesFilter =
-        activeFilter === "all" || item.category.toLowerCase() === activeFilter.toLowerCase();
-
-      return matchesSearch && matchesFilter;
+  const processedLocations = useMemo(() => {
+    return LOCATIONS_DATA.map((item) => {
+      const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
+      return { ...item, distance };
     })
-    .sort((a, b) => {
-      if (sortByNearest && userLoc && a.distance !== null && b.distance !== null) {
-        return a.distance - b.distance;
-      }
-      return 0;
-    });
+      .filter((item) => {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          item.name.toLowerCase().includes(q) ||
+          item.category.toLowerCase().includes(q) ||
+          item.tag.toLowerCase().includes(q);
+
+        const matchesFilter =
+          activeFilter === "all" || item.category.toLowerCase() === activeFilter.toLowerCase();
+
+        return matchesSearch && matchesFilter;
+      })
+      .sort((a, b) => {
+        if (sortByNearest && userLoc && a.distance !== null && b.distance !== null) {
+          return a.distance - b.distance;
+        }
+        return 0;
+      });
+  }, [searchQuery, activeFilter, sortByNearest, userLoc]);
 
   // Handle ESC key for modal
   useEffect(() => {
@@ -456,6 +468,10 @@ export const LifestylePage: React.FC = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
   return (
     <div>
@@ -476,7 +492,7 @@ export const LifestylePage: React.FC = () => {
               placeholder="Search Gym, Hotel…"
               autoComplete="off"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
             />
           </div>
           <button
@@ -521,13 +537,13 @@ export const LifestylePage: React.FC = () => {
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        {(["all", "Gym", "Hotel"] as const).map((type) => (
+        {FILTERS.map((f) => (
           <button
-            key={type}
-            className={`filter-chip ${activeFilter === type ? "active" : ""}`}
-            onClick={() => setActiveFilter(type)}
+            key={f.value}
+            className={`filter-chip ${activeFilter === f.value ? "active" : ""}`}
+            onClick={() => setActiveFilter(f.value)}
           >
-            {type === "all" ? "All" : type}
+            {f.label}
           </button>
         ))}
 
@@ -558,11 +574,7 @@ export const LifestylePage: React.FC = () => {
             </div>
             <div className="card-content">
               <h3>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${item.mapsQuery}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a href={googleMapsSearchUrl(item.mapsQuery)} target="_blank" rel="noopener noreferrer">
                   {item.name}
                 </a>
               </h3>
@@ -620,7 +632,7 @@ export const LifestylePage: React.FC = () => {
               <a
                 id="map-directions-link"
                 className="visible"
-                href={`https://www.google.com/maps/search/?api=1&query=${selectedItem.mapsQuery}`}
+                href={googleMapsSearchUrl(selectedItem.mapsQuery)}
                 target="_blank"
                 rel="noopener noreferrer"
               >

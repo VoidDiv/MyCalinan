@@ -20,10 +20,13 @@ mapboxgl.accessToken = token!;
 // ----------------------------------------------------------------------
 // Types & Data Structure
 // ----------------------------------------------------------------------
+type Category = "Bank" | "Remittance";
+type FilterValue = "all" | Category;
+
 export interface FinanceLocation {
   id: string;
   name: string;
-  category: "Bank" | "Remittance";
+  category: Category;
   lat: number;
   lng: number;
   tag: string;
@@ -33,6 +36,20 @@ export interface FinanceLocation {
   description: string;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distKm: string;
+  timeStr: string;
+}
+
+// ----------------------------------------------------------------------
+// Static Data
+// ----------------------------------------------------------------------
 const FINANCE_LOCATIONS: FinanceLocation[] = [
   {
     id: "bdo-calinan",
@@ -162,17 +179,24 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
   },
 ];
 
-// ----------------------------------------------------------------------
-// Helpers
-// ----------------------------------------------------------------------
+const FILTERS: { label: string; value: FilterValue }[] = [
+  { label: "All", value: "all" },
+  { label: "Banks", value: "Bank" },
+  { label: "Remittance", value: "Remittance" },
+];
 
+// ----------------------------------------------------------------------
+// Utility Functions
+// ----------------------------------------------------------------------
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -191,6 +215,12 @@ const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
   3: "Location request timed out. Try again.",
 };
 
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 // ----------------------------------------------------------------------
@@ -198,59 +228,62 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 export const FinancePage: React.FC = () => {
   // --- States ---
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "Bank" | "Remittance">("all");
-  const [sortByNearest, setSortByNearest] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
+  const [sortByNearest, setSortByNearest] = useState<boolean>(false);
 
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(
-    null
-  );
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationStatus, setLocationStatus] = useState("Detecting your location…");
-  const [locationError, setLocationError] = useState(false);
+  // User location
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locStatusText, setLocStatusText] = useState<string>("Detecting your location…");
+  const [isLocError, setIsLocError] = useState<boolean>(false);
+  const [hasLocationActive, setHasLocationActive] = useState<boolean>(false);
 
-  const [modalImage, setModalImage] = useState<string | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  // Modal state
+  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
 
-  // Map state
-  const [isMapActive, setIsMapActive] = useState(false);
-  const [activeLocation, setActiveLocation] = useState<FinanceLocation | null>(null);
-  const [routeInfo, setRouteInfo] = useState<{ dist: string; time: string } | null>(null);
-  const [loadingRouteId, setLoadingRouteId] = useState<string | null>(null);
+  // Toast state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // --- Refs ---
+  // Map & active item panel
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState<boolean>(false);
+  const [selectedLocation, setSelectedLocation] = useState<FinanceLocation | null>(null);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
+  const [isRoutingLoading, setIsRoutingLoading] = useState<string | null>(null);
+
+  // --- Refs for Mapbox objects ---
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const routeSourceAddedRef = useRef(false);
+  const mapLoadedRef = useRef<boolean>(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // --- Toast Trigger ---
+  const showToast = useCallback((msg: string, duration = 3000) => {
+    setToastMessage(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, duration);
+  }, []);
+
   useEffect(() => {
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
 
-  // --- Toast Trigger ---
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastMsg(null), 3000);
-  }, []);
-
-  // --- Geolocation (continuous tracking via watchPosition) ---
+  // --- Geolocation ---
   const startLocating = () => {
     if (!navigator.geolocation) {
       showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
+
     setIsLocating(true);
-    setLocationError(false);
-    setLocationStatus("Detecting your location…");
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
 
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -258,30 +291,35 @@ export const FinancePage: React.FC = () => {
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const coords = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: Math.round(pos.coords.accuracy),
-        };
-        setUserLocation(coords);
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
         setIsLocating(false);
-        setLocationError(false);
-        setLocationStatus(`Location active · ±${coords.accuracy} m accuracy`);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
       },
       (err) => {
         setIsLocating(false);
-        setLocationError(true);
+        setIsLocError(true);
         const errorMsg = GEOLOCATION_ERROR_MESSAGES[err.code] || "Could not get location.";
-        setLocationStatus(errorMsg);
+        setLocStatusText(errorMsg);
         showToast("⚠️ " + errorMsg);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   };
 
-  // --- Map: init once the panel is opened ---
+  // Cleanup geolocation watch on unmount
   useEffect(() => {
-    if (!isMapActive) return;
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
+
+  // --- Map Initialization & Lifetime ---
+  useEffect(() => {
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
       showToast("⚠️ Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -289,203 +327,226 @@ export const FinancePage: React.FC = () => {
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "finance-map",
         style: "mapbox://styles/mapbox/streets-v12",
         center: [125.453, 7.1876],
         zoom: 15,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
+    } else {
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    setTimeout(() => mapRef.current?.resize(), 100);
+  // Tear down map when panel closes
+  // (kept in its own effect, keyed only on isMapPanelOpen, so the
+  // closure always sees the current value — this is what actually
+  // destroys the Mapbox instance on close)
+  useEffect(() => {
+    if (!isMapPanelOpen && mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+      mapLoadedRef.current = false;
+      userMarkerRef.current = null;
+      activeMarkerRef.current = null;
+    }
+  }, [isMapPanelOpen]);
 
-    return () => {
-      if (!isMapActive && mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        userMarkerRef.current = null;
-        activeMarkerRef.current = null;
-        routeSourceAddedRef.current = false;
-      }
-    };
-  }, [isMapActive, showToast]);
-
-  // --- Map: keep the user marker in sync ---
+  // Update user marker on map
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !userLocation) return;
+    if (!map || !userLoc) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
     el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
 
     userMarkerRef.current = new mapboxgl.Marker({ element: el })
-      .setLngLat([userLocation.lng, userLocation.lat])
+      .setLngLat([userLoc.lng, userLoc.lat])
       .setPopup(
         new mapboxgl.Popup({ offset: 16 }).setHTML(
           '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
         )
       )
       .addTo(map);
-  }, [userLocation, isMapActive]);
+  }, [userLoc, isMapPanelOpen]);
 
-  // --- Map: place/refresh the active marker and fly to it ---
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !activeLocation) return;
-
-    if (activeMarkerRef.current) activeMarkerRef.current.remove();
-
-    const el = document.createElement("div");
-    el.innerHTML = `<div style="background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${activeLocation.pin}</span></div>`;
-    const iconEl = el.firstElementChild as HTMLElement;
-
-    const distText = userLocation
-      ? `<br><strong>${formatDist(
-          haversine(userLocation.lat, userLocation.lng, activeLocation.lat, activeLocation.lng)
-        )}</strong> straight-line from you`
-      : "";
-
-    activeMarkerRef.current = new mapboxgl.Marker({ element: iconEl, anchor: "bottom" })
-      .setLngLat([activeLocation.lng, activeLocation.lat])
-      .setPopup(
-        new mapboxgl.Popup({ offset: 24, maxWidth: "250px" }).setHTML(
-          `<div class="finance-popup">
-            <h4>${activeLocation.name}</h4>
-            <div class="popup-tag">${activeLocation.tag}</div>
-            <p>${distText}</p>
-            <a href="${googleMapsSearchUrl(activeLocation.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-          </div>`
-        )
-      )
-      .addTo(map);
-    activeMarkerRef.current.togglePopup();
-
-    map.flyTo({ center: [activeLocation.lng, activeLocation.lat], zoom: 17, duration: 1000 });
-    setTimeout(() => map.resize(), 320);
-
-    document.getElementById("map-panel")?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [activeLocation, userLocation, isMapActive]);
-
-  const showOnMap = useCallback((loc: FinanceLocation) => {
-    setIsMapActive(true);
-    setActiveLocation(loc);
+  // --- Map Actions ---
+  const handleShowOnMap = (item: FinanceLocation) => {
+    setSelectedLocation(item);
+    setIsMapPanelOpen(true);
     setRouteInfo(null);
-  }, []);
 
-  const closeMap = useCallback(() => {
-    setIsMapActive(false);
-    setActiveLocation(null);
-    setRouteInfo(null);
-    const map = mapRef.current;
-    if (map && routeSourceAddedRef.current && map.getSource("route")) {
-      if (map.getLayer("route-line")) map.removeLayer("route-line");
-      map.removeSource("route");
-      routeSourceAddedRef.current = false;
-    }
-  }, []);
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
 
-  // Waits (up to ~2s) for the Mapbox map instance to exist before
-  // returning, in case the route resolves before the panel/map mounts.
-  const waitForMap = useCallback((): Promise<mapboxgl.Map | null> => {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      const check = () => {
-        if (mapRef.current) {
-          resolve(mapRef.current);
-        } else if (Date.now() - start > 2000) {
-          resolve(null);
-        } else {
-          setTimeout(check, 50);
-        }
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
       };
-      check();
-    });
-  }, []);
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
 
-  const getRoute = async (loc: FinanceLocation) => {
-    if (!userLocation) {
+      const el = document.createElement("div");
+      el.style.cssText =
+        "background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;" +
+        "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
+        "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
+        "border:2px solid white;";
+      el.innerHTML = `<span style="transform:rotate(45deg)">${item.pin}</span>`;
+
+      const distText = userLoc
+        ? `<br><strong>${formatDist(
+            haversine(userLoc.lat, userLoc.lng, item.lat, item.lng)
+          )}</strong> straight-line from you`
+        : "";
+
+      const popupHtml = `
+        <div class="finance-popup">
+          <h4>${item.name}</h4>
+          <div class="popup-tag">${item.tag}</div>
+          <p>${distText}</p>
+          <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+        </div>`;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([item.lng, item.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24, maxWidth: "250px" }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
+      map.resize();
+    }, 100);
+  };
+
+  const handleGetDirections = async (item: FinanceLocation) => {
+    if (!userLoc) {
       showToast("📍 Enable location first to get directions.");
       return;
     }
 
-    setLoadingRouteId(loc.id);
-    showOnMap(loc);
+    setIsRoutingLoading(item.id);
+    handleShowOnMap(item);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${item.lng},${item.lat}?overview=full&geometries=geojson`;
 
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${loc.lng},${loc.lat}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       const data = await res.json();
 
-      if (!data.routes || data.routes.length === 0) throw new Error("No route found");
+      if (!data.routes || data.routes.length === 0) {
+        throw new Error("No route found");
+      }
 
       const route = data.routes[0];
+      const coordinates: [number, number][] = route.geometry.coordinates;
       const distKm = (route.distance / 1000).toFixed(1);
       const mins = Math.round(route.duration / 60);
       const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 
-      const map = await waitForMap();
-      if (map) {
-        if (routeSourceAddedRef.current && map.getSource("route")) {
-          (map.getSource("route") as mapboxgl.GeoJSONSource).setData(route.geometry);
-        } else {
-          map.addSource("route", { type: "geojson", data: route.geometry });
-          map.addLayer({
-            id: "route-line",
-            type: "line",
-            source: "route",
-            layout: { "line-join": "round", "line-cap": "round" },
-            paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
-          });
-          routeSourceAddedRef.current = true;
-        }
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
 
-        const coords: [number, number][] = route.geometry.coordinates;
-        const bounds = coords.reduce(
+        const bounds = coordinates.reduce(
           (b, c) => b.extend(c as [number, number]),
-          new mapboxgl.LngLatBounds(coords[0], coords[0])
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
         );
         map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
       }
 
-      setRouteInfo({ dist: `${distKm} km`, time: timeStr });
-      showToast(`🧭 Route to ${loc.name}: ${distKm} km · ${timeStr}`);
+      setRouteInfo({ distKm, timeStr });
+      showToast(`🧭 Route to ${item.name}: ${distKm} km · ${timeStr}`);
     } catch {
       showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
-      setLoadingRouteId(null);
+      setIsRoutingLoading(null);
     }
   };
 
-  // --- Computed Locations List (Filtering, Searching, Sorting) ---
-  const filteredLocations = useMemo(() => {
-    const q = searchTerm.toLowerCase().trim();
+  const handleCloseMap = () => {
+    setIsMapPanelOpen(false);
+    setRouteInfo(null);
+    setSelectedLocation(null);
+  };
 
-    let list = FINANCE_LOCATIONS.filter((item) => {
-      const matchSearch =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q) ||
-        item.tag.toLowerCase().includes(q);
+  // --- Filtering & Sorting Data ---
+  const processedLocations = useMemo(() => {
+    return FINANCE_LOCATIONS.map((item) => {
+      const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
+      return { ...item, distance };
+    })
+      .filter((item) => {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          item.name.toLowerCase().includes(q) ||
+          item.tag.toLowerCase().includes(q) ||
+          item.category.toLowerCase().includes(q);
 
-      const matchFilter = activeFilter === "all" || item.category.toLowerCase() === activeFilter.toLowerCase();
+        const matchesFilter = activeFilter === "all" || item.category === activeFilter;
 
-      return matchSearch && matchFilter;
-    });
-
-    if (sortByNearest && userLocation) {
-      list = [...list].sort((a, b) => {
-        const distA = haversine(userLocation.lat, userLocation.lng, a.lat, a.lng);
-        const distB = haversine(userLocation.lat, userLocation.lng, b.lat, b.lng);
-        return distA - distB;
+        return matchesSearch && matchesFilter;
+      })
+      .sort((a, b) => {
+        if (sortByNearest && userLoc && a.distance !== null && b.distance !== null) {
+          return a.distance - b.distance;
+        }
+        return 0;
       });
-    }
+  }, [searchQuery, activeFilter, sortByNearest, userLoc]);
 
-    return list;
-  }, [searchTerm, activeFilter, sortByNearest, userLocation]);
+  // Handle ESC key for modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImageSrc(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
   return (
     <div className="finance-page-wrapper">
@@ -502,38 +563,40 @@ export const FinancePage: React.FC = () => {
             <span className="search-icon">🔍</span>
             <input
               type="text"
-              id="searchInput"
+              id="searchBar"
               placeholder="Search bank, remittance, pawnshop…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
               autoComplete="off"
+              value={searchQuery}
+              onChange={handleSearchChange}
             />
           </div>
           <button
             id="locate-btn"
-            className={isLocating ? "loading" : ""}
+            title="Find my location"
             onClick={startLocating}
             disabled={isLocating}
-            title="Find my location"
+            className={isLocating ? "loading" : ""}
           >
             <div className="spinner"></div>
-            <span className="btn-label">{userLocation ? "📍 Tracking" : "📍 Locate Me"}</span>
+            <span className="btn-label">
+              {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
+            </span>
           </button>
         </div>
       </header>
 
       {/* IMAGE MODAL */}
       <div
-        className={`image-modal ${modalImage ? "active" : ""}`}
+        className={`image-modal ${modalImageSrc ? "active" : ""}`}
         id="imageModal"
         onClick={(e) => {
-          if ((e.target as HTMLElement).id !== "modalImg") setModalImage(null);
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImageSrc(null);
         }}
       >
-        <span className="close" onClick={() => setModalImage(null)}>
+        <span className="close" onClick={() => setModalImageSrc(null)}>
           ×
         </span>
-        {modalImage && <img id="modalImg" src={modalImage} alt="Preview" />}
+        {modalImageSrc && <img id="modalImg" className="modal-content" src={modalImageSrc} alt="Preview" />}
       </div>
 
       {/* HERO */}
@@ -543,102 +606,90 @@ export const FinancePage: React.FC = () => {
           Find banks, remittance centers, and financial institutions near you. Enable location to see
           distances and get directions.
         </p>
-        <div className={`location-status ${userLocation || locationError ? "visible" : ""}`}>
-          <div className={`loc-dot ${locationError ? "loc-err" : ""}`} id="loc-dot"></div>
-          <span id="loc-text">{locationStatus}</span>
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} id="loc-dot"></div>
+          <span id="loc-text">{locStatusText}</span>
         </div>
       </section>
 
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        <button
-          className={`filter-chip ${activeFilter === "all" ? "active" : ""}`}
-          onClick={() => setActiveFilter("all")}
-        >
-          All
-        </button>
-        <button
-          className={`filter-chip ${activeFilter === "Bank" ? "active" : ""}`}
-          onClick={() => setActiveFilter("Bank")}
-        >
-          Banks
-        </button>
-        <button
-          className={`filter-chip ${activeFilter === "Remittance" ? "active" : ""}`}
-          onClick={() => setActiveFilter("Remittance")}
-        >
-          Remittance
-        </button>
+        {FILTERS.map((f) => (
+          <button
+            key={f.value}
+            className={`filter-chip ${activeFilter === f.value ? "active" : ""}`}
+            onClick={() => setActiveFilter(f.value)}
+          >
+            {f.label}
+          </button>
+        ))}
+
         <button
           className={`sort-btn ${sortByNearest ? "active" : ""}`}
-          disabled={!userLocation}
+          id="sort-btn"
+          disabled={!userLoc}
+          title={!userLoc ? "Enable location first" : ""}
           onClick={() => setSortByNearest(!sortByNearest)}
-          title={!userLocation ? "Enable location first" : "Sort locations by distance"}
         >
           {sortByNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
 
+      {/* RESULT COUNT */}
       <div id="result-count">
-        {filteredLocations.length > 0
-          ? `Showing ${filteredLocations.length} of ${FINANCE_LOCATIONS.length} locations`
+        {processedLocations.length > 0
+          ? `Showing ${processedLocations.length} of ${FINANCE_LOCATIONS.length} locations`
           : ""}
       </div>
 
-      {/* CARDS */}
+      {/* CARDS CONTAINER */}
       <section className="container" id="cards-container">
-        {filteredLocations.map((loc) => {
-          const distanceKm = userLocation ? haversine(userLocation.lat, userLocation.lng, loc.lat, loc.lng) : null;
+        {processedLocations.map((loc) => (
+          <div key={loc.id} className="card">
+            <div className="card-image" onClick={() => setModalImageSrc(loc.image)}>
+              <img src={loc.image} alt={loc.name} />
+            </div>
+            <div className="card-content">
+              <h3>
+                <a
+                  href={googleMapsSearchUrl(loc.mapsQuery)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {loc.name}
+                </a>
+              </h3>
+              <p>{loc.description}</p>
+              <span className="tag">{loc.tag}</span>
 
-          return (
-            <div className="card" key={loc.id}>
-              <div className="card-image" onClick={() => setModalImage(loc.image)}>
-                <img src={loc.image} alt={loc.name} />
+              <div className={`dist-badge ${loc.distance !== null ? "visible" : ""}`}>
+                <div className="dot"></div>
+                <span className="dist-text">{loc.distance !== null ? formatDist(loc.distance) : ""}</span>
               </div>
-              <div className="card-content">
-                <h3>
-                  <a href={googleMapsSearchUrl(loc.mapsQuery)} target="_blank" rel="noopener noreferrer">
-                    {loc.name}
-                  </a>
-                </h3>
-                <p>{loc.description}</p>
-                <span className="tag">{loc.tag}</span>
 
-                {distanceKm !== null && (
-                  <div className="dist-badge visible">
-                    <div className="dot"></div>
-                    <span className="dist-text">{formatDist(distanceKm)}</span>
-                  </div>
-                )}
-
-                <div className="card-actions">
-                  <button className="view-map-btn" onClick={() => showOnMap(loc)}>
-                    📍 View on Map
-                  </button>
-                  <button
-                    className={`route-btn ${userLocation ? "visible" : ""} ${
-                      loadingRouteId === loc.id ? "loading" : ""
-                    }`}
-                    onClick={() => getRoute(loc)}
-                  >
-                    {loadingRouteId === loc.id ? "⏳ Loading route…" : "🧭 Get Directions"}
-                  </button>
-                </div>
+              <div className="card-actions">
+                <button className="view-map-btn" onClick={() => handleShowOnMap(loc)}>
+                  📍 View on Map
+                </button>
+                <button
+                  className={`route-btn ${userLoc ? "visible" : ""} ${
+                    isRoutingLoading === loc.id ? "loading" : ""
+                  }`}
+                  onClick={() => handleGetDirections(loc)}
+                >
+                  {isRoutingLoading === loc.id ? "⏳ Loading route…" : "🧭 Get Directions"}
+                </button>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
 
         {/* Empty state */}
-        {filteredLocations.length === 0 && (
+        {processedLocations.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
-            <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth="1.5">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-              />
+            <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
             <h3>No results found</h3>
             <p>Try a different search term or filter.</p>
@@ -647,28 +698,28 @@ export const FinancePage: React.FC = () => {
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={isMapActive ? "active" : ""}></div>
+      <div id="map-panel-spacer" className={isMapPanelOpen ? "active" : ""}></div>
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={isMapActive ? "active" : ""}>
+      <div id="map-panel" className={isMapPanelOpen ? "active" : ""}>
         <div id="map-panel-header">
           <div>
-            <div id="map-panel-title">📍 {activeLocation ? activeLocation.name : "Map"}</div>
-            <div id="map-panel-subtitle">{activeLocation?.tag}</div>
+            <div id="map-panel-title">📍 {selectedLocation ? selectedLocation.name : "Map"}</div>
+            <div id="map-panel-subtitle">{selectedLocation?.tag || ""}</div>
           </div>
           <div id="map-panel-actions">
-            {activeLocation && (
+            {selectedLocation && (
               <a
                 id="map-directions-link"
                 className="visible"
-                href={googleMapsSearchUrl(activeLocation.mapsQuery)}
+                href={googleMapsSearchUrl(selectedLocation.mapsQuery)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 🧭 Open in Google Maps
               </a>
             )}
-            <button id="map-panel-close" onClick={closeMap} title="Close map">
+            <button id="map-panel-close" onClick={handleCloseMap} title="Close map">
               ✕
             </button>
           </div>
@@ -676,21 +727,19 @@ export const FinancePage: React.FC = () => {
 
         <div id="finance-map"></div>
 
-        {routeInfo && (
-          <div id="route-info" className="visible">
-            <span>
-              🛣️ Road distance: <strong>{routeInfo.dist}</strong>
-            </span>
-            <span>
-              ⏱️ Estimated time: <strong>{routeInfo.time}</strong>
-            </span>
-          </div>
-        )}
+        <div id="route-info" className={routeInfo ? "visible" : ""}>
+          <span>
+            🛣️ Road distance: <strong id="route-dist">{routeInfo?.distKm || "–"} km</strong>
+          </span>
+          <span>
+            ⏱️ Estimated time: <strong id="route-time">{routeInfo?.timeStr || "–"}</strong>
+          </span>
+        </div>
       </div>
 
       {/* TOAST */}
-      <div id="toast" className={toastMsg ? "show" : ""}>
-        {toastMsg}
+      <div id="toast" className={toastMessage ? "show" : ""}>
+        {toastMessage}
       </div>
     </div>
   );

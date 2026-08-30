@@ -38,6 +38,17 @@ interface FoodPlace {
   image?: string;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distance: string;
+  time: string;
+}
+
 const foodPlaces: FoodPlace[] = [
   {
     id: "penongs-calinan",
@@ -439,15 +450,21 @@ export default function FoodDiningPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<"All" | Category>("All");
 
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
+  // User location states (live tracking, matches Education/Shopping/Transport/Hotspot)
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locStatusText, setLocStatusText] = useState("Detecting your location…");
+  const [isLocError, setIsLocError] = useState(false);
+  const [hasLocationActive, setHasLocationActive] = useState(false);
   const [sortNearest, setSortNearest] = useState(false);
 
   const [selectedPlace, setSelectedPlace] = useState<FoodPlace | null>(null);
-  const [mapOpen, setMapOpen] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{ distance: string; time: string } | null>(null);
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingId, setRoutingId] = useState<string | null>(null);
+
+  // Image modal state (was missing entirely — added for parity with the other pages)
+  const [modalImage, setModalImage] = useState<string | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -455,18 +472,29 @@ export default function FoodDiningPage() {
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const routeSourceAddedRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = useCallback((message: string) => {
+  const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
   }, []);
 
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
+  }, []);
+
+  /* ---------- image modal: ESC to close (added for parity) ---------- */
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   /* ---------- filtering / sorting ---------- */
@@ -484,32 +512,42 @@ export default function FoodDiningPage() {
       return matchesSearch && matchesCategory;
     });
 
-    if (sortNearest && userLocation) {
+    if (sortNearest && userLoc) {
       result.sort(
         (a, b) =>
-          calculateDistance(userLocation.lat, userLocation.lng, a.lat, a.lng) -
-          calculateDistance(userLocation.lat, userLocation.lng, b.lat, b.lng)
+          calculateDistance(userLoc.lat, userLoc.lng, a.lat, a.lng) -
+          calculateDistance(userLoc.lat, userLoc.lng, b.lat, b.lng)
       );
     }
 
     return result;
-  }, [search, activeCategory, sortNearest, userLocation]);
+  }, [search, activeCategory, sortNearest, userLoc]);
 
-  /* ---------- locate me ---------- */
+  /* ---------- locate me (live tracking, matches the other four pages) ---------- */
 
-  function locateUser() {
+  function startLocating() {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by this browser.");
+      setIsLocError(true);
+      setLocStatusText("Geolocation is not supported by this browser.");
+      showToast("⚠️ Geolocation is not supported by this browser.");
       return;
     }
 
-    setLocationLoading(true);
-    setLocationError("");
+    setIsLocating(true);
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
 
-    navigator.geolocation.getCurrentPosition(
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-        setLocationLoading(false);
+        const { latitude, longitude, accuracy } = position.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
+        setIsLocating(false);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
       },
       (error) => {
         let message = "Unable to get your location.";
@@ -520,17 +558,27 @@ export default function FoodDiningPage() {
         } else if (error.code === error.TIMEOUT) {
           message = "Location request timed out. Please try again.";
         }
-        setLocationError(message);
-        setLocationLoading(false);
+        setIsLocating(false);
+        setIsLocError(true);
+        setLocStatusText(message);
+        showToast("⚠️ " + message);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
   }
 
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
+
   /* ---------- map lifecycle ---------- */
 
   useEffect(() => {
-    if (!mapOpen || !selectedPlace) return;
+    if (!isMapPanelOpen || !selectedPlace) return;
 
     if (!mapboxgl.accessToken) {
       showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -568,42 +616,47 @@ export default function FoodDiningPage() {
       .addTo(map);
     markerRef.current.togglePopup();
 
-    if (userLocation) {
-      if (userMarkerRef.current) userMarkerRef.current.remove();
-      const el = document.createElement("div");
-      el.className = "food-user-dot-wrapper";
-      el.innerHTML = '<div class="food-user-dot-ring"></div><div class="food-user-dot-inner"></div>';
-      userMarkerRef.current = new mapboxgl.Marker({ element: el })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 16 }).setHTML(
-            '<div class="food-user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          )
-        )
-        .addTo(map);
-    }
-
     setTimeout(() => map.resize(), 250);
-  }, [mapOpen, selectedPlace, userLocation, showToast]);
+  }, [isMapPanelOpen, selectedPlace, showToast]);
+
+  // Sync user location marker independently, so it updates live as userLoc changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLoc) return;
+
+    if (userMarkerRef.current) userMarkerRef.current.remove();
+
+    const el = document.createElement("div");
+    el.className = "food-user-dot-wrapper";
+    el.innerHTML = '<div class="food-user-dot-ring"></div><div class="food-user-dot-inner"></div>';
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLoc.lng, userLoc.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="food-user-popup"><h4>You are here</h4><p>Your current location</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLoc, isMapPanelOpen]);
 
   useEffect(() => {
-    if (!mapOpen && mapRef.current) {
+    if (!isMapPanelOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
       markerRef.current = null;
       userMarkerRef.current = null;
       routeSourceAddedRef.current = false;
     }
-  }, [mapOpen]);
+  }, [isMapPanelOpen]);
 
   function showOnMap(place: FoodPlace) {
     setSelectedPlace(place);
     setRouteInfo(null);
-    setMapOpen(true);
+    setIsMapPanelOpen(true);
   }
 
   function closeMap() {
-    setMapOpen(false);
+    setIsMapPanelOpen(false);
     setSelectedPlace(null);
     setRouteInfo(null);
   }
@@ -625,18 +678,18 @@ export default function FoodDiningPage() {
   }, []);
 
   async function getRoute(place: FoodPlace) {
-    if (!userLocation) {
-      showToast("Enable location first to get directions.");
+    if (!userLoc) {
+      showToast("📍 Enable location first to get directions.");
       return;
     }
     setSelectedPlace(place);
-    setMapOpen(true);
+    setIsMapPanelOpen(true);
     setRoutingId(place.id);
     setRouteInfo(null);
 
     try {
       const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`
       );
       const data = await res.json();
       const route = data?.routes?.[0];
@@ -667,12 +720,15 @@ export default function FoodDiningPage() {
           map.fitBounds(bounds, { padding: 40 });
         }
 
-        setRouteInfo({ distance: formatDistance(km), time: formatDuration(mins) });
+        const distText = formatDistance(km);
+        const timeText = formatDuration(mins);
+        setRouteInfo({ distance: distText, time: timeText });
+        showToast(`🧭 Route to ${place.name}: ${distText} · ${timeText}`);
       } else {
-        showToast("Couldn't calculate a route.");
+        showToast("⚠️ Couldn't calculate a route.");
       }
     } catch {
-      showToast("Couldn't reach the routing service.");
+      showToast("⚠️ Couldn't reach the routing service.");
     } finally {
       setRoutingId(null);
     }
@@ -697,27 +753,41 @@ export default function FoodDiningPage() {
             <input
               type="text"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
               placeholder="Search restaurant, cafe..."
               aria-label="Search food places"
               autoComplete="off"
             />
           </div>
 
-          <button type="button" onClick={locateUser} disabled={locationLoading}>
-            {locationLoading ? "Locating..." : "📍 Locate Me"}
+          <button type="button" onClick={startLocating} disabled={isLocating}>
+            {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
           </button>
         </div>
       </header>
+
+      {/* IMAGE MODAL (added — was missing entirely) */}
+      <div
+        className={`image-modal ${modalImage ? "active" : ""}`}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImage(null);
+        }}
+      >
+        <span className="close" onClick={() => setModalImage(null)}>
+          &times;
+        </span>
+        {modalImage && <img className="modal-content" src={modalImage} alt="Preview" />}
+      </div>
 
       <section className="food-hero">
         <h2>Savor the Flavors of Calinan</h2>
 
         <p>Discover restaurants, eateries, cafés, bakeshops, and other food places around the Calinan area.</p>
 
-        {userLocation && <p className="location-success">📍 Location detected successfully.</p>}
-
-        {locationError && <p className="location-error">⚠️ {locationError}</p>}
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} />
+          <span>{locStatusText}</span>
+        </div>
       </section>
 
       <section className="food-toolbar">
@@ -736,8 +806,8 @@ export default function FoodDiningPage() {
 
         <button
           type="button"
-          disabled={!userLocation}
-          title={userLocation ? "" : "Enable location first"}
+          disabled={!userLoc}
+          title={userLoc ? "" : "Enable location first"}
           onClick={() => setSortNearest((current) => !current)}
         >
           {sortNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
@@ -756,14 +826,17 @@ export default function FoodDiningPage() {
       ) : (
         <section className="food-card-grid">
           {filteredPlaces.map((place) => {
-            const distance = userLocation
-              ? calculateDistance(userLocation.lat, userLocation.lng, place.lat, place.lng)
+            const distance = userLoc
+              ? calculateDistance(userLoc.lat, userLoc.lng, place.lat, place.lng)
               : null;
 
             return (
               <article className="food-card" key={place.id}>
                 {place.image ? (
-                  <div className="food-card-image">
+                  <div
+                    className="food-card-image"
+                    onClick={() => setModalImage(place.image!)}
+                  >
                     <img
                       src={place.image}
                       alt={place.name}
@@ -802,10 +875,10 @@ export default function FoodDiningPage() {
       )}
 
       {/* SPACER */}
-      <div className={`food-map-panel-spacer${mapOpen ? " active" : ""}`} />
+      <div className={`food-map-panel-spacer${isMapPanelOpen ? " active" : ""}`} />
 
       {/* MAP PANEL */}
-      <div className={`food-map-panel${mapOpen ? " active" : ""}`}>
+      <div className={`food-map-panel${isMapPanelOpen ? " active" : ""}`}>
         <div className="food-map-panel-header">
           <div>
             <div className="food-map-panel-title">📍 {selectedPlace ? selectedPlace.name : "Map"}</div>
