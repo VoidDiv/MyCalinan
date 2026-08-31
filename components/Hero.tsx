@@ -39,12 +39,6 @@ export default function Hero() {
           >
             Discover Calinan
           </a>
-          <a
-            href="/documents/barangay-clearance"
-            className="rounded-[var(--radius-stall)] border border-canopy-700 px-6 py-3 font-semibold text-canopy-800 transition hover:bg-canopy-100"
-          >
-            Request a document
-          </a>
         </div>
       </div>
 
