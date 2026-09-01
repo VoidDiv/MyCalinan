@@ -2,6 +2,13 @@
 import React from 'react';
 // import './style/Documents.css'; // Make sure to import your CSS file here
 import Link from "next/link";
+
+// ----------------------------------------------------------------------
+// Firebase Storage base path (same pattern as Hotspots/Community pages)
+// ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Documents";
+
 // ----------------------------------------------------------------------
 // Data Arrays (Extracted for easier maintenance)
 // ----------------------------------------------------------------------
@@ -37,8 +44,14 @@ export const CedulaPage: React.FC = () => {
 
       {/* FEATURE IMAGES (SIDE BY SIDE) */}
       <section className="doc-hero-grid">
-        <img src="image/Cedula1.png" alt="Cedula Certificate" />
-        <img src="image/Cedula2.png" alt="Cedula Application" />
+        <img
+          src={`${STORAGE_BASE}/Cedula1.png`}
+          alt="Cedula Certificate"
+        />
+        <img
+          src={`${STORAGE_BASE}/Cedula2.png`}
+          alt="Cedula Application"
+        />
       </section>
 
       <main className="doc-container">

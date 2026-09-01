@@ -46,3 +46,9 @@ serviceAccountKey.json
 firebase-adminsdk-*.json
 google-services.json
 GoogleService-Info.plist
+
+# additional common secrets
+*.key
+*.pem
+credentials.json
+config/secrets*.json

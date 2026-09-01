@@ -61,7 +61,7 @@ const ENTRIES = [
     location: "Purok 5, Malagos-Baguio District, Davao City",
     description:
       "A conservation and education facility in Malagos, Davao City, dedicated to protecting the critically endangered Philippine Eagle. Home to the country's national bird and other wildlife — great for families, nature lovers, and visitors.",
-    photo: "PhpEagleCenter.png",
+    photo: "Philippine Eagle Center (PEC).png",
   },
   {
     name: "Malagos Garden Resort",

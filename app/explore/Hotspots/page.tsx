@@ -69,7 +69,7 @@ const hotspots: Hotspot[] = [
     name: "Philippine Eagle Center (PEC)",
     category: "Wildlife & Conservation",
     tag: "Wildlife & Conservation",
-    image: `${STORAGE_BASE}/PhpEagleCenter.png`,
+    image: `${STORAGE_BASE}/Philippine Eagle Center (PEC).png`,
     description:
       "A conservation and education facility in Malagos, Davao City, dedicated to protecting the critically endangered Philippine Eagle. Home to the country's national bird and other wildlife — great for families, nature lovers, and visitors.",
     location: "Purok 5, Malagos-Baguio District, Davao City",
@@ -572,7 +572,6 @@ export default function HotspotPage() {
           <Link href="/" className="back-btn">
             ← Home
           </Link>
-
           <h1 className="logo">Hotspots</h1>
         </div>
 
