@@ -111,7 +111,7 @@ export default function Navbar() {
 
         <div className="justify-self-end">
           <Link
-            href="/admin/login"
+            href="/login"
             className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
           >
             Login

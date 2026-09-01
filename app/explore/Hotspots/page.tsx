@@ -46,13 +46,16 @@ interface RouteInfo {
   time: string;
 }
 
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Hotspots";
+
 const hotspots: Hotspot[] = [
   {
     id: "bamboo-sanctuary",
     name: "Bamboo Sanctuary",
     category: "Nature Spot",
     tag: "Nature Spot",
-    image: "/image/bamboo-sanctuary-and-ecological-park.webp",
+    image: `${STORAGE_BASE}/bamboo-sanctuary-and-ecological-park.webp`,
     description:
       "A peaceful eco-tourism spot in Calinan, Davao City, known for its relaxing bamboo scenery, fresh air, and calm natural surroundings. Popular for nature walks, scenic photos, and quiet relaxation away from the busy city.",
     location:
@@ -66,7 +69,7 @@ const hotspots: Hotspot[] = [
     name: "Philippine Eagle Center (PEC)",
     category: "Wildlife & Conservation",
     tag: "Wildlife & Conservation",
-    image: "/image/PhpEagleCenter.png",
+    image: `${STORAGE_BASE}/PhpEagleCenter.png`,
     description:
       "A conservation and education facility in Malagos, Davao City, dedicated to protecting the critically endangered Philippine Eagle. Home to the country's national bird and other wildlife — great for families, nature lovers, and visitors.",
     location: "Purok 5, Malagos-Baguio District, Davao City",
@@ -79,7 +82,7 @@ const hotspots: Hotspot[] = [
     name: "Malagos Garden Resort",
     category: "Eco Tourism",
     tag: "Eco Tourism",
-    image: "/image/Malagos Garden Resort.jpg",
+    image: `${STORAGE_BASE}/Malagos%20Garden%20Resort.jpg`,
     description:
       "A 12-hectare eco-tourism destination in Malagos, Davao City, known for its lush gardens, nature attractions, and award-winning Malagos Chocolate. Offers a relaxing and educational experience promoting sustainable tourism.",
     location: "Malagos-Baguio District, Davao City",
@@ -92,7 +95,7 @@ const hotspots: Hotspot[] = [
     name: "Malagos Chocolate Museum",
     category: "Cultural Attraction",
     tag: "Cultural Attraction",
-    image: "/image/Malagos Chocolate Museum.jpg",
+    image: `${STORAGE_BASE}/Malagos%20Chocolate%20Museum.jpg`,
     description:
       "The first chocolate museum in the Philippines, inside Malagos Garden Resort in Davao City. An interactive attraction showcasing the country's growing cacao industry and the award-winning chocolates of Malagos.",
     location: "Malagos-Baguio District, Davao City",
@@ -105,7 +108,7 @@ const hotspots: Hotspot[] = [
     name: "Tamayong Prayer Mountain",
     category: "Spiritual Retreat",
     tag: "Spiritual Retreat",
-    image: "/image/Tamayong Prayer Mountain.jpg",
+    image: `${STORAGE_BASE}/Tamayong%20Prayer%20Mountain.jpg`,
     description:
       "Also known as the Garden of Eden Restored, this private spiritual retreat in Tamayong, Calinan serves as a place for prayer, meditation, worship, and spiritual reflection in a serene highland setting.",
     location: "Tamayong, Calinan District, Davao City",
@@ -118,7 +121,7 @@ const hotspots: Hotspot[] = [
     name: "Lantaw Bukid Resort",
     category: "Resort / Leisure",
     tag: "Resort / Leisure",
-    image: "/image/Lantaw Bukid Resort.jpg",
+    image: `${STORAGE_BASE}/Lantaw%20Bukid%20Resort.jpg`,
     description:
       "A family-friendly inland resort known for its peaceful countryside atmosphere, open green spaces, pools, cottages, and relaxing nature views. A popular budget-friendly getaway for outings, reunions, and weekend swimming.",
     location:
@@ -132,7 +135,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Public Market",
     category: "Local Market",
     tag: "Local Market",
-    image: "/image/Calinan Public Market.jpg",
+    image: `${STORAGE_BASE}/Calinan%20Public%20Market.jpg`,
     description:
       "The main marketplace in Calinan where locals and farmers trade fresh produce and daily goods. Known for experiencing local life and buying fresh fruits, vegetables, durian, souvenirs, and local snacks.",
     location: "Calinan District, Davao City",
@@ -145,7 +148,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Park",
     category: "Community Park",
     tag: "Community Park",
-    image: "/image/Calinan Park.png",
+    image: `${STORAGE_BASE}/Calinan%20Park.png`,
     description:
       "A small community park in the heart of Calinan offering a quiet green space where locals can relax, socialize, or take a break. A common meeting spot for commuters, students, and families in the poblacion area.",
     location: "H Quiambao St, Calinan District, Davao City",
@@ -158,7 +161,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Commercial Center",
     category: "Commercial Hub",
     tag: "Commercial Hub",
-    image: "/image/Brows1.png",
+    image: `${STORAGE_BASE}/Brows1.png`,
     description:
       "A local hub in Calinan where people gather for daily needs, small businesses, and community activities. Reflects the active local life in the district and serves nearby residents and visitors passing through the area.",
     location: "H Quiambao St, Calinan District, Davao City",

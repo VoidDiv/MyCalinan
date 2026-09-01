@@ -48,6 +48,9 @@ interface RouteInfo {
   timeStr: string;
 }
 
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Community";
+
 const PLACES: CommunityPlace[] = [
   {
     id: "sacred-heart-parish",
@@ -57,7 +60,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4543,
     tag: "Church",
     pin: "⛪",
-    image: "/image/The Most Sacred Heart of Jesus Parish.png",
+    image: `${STORAGE_BASE}/The%20Most%20Sacred%20Heart%20of%20Jesus%20Parish.png`,
     description:
       "Datu Abing St., Calinan — Roman Catholic parish under the Archdiocese of Davao serving as the central place of worship for Calinan's Catholic community, offering daily Masses and full sacraments.",
     mapsQuery:
@@ -71,7 +74,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4505,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Calinan Central Adventist Church of Davao Mission.png",
+    image: `${STORAGE_BASE}/Calinan%20Central%20Adventist%20Church%20of%20Davao%20Mission.png`,
     description:
       "McArthur Highway, Calinan District — Seventh-day Adventist congregation under the Davao Mission, serving as a community worship center for members in the Davao Region.",
     mapsQuery:
@@ -85,7 +88,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.458,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Iglesia Ni Cristo1.png",
+    image: `${STORAGE_BASE}/Iglesia%20Ni%20Cristo1.png`,
     description:
       "Purok 18, De Lara St., Calinan District — Local congregation of the international Christian organization headquartered in Quezon City, serving as a place of worship for INC members in the Calinan area.",
     mapsQuery:
@@ -99,7 +102,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4548,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Iglesia Ni Cristo2.png",
+    image: `${STORAGE_BASE}/Iglesia%20Ni%20Cristo2.png`,
     description:
       "Lanzona Subd., Calinan Poblacion — Local meetinghouse for the global Latter-day Saint community, offering weekly services and programs emphasizing faith in Jesus Christ and family values.",
     mapsQuery:
@@ -113,7 +116,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4552,
     tag: "Church",
     pin: "⛪",
-    image: "/image/International Bible Baptist Church.png",
+    image: `${STORAGE_BASE}/International%20Bible%20Baptist%20Church.png`,
     description:
       "Guiho Street, Calinan Poblacion — Baptist congregation offering worship services, Bible preaching, prayer meetings, youth fellowship, and outreach programs for the Calinan community.",
     mapsQuery:
@@ -127,7 +130,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.453,
     tag: "Public Cemetery",
     pin: "🪦",
-    image: "/image/Calinan Public Cementery.png",
+    image: `${STORAGE_BASE}/Calinan%20Public%20Cementery.png`,
     description:
       "Calinan Poblacion — Traditional public burial ground serving families and residents of Calinan, providing accessible burial services and long part of the district's history and heritage.",
     mapsQuery:
@@ -141,7 +144,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4565,
     tag: "Private Cemetery",
     pin: "🪦",
-    image: "/image/Calinan Private Cementery.png",
+    image: `${STORAGE_BASE}/Calinan%20Private%20Cementery.png`,
     description:
       "R. Magsaysay Street, Calinan — Privately managed memorial park offering burial and commemorative services in a landscaped setting, part of Calinan's network of community memorial spaces.",
     mapsQuery:
@@ -155,7 +158,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4513,
     tag: "Barangay Hall",
     pin: "🏛️",
-    image: "/image/Calinan Poblacion Barangay Hall.png",
+    image: `${STORAGE_BASE}/Calinan%20Poblacion%20Barangay%20Hall.png`,
     description:
       "34 Aurora, Calinan Poblacion — Primary local government office providing barangay clearances, certificates of residency, dispute mediation, peace and order coordination, and assistance programs.",
     mapsQuery:
@@ -169,7 +172,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4548,
     tag: "District Hall",
     pin: "🏛️",
-    image: "/image/Calinan District Hall.png",
+    image: `${STORAGE_BASE}/Calinan%20District%20Hall.png`,
     description:
       "H. Quiambao Street, Calinan Poblacion — District-level government office managing programs, administrative concerns, infrastructure coordination, and public services for all barangays under Calinan.",
     mapsQuery:

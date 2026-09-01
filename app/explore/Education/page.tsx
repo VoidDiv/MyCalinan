@@ -49,6 +49,9 @@ interface RouteInfo {
 // ----------------------------------------------------------------------
 // Static Data
 // ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Education";
+
 const SCHOOLS: School[] = [
   {
     id: "calinan-central-elementary",
@@ -58,7 +61,7 @@ const SCHOOLS: School[] = [
     lng: 125.4565,
     displayTag: "Public Elementary School",
     mapsQuery: "Calinan+Central+Elementary+School+Davao+City",
-    image: "/image/Calinan Central Elementary School.png",
+    image: `${STORAGE_BASE}/Calinan%20Central%20Elementary%20School.png`,
     description:
       "Purok 5, Barangay Calinan, Davao City — One of the main public basic education institutions in the Calinan District, catering to learners from surrounding barangays.",
   },
@@ -70,7 +73,7 @@ const SCHOOLS: School[] = [
     lng: 125.457,
     displayTag: "Public Elementary School",
     mapsQuery: "Lt.+C.+Villafuerte+Sr.+Elementary+School+Davao+City",
-    image: "/image/Lt. C. Villafuerte Sr. Elementary School.png",
+    image: `${STORAGE_BASE}/Lt.%20C.%20Villafuerte%20Sr.%20Elementary%20School.png`,
     description:
       "Duyac St., Calinan District, Davao City — Provides accessible quality basic education for learners from Kindergarten to Grade 6 with active community programs.",
   },
@@ -82,7 +85,7 @@ const SCHOOLS: School[] = [
     lng: 125.4575,
     displayTag: "Public High School",
     mapsQuery: "Calinan+National+High+School+Davao+City",
-    image: "/image/Calinan National High School.jpg",
+    image: `${STORAGE_BASE}/Calinan%20National%20High%20School.jpg`,
     description:
       "Duyac St., Calinan District, Davao City — A major public secondary school under DepEd Davao City Division, offering junior and senior high school programs.",
   },
@@ -94,7 +97,7 @@ const SCHOOLS: School[] = [
     lng: 125.452,
     displayTag: "Private Elementary & High School",
     mapsQuery: "Amigo+School+of+Calinan+Davao+City",
-    image: "/image/Amigo School of Calinan.png",
+    image: `${STORAGE_BASE}/Amigo%20School%20of%20Calinan.png`,
     description:
       "De Lara St., Calinan District, Davao City — Private basic education school serving learners from surrounding barangays and upland communities with co-curricular programs.",
   },
@@ -106,7 +109,7 @@ const SCHOOLS: School[] = [
     lng: 125.459,
     displayTag: "Private High School",
     mapsQuery: "St.+Francis+College+of+Davao+Calinan+Davao+City",
-    image: "/image/St. Francis College of Davao Calinan.jpg",
+    image: `${STORAGE_BASE}/St.%20Francis%20College%20of%20Davao%20Calinan.jpg`,
     description:
       "Sunrise Village, Penano Street, Calinan — Catholic secondary school recognized by DepEd as a Senior High School provider offering ABM, HUMSS, GAS, and TVL strands.",
   },
@@ -119,7 +122,7 @@ const SCHOOLS: School[] = [
     displayTag: "Private Elementary & High School",
     mapsQuery:
       "Philippine+Nikkei+Jin+Kai+International+School+Calinan+Davao+City",
-    image: "/image/Philippine Nikkei Jin Kai School of Calinan.jpg",
+    image: `${STORAGE_BASE}/Philippine%20Nikkei%20Jin%20Kai%20School%20of%20Calinan.jpg`,
     description:
       "Durian Village, Calinan District — Japanese-Filipino cultural and language education campus under the Philippine Nikkei Jin Kai international network.",
   },
@@ -131,7 +134,7 @@ const SCHOOLS: School[] = [
     lng: 125.449,
     displayTag: "Private College & High School",
     mapsQuery: "Philippine+College+of+Technology+Calinan+Branch+Davao+City",
-    image: "/image/Philippine College of Technology Calinan Branch.jpg",
+    image: `${STORAGE_BASE}/Philippine%20College%20of%20Technology%20Calinan%20Branch.jpg`,
     description:
       "Bayanihan, Calinan-Wangan Road — Technical-vocational and higher education campus offering skills-based programs designed for industry readiness.",
   },
@@ -143,7 +146,7 @@ const SCHOOLS: School[] = [
     lng: 125.4548,
     displayTag: "Private College, High School & Elementary",
     mapsQuery: "Holy+Cross+College+of+Calinan+Davao+City",
-    image: "/image/Holy Cross College of Calinan, Inc..png",
+    image: `${STORAGE_BASE}/Holy%20Cross%20College%20of%20Calinan%2C%20Inc..png`,
     description:
       "McArthur Highway, Datu Abing St., Calinan — Catholic institution under the Archdiocese of Davao offering basic, tertiary, and graduate education with Christian values.",
   },

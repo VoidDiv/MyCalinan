@@ -55,6 +55,9 @@ interface RouteInfo {
    DATA
 ══════════════════════════════════════════ */
 
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/FoodAndDining";
+
 const foodPlaces: FoodPlace[] = [
   {
     id: "penongs-calinan",
@@ -67,7 +70,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "Calinan District — Founded in 2003, Penong's is known for its Chicken Inato and grilled chicken meals.",
     mapsQuery: "Penong's Calinan District Davao City",
-    image: "/image/Penong_s Calinan.jpg",
+    image: `${STORAGE_BASE}/Penong_s%20Calinan.jpg`,
   },
   {
     id: "tapok-grill",
@@ -80,7 +83,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "Bukidnon Highway, Acacia — Casual dining spot known for grilled seafood and a lively atmosphere.",
     mapsQuery: "Tapok Grill and Seafood Restaurant Acacia Calinan Davao City",
-    image: "/image/TAPOK Grill and Seafood Restaurant.jpg",
+    image: `${STORAGE_BASE}/TAPOK%20Grill%20and%20Seafood%20Restaurant.jpg`,
   },
   {
     id: "station-grill",
@@ -93,7 +96,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "National Highway, Calinan District — Casual Filipino restaurant offering grilled specialties and comfort food.",
     mapsQuery: "Station Grill National Highway Calinan Davao City",
-    image: "/image/Station Grill.png",
+    image: `${STORAGE_BASE}/Station%20Grill.png`,
   },
   {
     id: "dowens-food-drinks",
@@ -105,7 +108,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍽️",
     description: "Calinan District — Small local eatery serving affordable meals and refreshments.",
     mapsQuery: "Dowens Food & Drinks Calinan District Davao City",
-    image: "/image/DOWENS FOOD & DRINKS.png",
+    image: `${STORAGE_BASE}/DOWENS%20FOOD%20%26%20DRINKS.png`,
   },
   {
     id: "kabawan-sa-calinan",
@@ -117,7 +120,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍲",
     description: "Davao–Bukidnon Highway, Calinan Poblacion — Well-known eatery serving hearty local dishes.",
     mapsQuery: "Kabawan Sa Calinan Davao-Bukidnon Highway Calinan Davao City",
-    image: "/image/Kabawan Sa Calinan.png",
+    image: `${STORAGE_BASE}/Kabawan%20Sa%20Calinan.png`,
   },
   {
     id: "lahers-lechon-haus",
@@ -129,7 +132,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🐷",
     description: "Villafuerte Street, Calinan Poblacion — Local lechon eatery known for roasted pork.",
     mapsQuery: "Laher's Lechon Haus Villafuerte Street Calinan Davao City",
-    image: "/image/Laher_s Lechon Haus.jpg",
+    image: `${STORAGE_BASE}/Laher_s%20Lechon%20Haus.jpg`,
   },
   {
     id: "kwekens-carenderia",
@@ -141,7 +144,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍱",
     description: "Datu Abing Street, Calinan Poblacion — Small carinderia serving affordable lutong-bahay meals.",
     mapsQuery: "Kwekens Carenderia Datu Abing Street Calinan Davao City",
-    image: "/image/Kwekens Carenderia.png",
+    image: `${STORAGE_BASE}/Kwekens%20Carenderia.png`,
   },
   {
     id: "onens-chicken-house",
@@ -153,7 +156,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Datu Abing Street, Calinan Poblacion — Fried chicken spot offering affordable meals.",
     mapsQuery: "Onen's Chicken House Datu Abing Street Calinan Davao City",
-    image: "/image/Onen’s Chicken House.png",
+    image: `${STORAGE_BASE}/Onen%E2%80%99s%20Chicken%20House.png`,
   },
   {
     id: "kunam-chicken-house",
@@ -165,7 +168,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Calinan Poblacion — Local fried chicken eatery offering affordable chicken meals.",
     mapsQuery: "Kunam Chicken House Calinan Poblacion Davao City",
-    image: "/image/Kunam Chicken House.png",
+    image: `${STORAGE_BASE}/Kunam%20Chicken%20House.png`,
   },
   {
     id: "nam-manok-1",
@@ -177,7 +180,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Datu Abing St, Calinan District — Local chicken house offering fried chicken and chicken meals.",
     mapsQuery: "Nam Manok Chicken House Datu Abing St Calinan Davao City",
-    image: "/image/Nam…Manok Chicken House Branch 1.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20House%20Branch%201.png`,
   },
   {
     id: "nam-manok-2",
@@ -189,7 +192,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Purok 32 Roman Diaz St, Calinan District — Local chicken house offering chicken meals.",
     mapsQuery: "Nam Manok Chicken House Purok 32 Roman Diaz St Calinan Davao City",
-    image: "/image/Nam…Manok Chicken Branch 2.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20Branch%202.png`,
   },
   {
     id: "nam-manok-3",
@@ -201,7 +204,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Canete Building, Calinan District — Local chicken house offering chicken meals.",
     mapsQuery: "Nam Manok Chicken House Canete Building Calinan Davao City",
-    image: "/image/Nam…Manok Chicken House Branch 3.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20House%20Branch%203.png`,
   },
   {
     id: "minute-burger-1",
@@ -213,7 +216,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍔",
     description: "Datu Abing St, Calinan District — Affordable burger meals and Buy 1, Take 1 offerings.",
     mapsQuery: "Minute Burger Datu Abing St Calinan Davao City",
-    image: "/image/Minute Burger1.png",
+    image: `${STORAGE_BASE}/Minute%20Burger1.png`,
   },
   {
     id: "minute-burger-2",
@@ -225,7 +228,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍔",
     description: "Aurora St, Calinan District — Affordable burger meals and Buy 1, Take 1 offerings.",
     mapsQuery: "Minute Burger Aurora St Calinan Davao City",
-    image: "/image/Minute Burger2.png",
+    image: `${STORAGE_BASE}/Minute%20Burger2.png`,
   },
   {
     id: "jollibee",
@@ -237,7 +240,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍟",
     description: "Canete Building, Calinan District — Fast-food branch serving popular Filipino fast-food meals.",
     mapsQuery: "Jollibee Canete Building Calinan Davao City",
-    image: "/image/Jollibee.png",
+    image: `${STORAGE_BASE}/Jollibee.png`,
   },
   {
     id: "kopikuys",
@@ -249,7 +252,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Calinan District — Local café offering coffee, drinks, and light meals.",
     mapsQuery: "Kopikuys Calinan Davao City",
-    image: "/image/Kopikuys.jpg",
+    image: `${STORAGE_BASE}/Kopikuys.jpg`,
   },
   {
     id: "hikaru-de-cielo-cafe",
@@ -261,7 +264,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Purok 21, San Roque, Davao–Bukidnon Hwy — Cozy café-restaurant with a scenic atmosphere.",
     mapsQuery: "Hikaru de Cielo Cafe Calinan Davao City",
-    image: "/image/Hikaru de Cielo Cafe.jpg",
+    image: `${STORAGE_BASE}/Hikaru%20de%20Cielo%20Cafe.jpg`,
   },
   {
     id: "kapekol-calinan",
@@ -273,7 +276,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Calinan Poblacion — Small budget-friendly coffee stall.",
     mapsQuery: "Kapekol Calinan Poblacion Davao City",
-    image: "/image/Kapekol.png",
+    image: `${STORAGE_BASE}/Kapekol.png`,
   },
   {
     id: "teatuh-cafe",
@@ -285,7 +288,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🧋",
     description: "Villafuerte Street, Calinan Poblacion — Coffee and milk tea shop.",
     mapsQuery: "TeaTuh Cafe Villafuerte Street Calinan Poblacion Davao City",
-    image: "/image/TeaTuh Cafe.png",
+    image: `${STORAGE_BASE}/TeaTuh%20Cafe.png`,
   },
   {
     id: "machatuals",
@@ -297,7 +300,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍵",
     description: "R. Magsaysay St, Calinan — Milk tea and matcha drink shop.",
     mapsQuery: "Machatuals Calinan Poblacion Davao City",
-    image: "/image/Machatuals.jpg",
+    image: `${STORAGE_BASE}/Machatuals.jpg`,
   },
   {
     id: "rose-bakeshop-1",
@@ -309,7 +312,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Davao–Bukidnon Hwy, Calinan — Bakery offering breads and pastries.",
     mapsQuery: "Rose Bakeshop Davao-Bukidnon Hwy Calinan Davao City",
-    image: "/image/Rose Bakeshop1.png",
+    image: `${STORAGE_BASE}/Rose%20Bakeshop1.png`,
   },
   {
     id: "rose-bakeshop-2",
@@ -321,7 +324,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "De Lara St, Calinan District — Bakery offering breads and pastries.",
     mapsQuery: "Rose Bakeshop De Lara St Calinan Davao City",
-    image: "/image/Rose Bakeshop2.png",
+    image: `${STORAGE_BASE}/Rose%20Bakeshop2.png`,
   },
   {
     id: "panadero-bakeshop-1",
@@ -333,7 +336,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Fausta St, National Highway, Calinan — Bakery offering everyday breads and pastries.",
     mapsQuery: "Panadero Bakeshop Fausta St Calinan Davao City",
-    image: "/image/Panadero Bakeshop1.png",
+    image: `${STORAGE_BASE}/Panadero%20Bakeshop1.png`,
   },
   {
     id: "panadero-bakeshop-2",
@@ -345,7 +348,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Purok 30, Calinan — Bakery offering everyday breads and pastries.",
     mapsQuery: "Panadero Bakeshop Purok 30 Calinan Davao City",
-    image: "/image/Panadero Bakeshop2.png",
+    image: `${STORAGE_BASE}/Panadero%20Bakeshop2.png`,
   },
   {
     id: "manolette-bakeshop-1",
@@ -357,7 +360,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Villafuerte St, Calinan District — Local bakery offering bread, cakes, and pastries.",
     mapsQuery: "Manolette Bakeshop Villafuerte St Calinan District Davao City",
-    image: "/image/Manolette Bakeshop1.png",
+    image: `${STORAGE_BASE}/Manolette%20Bakeshop1.png`,
   },
   {
     id: "manolette-bakeshop-2",
@@ -369,7 +372,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Aurora St, Calinan District — Local bakery offering bread, cakes, and pastries.",
     mapsQuery: "Manolette Bakeshop Aurora Calinan District Davao City",
-    image: "/image/Manolette Bakeshop2.jpg",
+    image: `${STORAGE_BASE}/Manolette%20Bakeshop2.jpg`,
   },
   {
     id: "nikkas-breadhaus",
@@ -381,7 +384,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "H. Garcia St corner Roman Diaz St, Calinan Poblacion — Local bakery.",
     mapsQuery: "Nikka's Breadhaus H. Garcia Street Corner Roman Diaz St Calinan Davao City",
-    image: "/image/Nikka_s Breadhaus.jpg",
+    image: `${STORAGE_BASE}/Nikka_s%20Breadhaus.jpg`,
   },
   {
     id: "aa-breadhaus",
@@ -393,7 +396,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Villafuerte St, Calinan — Local bakery offering breads, cakes, and pastries.",
     mapsQuery: "A&A Breadhaus Villafuerte St Calinan Davao City",
-    image: "/image/A&A Breadhaus.jpg",
+    image: `${STORAGE_BASE}/A%26A%20Breadhaus.jpg`,
   },
   {
     id: "starlett-night-bar",
@@ -405,7 +408,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🎤",
     description: "Calinan District — Casual nightlife spot offering music and social entertainment.",
     mapsQuery: "Starlett Night Bar Calinan Davao City",
-    image: "/image/Starlett Night Bar.png",
+    image: `${STORAGE_BASE}/Starlett%20Night%20Bar.png`,
   },
 ];
 

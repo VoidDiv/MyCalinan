@@ -50,6 +50,9 @@ interface RouteInfo {
 // ----------------------------------------------------------------------
 // Static Data
 // ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Finance";
+
 const FINANCE_LOCATIONS: FinanceLocation[] = [
   {
     id: "bdo-calinan",
@@ -61,7 +64,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "BDO+Calinan+WTKC+Realty+Bldg+Davao+Bukidnon+National+Highway+Calinan+Davao+City+Davao+del+Sur",
-    image: "image/BDO.png",
+    image: `${STORAGE_BASE}/BDO.png`,
     description:
       "WTKC Realty Bldg., Davao–Bukidnon National Highway, Calinan — Branch of Banco de Oro Unibank, one of the largest banks in the Philippines, serving retail and commercial banking needs in the Calinan district.",
   },
@@ -75,7 +78,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "BDO+Network+Bank+ONB+Calinan+Building+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
-    image: "image/BDO Network Bank.jpg",
+    image: `${STORAGE_BASE}/BDO%20Network%20Bank.jpg`,
     description:
       "ONB Calinan Building, Davao–Buda National Hwy — Formerly One Network Bank (ONB), serving farmers, employees, small businesses, and residents with savings, loans, ATM access, and money transfers.",
   },
@@ -89,7 +92,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "PNB+Davao+Calinan+LTH+Building+Davao+Bukidnon+Hwy+Calinan+Davao+City+Davao+del+Sur",
-    image: "image/PNB.png",
+    image: `${STORAGE_BASE}/PNB.png`,
     description:
       "LTH Building, Davao–Bukidnon Hwy, Calinan — Full-service branch of the Philippine National Bank providing a range of banking and financial services to residents and businesses along the highway corridor.",
   },
@@ -103,7 +106,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "China+Bank+Honesto+Garcia+St+Calinan+Davao+Buda+National+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
-    image: "image/ChinaBank1.png",
+    image: `${STORAGE_BASE}/ChinaBank1.png`,
     description:
       "Honesto Garcia St., Calinan District — Branch of China Banking Corporation, one of the Philippines' oldest private universal banks, serving individuals, businesses, and agricultural clients in the area.",
   },
@@ -117,7 +120,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur",
-    image: "image/Landbank1.png",
+    image: `${STORAGE_BASE}/Landbank1.png`,
     description:
       "Purok 13, Palarca Street, Calinan Poblacion — Government bank branch offering savings accounts, ATM, loans, fund transfers, and government-related transactions for residents, farmers, and pensioners.",
   },
@@ -131,7 +134,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "🏦",
     mapsQuery:
       "Landbank+Calinan+Purok+13+Palarca+Street+Calinan+Poblacion+Davao+City+Davao+del+Sur",
-    image: "image/Landbank2.jpg",
+    image: `${STORAGE_BASE}/Landbank2.jpg`,
     description:
       "Purok 13, Palarca Street, Calinan Poblacion — Convenient financial access for the Calinan community without traveling to downtown Davao, with full banking services and government transaction support.",
   },
@@ -145,7 +148,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "💸",
     mapsQuery:
       "M+Lhuillier+Calinan+Davao+Bukidnon+Hwy+Calinan+District+Davao+City+Davao+del+Sur",
-    image: "image/M Lhuillier.jpg",
+    image: `${STORAGE_BASE}/M%20Lhuillier.jpg`,
     description:
       "Davao–Bukidnon Highway, Calinan — Branch of M Lhuillier Financial Services providing quick-access pawning, money remittance, and financial solutions for the local community.",
   },
@@ -159,7 +162,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "💸",
     mapsQuery:
       "Palawan+Pawnshop+Villafuerte+St+Calinan+District+Davao+City+Davao+del+Sur",
-    image: "image/Palawan Pawnshop.png",
+    image: `${STORAGE_BASE}/Palawan%20Pawnshop.png`,
     description:
       "Villafuerte St., Calinan — Palawan Express branch providing pawnbroking, money remittance, and payment solutions for residents and businesses in the Calinan Poblacion area.",
   },
@@ -173,7 +176,7 @@ const FINANCE_LOCATIONS: FinanceLocation[] = [
     pin: "💸",
     mapsQuery:
       "Palawan+Pawnshop+Davao+Bukidnon+Hwy+Calinan+Calinan+District+Davao+City+Davao+del+Sur",
-    image: "image/Palawan Pawnshop1.png",
+    image: `${STORAGE_BASE}/Palawan%20Pawnshop1.png`,
     description:
       "Davao–Bukidnon Highway, Calinan — Accessible pawnbroking, money remittance, and payment services for residents and businesses along the main highway in Calinan District.",
   },

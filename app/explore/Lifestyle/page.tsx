@@ -47,6 +47,9 @@ interface RouteInfo {
 // ----------------------------------------------------------------------
 // Static Data
 // ----------------------------------------------------------------------
+  const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Lifestyle";
+
 const LOCATIONS_DATA: LocationItem[] = [
   {
     id: "la-migs-gym",
@@ -57,7 +60,7 @@ const LOCATIONS_DATA: LocationItem[] = [
     tag: "Gym",
     pin: "🏋️",
     mapsQuery: "La'+Migs+Fitness+Gym+Crossing+Calinan+Davao+City",
-    imageSrc: "image/La_ Migs Fitness Gym.png",
+    imageSrc: `${STORAGE_BASE}/La_%20Migs%20Fitness%20Gym.png`,
     address: "Buda National Hwy, Crossing Calinan",
     description:
       "Community-oriented fitness center offering strength training, cardio workouts, and general wellness in a supportive neighborhood setting.",
@@ -71,7 +74,7 @@ const LOCATIONS_DATA: LocationItem[] = [
     tag: "Gym",
     pin: "🏋️",
     mapsQuery: "Ultradynamic+Fitness+Gym+Calinan+Davao+City",
-    imageSrc: "image/Ultradynamic Fitness Gym - Calinan Davao.jpg",
+    imageSrc: `${STORAGE_BASE}/Ultradynamic%20Fitness%20Gym%20-%20Calinan%20Davao.jpg`,
     address: "3rd Floor Spazio Del Fierro, Villafuerte cor. Malanos St., Calinan",
     description:
       "Modern gym offering strength equipment, cardio machines, group workouts, and coaching; open early and ideal for beginners to advanced gym-goers.",
@@ -85,7 +88,7 @@ const LOCATIONS_DATA: LocationItem[] = [
     tag: "Hotel",
     pin: "🏨",
     mapsQuery: "Casa+Imelda+Inn+Abayon+Calinan+Davao+City",
-    imageSrc: "image/Casa Imelda Inn.png",
+    imageSrc: `${STORAGE_BASE}/Casa%20Imelda%20Inn.png`,
     address: "Abayon, Calinan District",
     description:
       "Small local lodging establishment offering a convenient stay for visitors exploring Calinan, known for its proximity to nature attractions and local commerce.",
@@ -99,7 +102,7 @@ const LOCATIONS_DATA: LocationItem[] = [
     tag: "Hotel",
     pin: "🏨",
     mapsQuery: "SONREIR+APARTELLE+AND+INN+Calinan+Davao+City",
-    imageSrc: "image/SONREIR APARTELLE AND INN.png",
+    imageSrc: `${STORAGE_BASE}/SONREIR%20APARTELLE%20AND%20INN.png`,
     address: "Davao–Bukidnon Rd, Calinan District",
     description:
       "Lodging establishment offering comfortable rooms for short stays and overnight accommodation for travelers along the Davao–Bukidnon route.",

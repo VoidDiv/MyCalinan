@@ -48,6 +48,9 @@ interface RouteInfo {
   time: string;
 }
 
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Transport";
+
 const PLACES: TransportPlace[] = [
   {
     id: "petron-1",
@@ -57,7 +60,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.45,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Petron1.png",
+    image: `${STORAGE_BASE}/Petron1.png`,
     description:
       "Davao–Buda National Highway, Calinan District — Full-service fuel station in Petron's nationwide network providing fuel, lubricants, and related vehicle services.",
     mapsQuery: "Petron+Davao+Buda+Calinan+District+Davao+City+Davao+del+Sur",
@@ -70,7 +73,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4562,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Petron2.png",
+    image: `${STORAGE_BASE}/Petron2.png`,
     description:
       "Villafuerte St., Calinan District — Part of Petron Corporation's nationwide network providing fuel, lubricants, and vehicle services for motorists in the Calinan area.",
     mapsQuery: "Petron+Villafuerte+Street+Calinan+District+Davao+City+Davao+del+Sur",
@@ -83,7 +86,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4495,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Shell.png",
+    image: `${STORAGE_BASE}/Shell.png`,
     description:
       "Davao–Buda National Highway, Purok 16, Calinan — Shell service station offering fuel, car care, and vehicle maintenance as part of Shell's nationwide retail network.",
     mapsQuery: "Shell+Davao+Buda+National+Highway+Calinan+District+Davao+City+Davao+del+Sur",
@@ -96,7 +99,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4545,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Caltex1.jpg",
+    image: `${STORAGE_BASE}/Caltex1.jpg`,
     description:
       "Datu Abing St., Calinan — Convenient fueling point strategically placed along key transport routes toward downtown Davao and nearby municipalities.",
     mapsQuery: "Caltex+Datu+Abing+Street+Calinan+District+Davao+City+Davao+del+Sur",
@@ -109,7 +112,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.451,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Caltex2.jpg",
+    image: `${STORAGE_BASE}/Caltex2.jpg`,
     description:
       "Davao–Bukidnon Road, Corner Aurora, Calinan — Fueling point connecting major transport routes for residents and travelers within western Davao City.",
     mapsQuery:
@@ -123,7 +126,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4575,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/SEAOIL.jpg",
+    image: `${STORAGE_BASE}/SEAOIL.jpg`,
     description:
       "Fausta St., Calinan District — Fuel service station under SEAOIL Philippines Inc., known for locally refined and imported petroleum products across a nationwide chain.",
     mapsQuery: "SEAOIL+Fausta+St+Calinan+District+Davao+City+Davao+del+Sur",
@@ -136,7 +139,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4515,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/MyGas.jpg",
+    image: `${STORAGE_BASE}/MyGas.jpg`,
     description:
       "Aurora St., Calinan District — Part of My Gas Petroleum Corporation's growing regional network of service stations across Southern Mindanao.",
     mapsQuery: "MyGas+Aurora+Calinan+District+Davao+City+Davao+del+Sur",
@@ -149,7 +152,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4522,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Gazz.png",
+    image: `${STORAGE_BASE}/Gazz.png`,
     description:
       "De Lara St., Calinan — Compact roadside station ideal for motorcycles, tricycles, and private vehicles along the busy Davao–Bukidnon Road.",
     mapsQuery: "Gazz+De+Lara+St+Calinan+District+Davao+City+Davao+del+Sur",
@@ -162,7 +165,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4556,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/CALMALBA TODA.jpg",
+    image: `${STORAGE_BASE}/CALMALBA%20TODA.jpg`,
     description:
       "R. Magsaysay St., Calinan — Also known as Malagos Terminal, a key transport hub connecting Malagos and neighboring barangays to the wider Davao metropolitan area.",
     mapsQuery:
@@ -176,7 +179,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4558,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/CALTRANSCO (CALODA).jpg",
+    image: `${STORAGE_BASE}/CALTRANSCO%20(CALODA).jpg`,
     description:
       "R. Magsaysay St., Calinan — Member-driven transport service cooperative providing organized public transportation within and around Davao del Sur.",
     mapsQuery:
@@ -190,7 +193,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.456,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Third District Transport Cooperative.png",
+    image: `${STORAGE_BASE}/Third%20District%20Transport%20Cooperative.png`,
     description:
       "R. Magsaysay St., Calinan — CDA-recognized transport cooperative serving the Davao Region's third district with organized public transport services.",
     mapsQuery:
@@ -204,7 +207,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4578,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Jeepney Terminal Mintal & Davao.png",
+    image: `${STORAGE_BASE}/Jeepney%20Terminal%20Mintal%20%26%20Davao.png`,
     description:
       "Fausta, Calinan District — Central loading and unloading point for jeepneys connecting Mintal, Calinan, and surrounding barangays to the city proper.",
     mapsQuery:
@@ -218,7 +221,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.455,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Anatolio Taxi Terminal.png",
+    image: `${STORAGE_BASE}/Anatolio%20Taxi%20Terminal.png`,
     description:
       "Calinan Poblacion — Local taxi terminal offering faster point-to-point travel for residents, shoppers, workers, and visitors heading to and from Davao City.",
     mapsQuery:
