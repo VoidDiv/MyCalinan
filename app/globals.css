@@ -4804,295 +4804,1104 @@ body {
     font-size: 1.5rem;
   }
 }
-
 /* ============================================================
-   admin-panel.css — shared admin panel chrome (Dashboard,
-   Announcements, Events, Listings). Originally duplicated as an
-   inline <style> block inside AdminEvents.tsx; moved here so all
-   admin pages share one copy instead of shipping their own CSS.
+   admin-shared.css
+   ONE shared stylesheet for every admin screen:
+   AdminDashboard, AdminAnnouncements, AdminEvents, AdminListings,
+   AdminReports.
+
+   Root class: `.admin-page`
+   (Previously these were 4 near-duplicate blocks: `.admin-shell`,
+   `.admin-events-root`, `.admin-listings-root`, `.admin-reports-root`
+   — same layout, slightly different colors/hex values, copy-pasted
+   with drift. This replaces ALL of them.)
+
+   Design is the AdminReports look: fixed 240px sidebar, #1a5c38
+   green, white content cards on a light #f0f4f8 background.
+
    ============================================================ */
 
-.admin-events-root, .admin-events-root *, .admin-events-root *::before, .admin-events-root *::after {
-          box-sizing: border-box;
-        }
-        .admin-events-root {
-          font-family: 'Segoe UI', sans-serif;
-          background: #f0f4f8;
-          display: flex;
-          min-height: 100vh;
-          position: relative;
-        }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .sidebar {
-          width: 240px; background: #1a5c38; color: #fff;
-          display: flex; flex-direction: column; min-height: 100vh;
-          position: fixed; top: 0; left: 0; z-index: 50;
-        }
-        .sidebar .logo { padding: 24px 24px 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
-        .sidebar .logo h2 { font-size: 1.2rem; font-weight: 700; margin: 0; }
-        .sidebar .logo p { font-size: .75rem; opacity: .65; margin-top: 2px; }
-
-        .admin-badge {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 24px; border-bottom: 1px solid rgba(255,255,255,.1);
-          background: rgba(0,0,0,.12);
-        }
-        .admin-avatar {
-          width: 34px; height: 34px; background: rgba(255,255,255,.25);
-          border-radius: 50%; display: flex; align-items: center; justify-content: center;
-          font-size: .9rem; font-weight: 700; flex-shrink: 0;
-        }
-        .admin-info { min-width: 0; }
-        .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
-
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0; }
-        .sidebar .menu li a {
-          display: flex; align-items: center; gap: 12px; padding: 12px 24px;
-          color: rgba(255,255,255,.82); text-decoration: none; font-size: .88rem;
-          transition: background .2s, color .2s;
-        }
-        .sidebar .menu li a:hover, .sidebar .menu li.active a { background: rgba(255,255,255,.15); color: #fff; }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
-        .logout-btn {
-          display: flex; align-items: center; gap: 10px; width: 100%;
-          padding: 10px 16px; background: rgba(231,76,60,.2);
-          border: 1px solid rgba(231,76,60,.35); color: #ff8f85;
-          border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer;
-          transition: background .2s, color .2s;
-        }
-        .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
-
-        .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
-
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
-        .header h1 { font-size: 1.4rem; color: #1a3d28; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; }
-
-        .add-btn {
-          background: #1a5c38; color: #fff; border: none; padding: 10px 20px;
-          border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer;
-          display: flex; align-items: center; gap: 8px; transition: background .2s;
-        }
-        .add-btn:hover { background: #145029; }
-
-        .stats {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 18px; margin-bottom: 28px;
-        }
-        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
-        .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
-        .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
-        .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
-
-        .auth-warning {
-          background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;
-          padding: 14px 20px; margin-bottom: 22px; font-size: .88rem; color: #856404;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .auth-warning a { color: #6b5200; font-weight: 600; }
-
-        .form-section, .table-section {
-          background: #fff; border-radius: 12px; padding: 26px 28px;
-          box-shadow: 0 2px 10px rgba(0,0,0,.07); margin-bottom: 28px;
-        }
-        .form-section h2, .table-section h2 {
-          font-size: 1rem; font-weight: 700; color: #1a3d28;
-          margin: 0 0 18px; padding-bottom: 12px; border-bottom: 2px solid #e8f5ee;
-        }
-
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        .input-box { display: flex; flex-direction: column; gap: 5px; }
-        .input-box.full { grid-column: 1 / -1; }
-        .input-box label { font-size: .8rem; font-weight: 600; color: #444; }
-        .input-box input, .input-box select, .input-box textarea {
-          padding: 9px 13px; border: 1.5px solid #dce8e0; border-radius: 8px;
-          font-size: .88rem; color: #2c3e50; outline: none; transition: border .2s;
-          font-family: inherit; width: 100%;
-        }
-        .input-box input:focus, .input-box select:focus, .input-box textarea:focus { border-color: #1a5c38; }
-        .input-box textarea { resize: vertical; }
-
-        .btn-row { display: flex; gap: 12px; margin-top: 14px; }
-        .save-btn {
-          background: #1a5c38; color: #fff; border: none; padding: 10px 24px;
-          border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer;
-          transition: background .2s; display: flex; align-items: center; gap: 8px;
-        }
-        .save-btn:hover { background: #145029; }
-        .save-btn.grey { background: #888; }
-        .save-btn.grey:hover { background: #666; }
-
-        .toast {
-          position: fixed; top: 20px; right: 24px; background: #1a5c38; color: #fff;
-          padding: 12px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          box-shadow: 0 4px 14px rgba(0,0,0,.2); z-index: 9999; animation: slideIn .25s ease;
-        }
-        @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: none; align-items: center; justify-content: center; z-index: 8000;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal-box {
-          background: #fff; border-radius: 14px; padding: 30px 32px;
-          max-width: 380px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
-        }
-        .modal-box svg { margin-bottom: 10px; }
-        .modal-box h3 { font-size: 1.1rem; font-weight: 700; color: #1a3d28; margin-bottom: 8px; }
-        .modal-box p { font-size: .88rem; color: #666; margin-bottom: 22px; }
-        .modal-btns { display: flex; gap: 10px; justify-content: center; }
-        .modal-btns button {
-          padding: 9px 24px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          cursor: pointer; border: none; transition: opacity .2s;
-        }
-        .modal-btns button:hover { opacity: .85; }
-        .modal-confirm { background: #e74c3c; color: #fff; }
-        .modal-cancel { background: #e8f0ec; color: #333; }
-
-        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-        thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
-        th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
-        tbody tr:hover td { background: #f9fdfb; }
-
-        .desc-cell {
-          max-width: 320px; color: #666; display: -webkit-box;
-          -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-
-        .title-cell { display: flex; align-items: center; gap: 10px; }
-        .title-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e8f0ec; }
-
-        .tag { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: .75rem; font-weight: 700; background: #e8f5ee; color: #1a5c38; }
-        .tag.event { background: #e3f0ff; color: #1a56a0; }
-        .tag.advisory { background: #fff3cd; color: #856404; }
-        .tag.program { background: #d4edda; color: #155724; }
-        .tag.festival { background: #fde8f5; color: #8b1a6b; }
-
-        td button {
-          padding: 5px 12px; border-radius: 6px; font-size: .78rem; font-weight: 600;
-          cursor: pointer; border: none; margin-right: 5px; transition: opacity .2s;
-          display: inline-flex; align-items: center; gap: 5px;
-        }
-        td button:hover { opacity: .8; }
-        td button.edit { background: #d4edda; color: #155724; }
-        td button.delete { background: #f8d7da; color: #721c24; }
-
-        .table-state td { text-align: center; padding: 40px; color: #888; }
-
-        @media (max-width: 768px) {
-          .sidebar { width: 200px; }
-          .content { margin-left: 200px; padding: 18px; }
-          .form-grid { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 540px) {
-          .sidebar { display: none; }
-          .content { margin-left: 0; }
-        }
-
-/* ============================================================
-   admin-listings-page.css — extra rules used only by
-   AdminListings.tsx (Business Listings). Base admin-panel chrome
-   above (sidebar, content, header, stats, modal, toast, table)
-   already covers the rest; only the listings-specific bits
-   (toolbar/filters, status badges, approve/deny/view buttons,
-   the view-details modal) are added here.
-   ============================================================ */
-
-.admin-listings-root, .admin-listings-root *, .admin-listings-root *::before, .admin-listings-root *::after {
+.admin-page,
+.admin-page *,
+.admin-page *::before,
+.admin-page *::after {
   box-sizing: border-box;
 }
-.admin-listings-root {
-  font-family: 'Segoe UI', sans-serif;
+
+.admin-page {
+  font-family: "Segoe UI", sans-serif;
   background: #f0f4f8;
   display: flex;
   min-height: 100vh;
+}
+
+.admin-page .spin {
+  animation: admin-page-spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes admin-page-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- SIDEBAR (fixed) ---------- */
+
+.admin-page .sidebar {
+  width: 240px;
+  background: #1a5c38;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+
+.admin-page .sidebar .logo {
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.admin-page .sidebar .logo h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.admin-page .sidebar .logo p {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+.admin-page .admin-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.admin-page .admin-avatar {
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.admin-page .admin-info {
+  min-width: 0;
+}
+
+.admin-page .admin-info .name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-page .admin-info .role {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: capitalize;
+}
+
+.admin-page .sidebar .menu {
+  list-style: none;
+  padding: 16px 0;
+  flex: 1;
+  margin: 0;
+}
+
+.admin-page .sidebar .menu li a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  font-size: 0.88rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-page .sidebar .menu li a:hover,
+.admin-page .sidebar .menu li.active a {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.admin-page .sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-page .logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(231, 76, 60, 0.2);
+  border: 1px solid rgba(231, 76, 60, 0.35);
+  color: #ff8f85;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-page .logout-btn:hover {
+  background: rgba(231, 76, 60, 0.4);
+  color: #fff;
+}
+
+/* ---------- MAIN CONTENT ---------- */
+
+.admin-page .content {
+  margin-left: 240px;
+  padding: 32px 36px;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-page .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-page .header h1 {
+  font-size: 1.4rem;
+  color: #1a3d28;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.admin-page .subtitle {
+  font-size: 0.85rem;
+  color: #778;
+  margin: 0 0 28px;
+}
+
+.admin-page .auth-warning {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 22px;
+  font-size: 0.88rem;
+  color: #856404;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-page .auth-warning a {
+  color: #6b5200;
+  font-weight: 600;
+}
+
+/* "Add" / "Export" style primary action button */
+.admin-page .add-btn,
+.admin-page .export-btn {
+  background: #1a5c38;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.admin-page .add-btn:hover,
+.admin-page .export-btn:hover {
+  background: #145029;
+}
+
+/* ---------- STATS ---------- */
+
+.admin-page .stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.admin-page .stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 18px;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+}
+
+.admin-page .stat-card svg,
+.admin-page .stat-card i {
+  color: #1a5c38;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+.admin-page .stat-card h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: #1a3d28;
+  margin: 0;
+}
+
+.admin-page .stat-card p {
+  font-size: 0.78rem;
+  color: #777;
+  margin-top: 2px;
+}
+
+/* Clickable filter variant, used by AdminListings' stat cards */
+.admin-page .stat-card.clickable {
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-page .stat-card.clickable:hover {
+  transform: translateY(-2px);
+}
+
+.admin-page .stat-card.active {
+  border-color: #1a5c38;
+}
+
+.admin-page .stat-card.pending svg { color: #a66a00; }
+.admin-page .stat-card.pending.active { border-color: #a66a00; }
+.admin-page .stat-card.approved svg { color: #1f7a3d; }
+.admin-page .stat-card.approved.active { border-color: #1f7a3d; }
+.admin-page .stat-card.denied svg { color: #c0392b; }
+.admin-page .stat-card.denied.active { border-color: #c0392b; }
+
+/* ---------- TOOLBAR (search + filter tabs, used by Listings) ---------- */
+
+.admin-page .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.admin-page .filter-tabs {
+  display: flex;
+  gap: 6px;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.admin-page .filter-tab {
+  border: none;
+  background: transparent;
+  color: #778;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-page .filter-tab:hover:not(.active) {
+  background: #f0f4f8;
+}
+
+.admin-page .filter-tab.active {
+  background: #1a5c38;
+  color: #fff;
+}
+
+.admin-page .search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 999px;
+  padding: 9px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  min-width: 260px;
+  flex: 1;
+  max-width: 360px;
+}
+
+.admin-page .search-box svg {
+  color: #778;
+  flex-shrink: 0;
+}
+
+.admin-page .search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.86rem;
+  color: #1a3d28;
+  width: 100%;
+}
+
+.admin-page .search-box input::placeholder {
+  color: #999;
+}
+
+/* ---------- FORM (used by Announcements / Events add-edit forms) ---------- */
+
+.admin-page .form-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 26px 28px;
+  margin-bottom: 28px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+}
+
+.admin-page .form-section h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a3d28;
+  margin: 0 0 18px;
+}
+
+.admin-page .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.admin-page .input-box.full {
+  grid-column: 1 / -1;
+}
+
+.admin-page .input-box label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a3d28;
+  margin-bottom: 6px;
+}
+
+.admin-page .input-box input,
+.admin-page .input-box select,
+.admin-page .input-box textarea {
+  width: 100%;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: #1a3d28;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-page .input-box textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.admin-page .input-box input:focus,
+.admin-page .input-box select:focus,
+.admin-page .input-box textarea:focus {
+  border-color: #1a5c38;
+  box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.12);
+}
+
+.admin-page .btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-page .save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  background: #1a5c38;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-page .save-btn:hover {
+  background: #145029;
+}
+
+.admin-page .save-btn.grey {
+  background: #8a8a8a;
+}
+
+.admin-page .save-btn.grey:hover {
+  background: #6f6f6f;
+}
+
+/* ---------- REPORT PANELS (AdminReports charts) ---------- */
+
+.admin-page .panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.admin-page .panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 26px 28px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+}
+
+.admin-page .panel h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a3d28;
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e8f5ee;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-page .panel-heading-icon {
+  color: #1a5c38;
+}
+
+.admin-page .bar-row {
+  margin-bottom: 16px;
+}
+
+.admin-page .bar-row:last-child {
+  margin-bottom: 0;
+}
+
+.admin-page .bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.admin-page .bar-label b {
+  color: #1a3d28;
+}
+
+.admin-page .bar-track {
+  background: #eef4f0;
+  border-radius: 6px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.admin-page .bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: #1a5c38;
+  transition: width 0.4s ease;
+}
+
+.admin-page .panel-state {
+  text-align: center;
+  padding: 30px 10px;
+  color: #888;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ---------- TABLE (shared by all list pages) ---------- */
+
+.admin-page .table-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 26px 28px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  overflow-x: auto;
+}
+
+.admin-page .table-section h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1a3d28;
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e8f5ee;
+}
+
+.admin-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.admin-page thead {
+  background: #f4faf6;
+}
+
+.admin-page th,
+.admin-page td {
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 1px solid #e8f0ec;
+  vertical-align: top;
+}
+
+.admin-page th {
+  font-weight: 700;
+  color: #1a3d28;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.admin-page tbody tr:hover td {
+  background: #f9fdfb;
+}
+
+.admin-page td.num {
+  text-align: right;
+  font-weight: 600;
+  color: #1a3d28;
+}
+
+.admin-page .table-state td {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+.admin-page .table-state svg {
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+
+.admin-page .total-row {
+  background: #f4faf6;
+}
+
+.admin-page .title-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-page .title-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #eef4f0;
+}
+
+.admin-page .title-sub {
+  font-size: 0.78rem;
+  color: #778;
+  margin-top: 2px;
+}
+
+.admin-page .desc-cell {
+  max-width: 320px;
+  color: #778;
+}
+
+/* ---------- TAGS / STATUS BADGES ---------- */
+
+.admin-page .tag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #e8f5ee;
+  color: #1a5c38;
+}
+
+.admin-page .tag.event,
+.admin-page .badge.approved {
+  background: #e3f0ff;
+  color: #1a56a0;
+}
+
+.admin-page .tag.advisory,
+.admin-page .badge.pending {
+  background: #fff4df;
+  color: #a66a00;
+}
+
+.admin-page .tag.program {
+  background: #e8eef9;
+  color: #315b9a;
+}
+
+.admin-page .tag.festival {
+  background: #f8eafa;
+  color: #8a3b9c;
+}
+
+.admin-page .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-page .badge.denied {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+/* ---------- ROW ACTION BUTTONS ---------- */
+
+.admin-page .view,
+.admin-page .edit,
+.admin-page .approve,
+.admin-page .deny,
+.admin-page .delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0 6px 6px 0;
+  transition: background 0.15s ease;
+}
+
+.admin-page .view,
+.admin-page .edit {
+  background: #e8f5ee;
+  color: #1a5c38;
+}
+
+.admin-page .view:hover,
+.admin-page .edit:hover {
+  background: #1a5c38;
+  color: #fff;
+}
+
+.admin-page .approve {
+  background: #e6f6ec;
+  color: #1f7a3d;
+}
+
+.admin-page .approve:hover {
+  background: #1f7a3d;
+  color: #fff;
+}
+
+.admin-page .deny {
+  background: #fff4df;
+  color: #a66a00;
+}
+
+.admin-page .deny:hover {
+  background: #a66a00;
+  color: #fff;
+}
+
+.admin-page .delete {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+.admin-page .delete:hover {
+  background: #c0392b;
+  color: #fff;
+}
+
+/* ---------- TOAST ---------- */
+
+.admin-page .toast,
+.admin-page #toast {
+  position: fixed;
+  top: 22px;
+  right: 32px;
+  z-index: 500;
+  padding: 12px 20px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 500;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- SHARED MODALS (confirm dialogs, deny reason, view detail) ---------- */
+
+.admin-page .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 8000;
+}
+
+.admin-page .modal-overlay.open {
+  display: flex;
+}
+
+.admin-page .modal-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 30px 32px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.admin-page .modal-icon,
+.admin-page .modal-box i {
+  color: #1a5c38;
+  margin-bottom: 10px;
+}
+
+.admin-page .modal-box h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a3d28;
+  margin-bottom: 8px;
+}
+
+.admin-page .modal-box p {
+  font-size: 0.88rem;
+  color: #666;
+  margin-bottom: 22px;
+}
+
+.admin-page .modal-actions,
+.admin-page .modal-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.admin-page .modal-actions button,
+.admin-page .modal-btns button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.admin-page .btn-stay,
+.admin-page .modal-cancel {
+  background: #e8f0ec;
+  color: #333;
+}
+
+.admin-page .btn-logout,
+.admin-page .modal-confirm {
+  background: #1a5c38;
+  color: #fff;
+}
+
+/* Deny-reason textarea, used inside .modal-box on AdminListings */
+.admin-page .deny-reason {
+  width: 100%;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  color: #1a3d28;
+  resize: vertical;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-page .deny-reason:focus {
+  border-color: #1a5c38;
+  box-shadow: 0 0 0 3px rgba(26, 92, 56, 0.12);
+}
+
+/* Read-only listing detail modal, wider/left-aligned variant of .modal-box */
+.admin-page .view-box {
+  max-width: 460px;
+  text-align: left;
+}
+
+.admin-page .view-thumb {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  background: #eef4f0;
+}
+
+.admin-page .view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.admin-page .view-header h3 {
+  font-size: 1.05rem;
+  color: #1a3d28;
+  margin: 0;
+}
+
+.admin-page .view-category {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1a5c38;
+  margin: 0 0 10px;
+}
+
+.admin-page .view-desc {
+  font-size: 0.88rem;
+  color: #1a3d28;
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+
+.admin-page .view-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #eef4f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.admin-page .view-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #1a3d28;
+}
+
+.admin-page .view-row svg {
+  color: #1a5c38;
+  flex-shrink: 0;
+}
+
+.admin-page .deny-note {
+  background: #fdecea;
+  color: #a22e22;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+/* ---------- RESPONSIVE ---------- */
+
+@media (max-width: 900px) {
+  .admin-page .panels {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-page .sidebar {
+    width: 200px;
+  }
+
+  .admin-page .content {
+    margin-left: 200px;
+    padding: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-page .search-box {
+    max-width: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-page table,
+  .admin-page thead,
+  .admin-page tbody,
+  .admin-page th,
+  .admin-page td,
+  .admin-page tr {
+    display: block;
+  }
+
+  .admin-page thead {
+    display: none;
+  }
+
+  .admin-page tbody tr {
+    margin-bottom: 14px;
+    border: 1px solid #e8f0ec;
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  .admin-page tbody td {
+    border: none;
+    padding: 6px 0;
+  }
+
+  .admin-page .toast,
+  .admin-page #toast {
+    left: 16px;
+    right: 16px;
+    top: 16px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 540px) {
+  .admin-page .sidebar {
+    display: none;
+  }
+
+  .admin-page .content {
+    margin-left: 0;
+  }
+}
+
+@media print {
+  .admin-page .sidebar,
+  .admin-page .export-btn,
+  .admin-page .auth-warning {
+    display: none !important;
+  }
+
+  .admin-page .content {
+    margin-left: 0;
+  }
+}/* =========================================================
+   ADMIN PAGES — Dashboard recent-list additions
+   Keep the existing AdminReports CSS.
+   ========================================================= */
+
+.admin-page .recent-list {
+  width: 100%;
+}
+
+.admin-page .recent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f4f0;
+}
+
+.admin-page .recent-item.last {
+  border-bottom: none;
+}
+
+.admin-page .recent-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: #e8f0ec;
+}
+
+.admin-page .recent-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-page .recent-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1a3d28;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-page .recent-meta {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+.admin-page .toast {
+  background: #1a5c38;
+}
+
+.admin-page .toast-error {
+  background: #c0392b;
+}
+
+.admin-page .panel h2 {
   position: relative;
 }
 
-.stat-card { cursor: pointer; border: 2px solid transparent; transition: border-color .15s; }
-.stat-card.active { border-color: #1a5c38; }
-.stat-card.pending svg { color: #b8860b; }
-.stat-card.approved svg { color: #1f8b3f; }
-.stat-card.denied svg { color: #c0392b; }
-
-.toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 14px; margin-bottom: 16px; flex-wrap: wrap;
-}
-.filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-.filter-tab {
-  padding: 8px 16px; border-radius: 20px; font-size: .82rem; font-weight: 600;
-  border: 1.5px solid #dce8e0; background: #fff; color: #4a5a52; cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
-}
-.filter-tab:hover { border-color: #1a5c38; }
-.filter-tab.active { background: #1a5c38; border-color: #1a5c38; color: #fff; }
-
-.search-box {
-  display: flex; align-items: center; gap: 8px;
-  background: #fff; border: 1.5px solid #dce8e0; border-radius: 8px;
-  padding: 8px 14px; min-width: 220px;
-}
-.search-box svg { color: #94a3a8; flex-shrink: 0; }
-.search-box input {
-  border: none; outline: none; font-size: .85rem; width: 100%;
-  font-family: inherit; color: #2c3e50;
+.admin-page .panel h2 .panel-head-link {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #1a5c38;
+  font-weight: 600;
+  text-decoration: none;
 }
 
-.title-sub { font-size: .76rem; color: #8a9a92; margin-top: 2px; }
-
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 11px; border-radius: 20px; font-size: .75rem; font-weight: 700;
-}
-.badge.pending { background: #fff3cd; color: #856404; }
-.badge.approved { background: #d4edda; color: #155724; }
-.badge.denied { background: #f8d7da; color: #721c24; }
-
-td button.approve { background: #d4edda; color: #155724; }
-td button.deny { background: #fff3cd; color: #856404; }
-td button.view { background: #e3f0ff; color: #1a56a0; }
-
-.deny-reason {
-  width: 100%; padding: 10px 12px; border: 1.5px solid #dce8e0; border-radius: 8px;
-  font-size: .85rem; font-family: inherit; resize: vertical; margin-bottom: 18px; color: #2c3e50;
-}
-.deny-reason:focus { outline: none; border-color: #1a5c38; }
-
-.view-box { max-width: 440px; text-align: left; }
-.view-thumb { width: 100%; height: 160px; object-fit: cover; border-radius: 10px; margin-bottom: 16px; background: #e8f0ec; }
-.view-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-.view-header h3 { font-size: 1.05rem; font-weight: 700; color: #1a3d28; margin: 0; }
-.view-category { font-size: .78rem; color: #1a5c38; font-weight: 600; margin-bottom: 10px; }
-.view-desc { font-size: .86rem; color: #555; margin-bottom: 16px; line-height: 1.5; }
-.view-details { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-.view-row { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: #444; }
-.view-row svg { color: #1a5c38; flex-shrink: 0; }
-.deny-note {
-  background: #fdecea; border: 1px solid #f5c2bc; color: #a12b1f;
-  font-size: .82rem; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px;
-}
-
-/* ============================================================
-   admin-announcements-page.css — extra rules used only by
-   AdminAnnouncementsPage.tsx. It reused the same admin-panel
-   chrome above under an `.admin-shell` wrapper and an `#toast`
-   id instead of `.toast` class — both handled below so no
-   markup changes are needed.
-   ============================================================ */
-
-.admin-shell {
-  display: flex;
-  min-height: 100vh;
-}
-
-#toast {
-  position: fixed; top: 20px; right: 24px; color: #fff;
-  padding: 12px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-  box-shadow: 0 4px 14px rgba(0,0,0,.2); z-index: 9999; animation: slideIn .25s ease;
+.admin-page th.num {
+  text-align: right;
 }

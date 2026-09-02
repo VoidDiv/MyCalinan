@@ -1,7 +1,20 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
 
-/* ── Types ── */
+import { useCallback, useEffect, useState } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CalendarDays,
+  Gauge,
+  Home,
+  Layers,
+  LineChart,
+  LogOut,
+  Megaphone,
+  Plus,
+  Store,
+} from "lucide-react";
+
 interface Posting {
   _id?: string;
   title?: string;
@@ -11,44 +24,205 @@ interface Posting {
   description?: string;
 }
 
-/* ── Now backed by Next.js's own Firestore-backed API routes. ── */
 const ANNOUNCEMENTS_API = "/api/announcements";
 const EVENTS_API = "/api/events";
+const POLL_INTERVAL_MS = 30000;
 
-function getToken(): string {
+/* ────────────────────────────────────────────────────────────────
+   Authentication keys
+   Supports both current and legacy naming conventions.
+   ──────────────────────────────────────────────────────────────── */
+
+const TOKEN_KEY = "mycalinan_token";
+const USERNAME_KEY = "mycalinan_username";
+const ROLE_KEY = "mycalinan_role";
+
+const LEGACY_TOKEN_KEY = "mycalinan_admin_token";
+const LEGACY_USERNAME_KEY = "mycalinan_admin_username";
+const LEGACY_ROLE_KEY = "mycalinan_admin_role";
+
+/* ────────────────────────────────────────────────────────────────
+   Authentication helpers
+   ──────────────────────────────────────────────────────────────── */
+
+function getStoredValue(
+  primaryKey: string,
+  legacyKey: string
+): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
   return (
-    localStorage.getItem("mycalinan_admin_token") ||
-    sessionStorage.getItem("mycalinan_admin_token") ||
+    localStorage.getItem(primaryKey) ||
+    sessionStorage.getItem(primaryKey) ||
+    localStorage.getItem(legacyKey) ||
+    sessionStorage.getItem(legacyKey) ||
     ""
   );
 }
 
+function getToken(): string {
+  return getStoredValue(
+    TOKEN_KEY,
+    LEGACY_TOKEN_KEY
+  );
+}
+
 function getStoredAdmin() {
-  const username =
-    localStorage.getItem("mycalinan_admin_username") ||
-    sessionStorage.getItem("mycalinan_admin_username") ||
-    "Admin";
-  const role =
-    localStorage.getItem("mycalinan_admin_role") ||
-    sessionStorage.getItem("mycalinan_admin_role") ||
-    "admin";
-  return { username, role };
+  return {
+    username:
+      getStoredValue(
+        USERNAME_KEY,
+        LEGACY_USERNAME_KEY
+      ) || "Admin",
+
+    role:
+      getStoredValue(
+        ROLE_KEY,
+        LEGACY_ROLE_KEY
+      ) || "admin",
+  };
 }
 
-function tagStyle(category?: string): { background: string; color: string } {
+function getTagClass(category?: string): string {
   const c = (category || "").toLowerCase();
-  if (c.includes("event")) return { background: "#e3f0ff", color: "#1a56a0" };
-  if (c.includes("advisory")) return { background: "#fff3cd", color: "#856404" };
-  if (c.includes("program")) return { background: "#d4edda", color: "#155724" };
-  if (c.includes("festival")) return { background: "#fde8f5", color: "#8b1a6b" };
-  return { background: "#e8f5ee", color: "#1a5c38" };
+
+  if (c.includes("event")) {
+    return "tag event";
+  }
+
+  if (c.includes("advisory")) {
+    return "tag advisory";
+  }
+
+  if (c.includes("program")) {
+    return "tag program";
+  }
+
+  if (c.includes("festival")) {
+    return "tag festival";
+  }
+
+  return "tag";
 }
 
-function countByCategory(items: Posting[], keyword: string): number {
-  return items.filter((i) => (i.category || "").toLowerCase().includes(keyword)).length;
+function countByCategory(
+  items: Posting[],
+  keyword: string
+): number {
+  return items.filter((item) =>
+    (item.category || "")
+      .toLowerCase()
+      .includes(keyword)
+  ).length;
 }
 
-/* ── Recent list panel ── */
+/* ────────────────────────────────────────────────────────────────
+   Sidebar
+   ──────────────────────────────────────────────────────────────── */
+
+function Sidebar({
+  adminName,
+  adminRole,
+  onLogoutClick,
+}: {
+  adminName: string;
+  adminRole: string;
+  onLogoutClick: () => void;
+}) {
+  const menuItems = [
+    {
+      label: "Dashboard",
+      href: "/adminpage/AdminDashboard",
+      icon: Gauge,
+      active: true,
+    },
+    {
+      label: "Events & Festivals",
+      href: "/adminpage/AdminEvents",
+      icon: CalendarDays,
+    },
+    {
+      label: "Announcements",
+      href: "/adminpage/AdminAnnouncements",
+      icon: Megaphone,
+    },
+    {
+      label: "Business Listings",
+      href: "/adminpage/AdminListings",
+      icon: Store,
+    },
+    {
+      label: "Reports",
+      href: "/adminpage/AdminReports",
+      icon: LineChart,
+    },
+  ];
+
+  return (
+    <aside className="sidebar">
+      <div className="logo">
+        <h2>MyCalinan</h2>
+        <p>Admin Panel</p>
+      </div>
+
+      <div className="admin-badge">
+        <div className="admin-avatar">
+          {adminName.charAt(0).toUpperCase() || "A"}
+        </div>
+
+        <div className="admin-info">
+          <div className="name">
+            {adminName}
+          </div>
+
+          <div className="role">
+            {adminRole}
+          </div>
+        </div>
+      </div>
+
+      <ul className="menu">
+        {menuItems.map(
+          ({
+            label,
+            href,
+            icon: Icon,
+            active,
+          }) => (
+            <li
+              key={label}
+              className={
+                active ? "active" : ""
+              }
+            >
+              <a href={href}>
+                <Icon size={16} />
+                {label}
+              </a>
+            </li>
+          )
+        )}
+      </ul>
+
+      <div className="sidebar-footer">
+        <button
+          className="logout-btn"
+          onClick={onLogoutClick}
+        >
+          <LogOut size={16} />
+          Log Out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Recent list
+   ──────────────────────────────────────────────────────────────── */
+
 function RecentList({
   items,
   failed,
@@ -59,53 +233,77 @@ function RecentList({
   emptyLabel: string;
 }) {
   if (failed) {
-    return <div style={styles.panelState}>⚠️ Cannot connect to server.</div>;
-  }
-  if (!items || items.length === 0) {
-    return <div style={styles.panelState}>{emptyLabel}</div>;
+    return (
+      <div className="panel-state">
+        ⚠️ Cannot connect to server.
+      </div>
+    );
   }
 
-  const recent = items.slice(-5).reverse();
+  if (!items || items.length === 0) {
+    return (
+      <div className="panel-state">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  const recent = items
+    .slice(-5)
+    .reverse();
 
   return (
-    <>
-      {recent.map((item, idx) => {
-        const tag = tagStyle(item.category);
-        return (
-          <div
-            key={item._id || idx}
-            style={{
-              ...styles.itemRow,
-              borderBottom: idx === recent.length - 1 ? "none" : "1px solid #f0f4f0",
-            }}
-          >
-            {item.image ? (
-              <img
-                src={item.image}
-                alt=""
-                style={styles.itemThumb}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <div style={styles.itemThumb} />
-            )}
-            <div style={styles.itemBody}>
-              <div style={styles.itemTitle}>{item.title || "—"}</div>
-              <div style={styles.itemMeta}>{item.date || "No date set"}</div>
+    <div className="recent-list">
+      {recent.map((item, index) => (
+        <div
+          key={item._id || index}
+          className={`recent-item ${
+            index === recent.length - 1
+              ? "last"
+              : ""
+          }`}
+        >
+          {item.image ? (
+            <img
+              className="recent-thumb"
+              src={item.image}
+              alt=""
+              onError={(event) => {
+                event.currentTarget.style.display =
+                  "none";
+              }}
+            />
+          ) : (
+            <div className="recent-thumb" />
+          )}
+
+          <div className="recent-body">
+            <div className="recent-title">
+              {item.title || "—"}
             </div>
-            <span style={{ ...styles.tag, background: tag.background, color: tag.color }}>
-              {item.category || "General"}
-            </span>
+
+            <div className="recent-meta">
+              {item.date || "No date set"}
+            </div>
           </div>
-        );
-      })}
-    </>
+
+          <span
+            className={getTagClass(
+              item.category
+            )}
+          >
+            {item.category || "General"}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-/* ── Logout confirm modal ── */
+/* ────────────────────────────────────────────────────────────────
+   Logout modal
+   ──────────────────────────────────────────────────────────────── */
+
 function LogoutModal({
   open,
   onStay,
@@ -116,26 +314,46 @@ function LogoutModal({
   onConfirm: () => void;
 }) {
   if (!open) return null;
+
   return (
     <div
-      style={styles.modalOverlay}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onStay();
+      className="modal-overlay open"
+      onClick={(event) => {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
+          onStay();
+        }
       }}
     >
-      <div style={styles.modalBox}>
-        <i className="fas fa-sign-out-alt" style={{ color: "#1a5c38", fontSize: "2rem", marginBottom: 10, display: "block" }} />
-        <h3 style={styles.modalTitle}>Log Out?</h3>
-        <p style={styles.modalText}>
-          You will be returned to the login page. Any unsaved changes will be lost.
+      <div className="modal-box">
+        <LogOut
+          size={32}
+          className="modal-icon"
+        />
+
+        <h3>Log Out?</h3>
+
+        <p>
+          You will be returned to the
+          login page. Any unsaved changes
+          will be lost.
         </p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button onClick={onStay} style={styles.modalCancelBtn}>
+
+        <div className="modal-btns">
+          <button
+            className="modal-cancel"
+            onClick={onStay}
+          >
             Stay
           </button>
-          <button onClick={onConfirm} style={styles.modalConfirmBtn}>
+
+          <button
+            className="modal-confirm"
+            onClick={onConfirm}
+          >
             Log Out
-            
           </button>
         </div>
       </div>
@@ -143,421 +361,366 @@ function LogoutModal({
   );
 }
 
-/* ── Main component ── */
+/* ────────────────────────────────────────────────────────────────
+   Main component
+   ──────────────────────────────────────────────────────────────── */
+
 export default function AdminDashboard() {
-  const [admin, setAdmin] = useState({ username: "Admin", role: "admin" });
-  const [authed, setAuthed] = useState(true);
-  const [announcements, setAnnouncements] = useState<Posting[]>([]);
-  const [events, setEvents] = useState<Posting[]>([]);
-  const [announcementsFailed, setAnnouncementsFailed] = useState(false);
-  const [eventsFailed, setEventsFailed] = useState(false);
-  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [admin, setAdmin] = useState({
+    username: "Admin",
+    role: "admin",
+  });
+
+  const [authed, setAuthed] =
+    useState(false);
+
+  const [
+    announcements,
+    setAnnouncements,
+  ] = useState<Posting[]>([]);
+
+  const [events, setEvents] =
+    useState<Posting[]>([]);
+
+  const [
+    announcementsFailed,
+    setAnnouncementsFailed,
+  ] = useState(false);
+
+  const [
+    eventsFailed,
+    setEventsFailed,
+  ] = useState(false);
+
+  const [logoutOpen, setLogoutOpen] =
+    useState(false);
+
+  /* ─────────────────────────────────────────────
+     Read authentication state on mount
+  ───────────────────────────────────────────── */
 
   useEffect(() => {
-    setAdmin(getStoredAdmin());
-    setAuthed(!!getToken());
+    const storedAdmin =
+      getStoredAdmin();
+
+    const token = getToken();
+
+    setAdmin(storedAdmin);
+    setAuthed(!!token);
   }, []);
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      const res = await fetch(ANNOUNCEMENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setAnnouncements(data);
-      setAnnouncementsFailed(false);
-    } catch (err) {
-      console.error("Load announcements error:", err);
-      setAnnouncementsFailed(true);
-    }
+  /* ─────────────────────────────────────────────
+     Load dashboard data
+  ───────────────────────────────────────────── */
 
-    try {
-      const res = await fetch(EVENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setEvents(data);
-      setEventsFailed(false);
-    } catch (err) {
-      console.error("Load events error:", err);
-      setEventsFailed(true);
-    }
-  }, []);
+  const loadDashboard =
+    useCallback(async () => {
+      try {
+        const response = await fetch(
+          ANNOUNCEMENTS_API
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            String(response.status)
+          );
+        }
+
+        const data: Posting[] =
+          await response.json();
+
+        setAnnouncements(data);
+        setAnnouncementsFailed(false);
+      } catch (error) {
+        console.error(
+          "Load announcements error:",
+          error
+        );
+
+        setAnnouncementsFailed(true);
+      }
+
+      try {
+        const response = await fetch(
+          EVENTS_API
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            String(response.status)
+          );
+        }
+
+        const data: Posting[] =
+          await response.json();
+
+        setEvents(data);
+        setEventsFailed(false);
+      } catch (error) {
+        console.error(
+          "Load events error:",
+          error
+        );
+
+        setEventsFailed(true);
+      }
+    }, []);
+
+  /* ─────────────────────────────────────────────
+     Initial load + auto refresh
+  ───────────────────────────────────────────── */
 
   useEffect(() => {
     loadDashboard();
-    const interval = setInterval(loadDashboard, 30000);
-    return () => clearInterval(interval);
+
+    const interval = setInterval(
+      loadDashboard,
+      POLL_INTERVAL_MS
+    );
+
+    return () =>
+      clearInterval(interval);
   }, [loadDashboard]);
 
+  /* ─────────────────────────────────────────────
+     Logout
+  ───────────────────────────────────────────── */
+
   function doLogout() {
-    localStorage.removeItem("mycalinan_admin_token");
-    localStorage.removeItem("mycalinan_admin_username");
-    localStorage.removeItem("mycalinan_admin_role");
-    sessionStorage.removeItem("mycalinan_admin_token");
-    sessionStorage.removeItem("mycalinan_admin_username");
-    sessionStorage.removeItem("mycalinan_admin_role");
+    [
+      TOKEN_KEY,
+      USERNAME_KEY,
+      ROLE_KEY,
+      LEGACY_TOKEN_KEY,
+      LEGACY_USERNAME_KEY,
+      LEGACY_ROLE_KEY,
+    ].forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+
     window.location.href = "/login";
   }
 
-  const bothFailed = announcementsFailed && eventsFailed;
-  const totalPostings = bothFailed ? "—" : announcements.length + events.length;
-  const annTotal = announcementsFailed ? "—" : announcements.length;
-  const evtTotal = eventsFailed ? "—" : events.length;
-  const advTotal =
-    announcementsFailed && eventsFailed
+  /* ─────────────────────────────────────────────
+     Statistics
+  ───────────────────────────────────────────── */
+
+  const bothFailed =
+    announcementsFailed &&
+    eventsFailed;
+
+  const totalPostings = bothFailed
+    ? "—"
+    : announcements.length +
+      events.length;
+
+  const annTotal =
+    announcementsFailed
       ? "—"
-      : (announcementsFailed ? 0 : countByCategory(announcements, "advisory")) +
-        (eventsFailed ? 0 : countByCategory(events, "advisory"));
+      : announcements.length;
+
+  const evtTotal =
+    eventsFailed
+      ? "—"
+      : events.length;
+
+  const advTotal =
+    bothFailed
+      ? "—"
+      : (announcementsFailed
+          ? 0
+          : countByCategory(
+              announcements,
+              "advisory"
+            )) +
+        (eventsFailed
+          ? 0
+          : countByCategory(
+              events,
+              "advisory"
+            ));
 
   return (
-    <div style={styles.body}>
+    <div className="admin-page">
+
       {/* ── SIDEBAR ── */}
-      <aside style={styles.sidebar}>
-        <div style={styles.logoBlock}>
-          <h2 style={styles.logoH2}>MyCalinan</h2>
-          <p style={styles.logoP}>Admin Panel</p>
-        </div>
 
-        <div style={styles.adminBadge}>
-          <div style={styles.adminAvatar}>{admin.username.charAt(0).toUpperCase()}</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={styles.adminName}>{admin.username}</div>
-            <div style={styles.adminRole}>{admin.role}</div>
-          </div>
-        </div>
-
-        <ul style={styles.menu}>
-          <li>
-            <a href="/adminpage/AdminDashboard" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
-              <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
-            </a>
-          </li>
-          <li>
-            <a href="/" style={styles.menuLink}>
-              <i className="fas fa-home" style={styles.menuIcon} /> Home Page
-            </a>
-          </li>
-          <li>
-            <a href="/adminpage/AdminEvents" style={styles.menuLink}>
-              <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
-            </a>
-          </li>
-          <li>
-            <a href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
-              <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
-            </a>
-          </li>
-          <li>
-            <a href="/adminpage/AdminListings" style={styles.menuLink}>
-              <i className="fas fa-store" style={styles.menuIcon} /> Business Listings
-            </a>
-          </li>
-          <li>
-            <a href="/adminpage/AdminReports" style={styles.menuLink}>
-              <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
-            </a>
-          </li>
-        </ul>
-
-        <div style={styles.sidebarFooter}>
-          <button style={styles.logoutBtn} onClick={() => setLogoutOpen(true)}>
-            <i className="fas fa-sign-out-alt" /> Log Out
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        adminName={admin.username}
+        adminRole={admin.role}
+        onLogoutClick={() =>
+          setLogoutOpen(true)
+        }
+      />
 
       {/* ── MAIN ── */}
-      <main style={styles.content}>
+
+      <main className="content">
+
         {!authed && (
-          <div style={styles.authWarning}>
-            <i className="fas fa-exclamation-triangle" /> You are not logged in.{" "}
-            <a href="/login">Click here to log in</a>.
+          <div className="auth-warning">
+            <AlertTriangle size={16} />
+
+            <span>
+              You are not logged in.{" "}
+              <a href="/login">
+                Click here to log in
+              </a>
+              .
+            </span>
           </div>
         )}
 
-        <div style={styles.header}>
-          <h1 style={styles.headerH1}>
-            <i className="fas fa-gauge-high" style={{ color: "#1a5c38", marginRight: 8 }} />
+        <div className="header">
+
+          <h1>
+            <Gauge size={20} />
             Dashboard
           </h1>
-          <div style={{ display: "flex", gap: 10 }}>
-            <a href="/adminpage/AdminEvents" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
-              <i className="fas fa-plus" /> Add Event
-            </a>
-            <a href="/adminpage/AdminAnnouncements" style={styles.addBtn}>
-              <i className="fas fa-plus" /> Add Announcement
-            </a>
-          </div>
+
+          <a
+            href="/adminpage/AdminEvents"
+            className="add-btn"
+          >
+            <Plus size={16} />
+            Add Event
+          </a>
+
         </div>
-        <p style={styles.subtitle}>
-          Welcome back, {admin.username}. Here&apos;s what&apos;s happening across MyCalinan right now.
+
+        <p className="subtitle">
+          Welcome back,{" "}
+          {admin.username}.
+          Here&apos;s what&apos;s
+          happening across MyCalinan
+          right now.
         </p>
 
-        {/* Combined stats */}
-        <div style={styles.stats}>
-          <div style={styles.statCard}>
-            <i className="fas fa-layer-group" style={styles.statIcon} />
-            <h2 style={styles.statH2}>{totalPostings}</h2>
-            <p style={styles.statP}>Total Postings</p>
+        {/* ── STATS ── */}
+
+        <div className="stats">
+
+          <div className="stat-card">
+            <Layers size={24} />
+
+            <h2>
+              {totalPostings}
+            </h2>
+
+            <p>
+              Total Postings
+            </p>
           </div>
-          <div style={styles.statCard}>
-            <i className="fas fa-bullhorn" style={styles.statIcon} />
-            <h2 style={styles.statH2}>{annTotal}</h2>
-            <p style={styles.statP}>Announcements</p>
+
+          <div className="stat-card">
+            <Megaphone size={24} />
+
+            <h2>
+              {annTotal}
+            </h2>
+
+            <p>
+              Announcements
+            </p>
           </div>
-          <div style={styles.statCard}>
-            <i className="fas fa-calendar-alt" style={styles.statIcon} />
-            <h2 style={styles.statH2}>{evtTotal}</h2>
-            <p style={styles.statP}>Events &amp; Festivals</p>
+
+          <div className="stat-card">
+            <CalendarDays size={24} />
+
+            <h2>
+              {evtTotal}
+            </h2>
+
+            <p>
+              Events &amp; Festivals
+            </p>
           </div>
-          <div style={styles.statCard}>
-            <i className="fas fa-exclamation-circle" style={styles.statIcon} />
-            <h2 style={styles.statH2}>{advTotal}</h2>
-            <p style={styles.statP}>Advisories</p>
+
+          <div className="stat-card">
+            <AlertCircle size={24} />
+
+            <h2>
+              {advTotal}
+            </h2>
+
+            <p>
+              Advisories
+            </p>
           </div>
+
         </div>
 
-        {/* Recent panels */}
-        <div style={styles.panels}>
-          <section style={styles.panel}>
-            <div style={styles.panelHead}>
-              <h2 style={styles.panelH2}>
-                <i className="fas fa-bullhorn" style={{ color: "#1a5c38", marginRight: 6 }} />
-                Recent Announcements
-              </h2>
-              <a href="/adminpage/AdminAnnouncements" style={styles.panelHeadLink}>
-                Manage all &rarr;
+        {/* ── RECENT PANELS ── */}
+
+        <div className="panels">
+
+          <section className="panel">
+
+            <h2>
+              <Megaphone
+                size={16}
+                className="panel-heading-icon"
+              />
+
+              Recent Announcements
+
+              <a
+                href="/adminpage/AdminAnnouncements"
+                className="panel-head-link"
+              >
+                Manage all →
               </a>
-            </div>
+            </h2>
+
             <RecentList
               items={announcements}
               failed={announcementsFailed}
               emptyLabel="No announcements yet."
             />
+
           </section>
 
-          <section style={styles.panel}>
-            <div style={styles.panelHead}>
-              <h2 style={styles.panelH2}>
-                <i className="fas fa-calendar-alt" style={{ color: "#1a5c38", marginRight: 6 }} />
-                Recent Events &amp; Festivals
-              </h2>
-              <a href="/adminpage/AdminEvents" style={styles.panelHeadLink}>
-                Manage all &rarr;
+          <section className="panel">
+
+            <h2>
+              <CalendarDays
+                size={16}
+                className="panel-heading-icon"
+              />
+
+              Recent Events &amp; Festivals
+
+              <a
+                href="/adminpage/AdminEvents"
+                className="panel-head-link"
+              >
+                Manage all →
               </a>
-            </div>
-            <RecentList items={events} failed={eventsFailed} emptyLabel="No events yet." />
+            </h2>
+
+            <RecentList
+              items={events}
+              failed={eventsFailed}
+              emptyLabel="No events yet."
+            />
+
           </section>
+
         </div>
+
       </main>
+
+      {/* ── LOGOUT MODAL ── */}
 
       <LogoutModal
         open={logoutOpen}
-        onStay={() => setLogoutOpen(false)}
+        onStay={() =>
+          setLogoutOpen(false)
+        }
         onConfirm={doLogout}
       />
+
     </div>
   );
 }
-
-/* ── Styles (mirrors the original Admin-Dashboard.html CSS) ── */
-const styles: Record<string, React.CSSProperties> = {
-  body: {
-    fontFamily: "'Segoe UI', sans-serif",
-    background: "#f0f4f8",
-    display: "flex",
-    minHeight: "100vh",
-  },
-  sidebar: {
-    width: 240,
-    background: "#1a5c38",
-    color: "#fff",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: "100vh",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    zIndex: 50,
-  },
-  logoBlock: { padding: "24px 24px 18px", borderBottom: "1px solid rgba(255,255,255,.15)" },
-  logoH2: { fontSize: "1.2rem", fontWeight: 700 },
-  logoP: { fontSize: ".75rem", opacity: 0.65, marginTop: 2 },
-  adminBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "14px 24px",
-    borderBottom: "1px solid rgba(255,255,255,.1)",
-    background: "rgba(0,0,0,.12)",
-  },
-  adminAvatar: {
-    width: 34,
-    height: 34,
-    background: "rgba(255,255,255,.25)",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: ".9rem",
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  adminName: {
-    fontSize: ".82rem",
-    fontWeight: 600,
-    color: "#fff",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  adminRole: { fontSize: ".7rem", color: "rgba(255,255,255,.6)", textTransform: "capitalize" },
-  menu: { listStyle: "none", padding: "16px 0", flex: 1 },
-  menuLink: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 24px",
-    color: "rgba(255,255,255,.82)",
-    textDecoration: "none",
-    fontSize: ".88rem",
-  },
-  menuLinkActive: { background: "rgba(255,255,255,.15)", color: "#fff" },
-  menuIcon: { width: 16, textAlign: "center" },
-  sidebarFooter: { padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.1)" },
-  logoutBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-    padding: "10px 16px",
-    background: "rgba(231,76,60,.2)",
-    border: "1px solid rgba(231,76,60,.35)",
-    color: "#ff8f85",
-    borderRadius: 8,
-    fontSize: ".85rem",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  content: { marginLeft: 240, padding: "32px 36px", flex: 1 },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  headerH1: { fontSize: "1.4rem", color: "#1a3d28", fontWeight: 700 },
-  subtitle: { fontSize: ".85rem", color: "#778", marginBottom: 28 },
-  addBtn: {
-    background: "#1a5c38",
-    color: "#fff",
-    border: "none",
-    padding: "10px 20px",
-    borderRadius: 8,
-    fontSize: ".88rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    textDecoration: "none",
-  },
-  addBtnOutline: { background: "#fff", color: "#1a5c38", border: "1.5px solid #1a5c38" },
-  authWarning: {
-    background: "#fff3cd",
-    border: "1px solid #ffc107",
-    borderRadius: 10,
-    padding: "14px 20px",
-    marginBottom: 22,
-    fontSize: ".88rem",
-    color: "#856404",
-  },
-  stats: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: 18,
-    marginBottom: 28,
-  },
-  statCard: {
-    background: "#fff",
-    borderRadius: 12,
-    padding: "20px 18px",
-    textAlign: "center",
-    boxShadow: "0 2px 10px rgba(0,0,0,.07)",
-  },
-  statIcon: { fontSize: "1.5rem", color: "#1a5c38", marginBottom: 6, display: "block" },
-  statH2: { fontSize: "1.7rem", fontWeight: 700, color: "#1a3d28" },
-  statP: { fontSize: ".78rem", color: "#777", marginTop: 2 },
-  panels: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
-  panel: {
-    background: "#fff",
-    borderRadius: 12,
-    padding: "24px 26px",
-    boxShadow: "0 2px 10px rgba(0,0,0,.07)",
-  },
-  panelHead: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottom: "2px solid #e8f5ee",
-  },
-  panelH2: { fontSize: "1rem", fontWeight: 700, color: "#1a3d28" },
-  panelHeadLink: { fontSize: ".8rem", color: "#1a5c38", fontWeight: 600, textDecoration: "none" },
-  itemRow: { display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 0" },
-  itemThumb: { width: 40, height: 40, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "#e8f0ec" },
-  itemBody: { minWidth: 0, flex: 1 },
-  itemTitle: {
-    fontSize: ".86rem",
-    fontWeight: 600,
-    color: "#1a3d28",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  itemMeta: { fontSize: ".75rem", color: "#888", marginTop: 2 },
-  tag: { display: "inline-block", padding: "3px 11px", borderRadius: 20, fontSize: ".72rem", fontWeight: 700, flexShrink: 0 },
-  panelState: { textAlign: "center", padding: "30px 10px", color: "#888", fontSize: ".86rem" },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,.45)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 8000,
-  },
-  modalBox: {
-    background: "#fff",
-    borderRadius: 14,
-    padding: "30px 32px",
-    maxWidth: 380,
-    width: "90%",
-    textAlign: "center",
-    boxShadow: "0 8px 32px rgba(0,0,0,.18)",
-  },
-  modalTitle: { fontSize: "1.1rem", fontWeight: 700, color: "#1a3d28", marginBottom: 8 },
-  modalText: { fontSize: ".88rem", color: "#666", marginBottom: 22 },
-  modalCancelBtn: {
-    padding: "9px 24px",
-    borderRadius: 8,
-    fontSize: ".88rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    border: "none",
-    background: "#e8f0ec",
-    color: "#333",
-  },
-  modalConfirmBtn: {
-    padding: "9px 24px",
-    borderRadius: 8,
-    fontSize: ".88rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    border: "none",
-    background: "#1a5c38",
-    color: "#fff",
-  },
-};

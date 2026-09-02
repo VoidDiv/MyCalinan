@@ -26,7 +26,7 @@ type AuthMode = "signin" | "guest";
  * ⚠️ Remove or guard this behind an env flag before deploying to production.
  */
 const DEFAULT_ADMIN_USERNAME = "admin";
-const DEFAULT_ADMIN_PASSWORD = "admin123";
+const DEFAULT_ADMIN_PASSWORD = "@admin1906";
 
 /**
  * Where each role lands after a successful sign in.

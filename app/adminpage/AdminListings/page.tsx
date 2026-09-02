@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Home,
+  Gauge,
   CalendarDays,
   Megaphone,
   LineChart,
@@ -24,7 +24,6 @@ import {
   Mail,
   User,
 } from 'lucide-react';
-
 /* ────────────────────────────────────────────────────────────────
    Config
    ──────────────────────────────────────────────────────────────── */
@@ -80,11 +79,32 @@ function statusMeta(status?: ListingStatus) {
    ──────────────────────────────────────────────────────────────── */
 
 const menuItems = [
-  { label: 'Home Page', href: 'HomePage.html', icon: Home },
-  { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays },
-  { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
-  { label: 'Business Listings', href: 'Admin-Listings.html', icon: Store, active: true },
-  { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart },
+  {
+    label: 'Dashboard',
+    href: '/adminpage/AdminDashboard',
+    icon: Gauge,
+  },
+  {
+    label: 'Events & Festivals',
+    href: '/adminpage/AdminEvents',
+    icon: CalendarDays,
+  },
+  {
+    label: 'Announcements',
+    href: '/adminpage/AdminAnnouncements',
+    icon: Megaphone,
+  },
+  {
+    label: 'Business Listings',
+    href: '/adminpage/AdminListings',
+    icon: Store,
+    active: true,
+  },
+  {
+    label: 'Reports',
+    href: '/adminpage/AdminReports',
+    icon: LineChart,
+  },
 ];
 
 function Sidebar({
@@ -144,7 +164,7 @@ interface ToastState {
 function Toast({ toast }: { toast: ToastState | null }) {
   if (!toast) return null;
   return (
-    <div className="toast" style={{ background: toast.isError ? '#c0392b' : '#1a5c38' }}>
+    <div className={`toast ${toast.isError ? "toast-error" : ""}`}>
       {toast.message}
     </div>
   );
@@ -176,7 +196,7 @@ function LogoutModal({
         <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
         <div className="modal-btns">
           <button className="modal-cancel" onClick={onStay}>Stay</button>
-          <button className="modal-confirm" style={{ background: '#1a5c38' }} onClick={onConfirm}>Log Out</button>
+          <button className="modal-confirm" onClick={onConfirm}>Log Out</button>
         </div>
       </div>
     </div>
@@ -345,10 +365,14 @@ export default function AdminListings() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const getToken = () =>
-    window.localStorage?.getItem('mycalinan_admin_token') ||
-    window.sessionStorage?.getItem('mycalinan_admin_token') ||
-    '';
+const TOKEN_KEY = 'mycalinan_token';
+const USERNAME_KEY = 'mycalinan_username';
+const ROLE_KEY = 'mycalinan_role';
+
+const getToken = () =>
+  window.localStorage?.getItem(TOKEN_KEY) ||
+  window.sessionStorage?.getItem(TOKEN_KEY) ||
+  '';
 
   const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -365,9 +389,14 @@ export default function AdminListings() {
     const readStored = (key: string) =>
       window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key) || '';
 
-    const token = readStored('mycalinan_admin_token');
-    setAdminName(readStored('mycalinan_admin_username') || 'Admin');
-    setAdminRole(readStored('mycalinan_admin_role') || 'admin');
+const token = readStored(TOKEN_KEY);
+
+setAdminName(
+  readStored(USERNAME_KEY) || 'Admin'
+);
+setAdminRole(
+  readStored(ROLE_KEY) || 'admin'
+);
     setAuthWarning(!token);
   }, []);
 
@@ -390,7 +419,7 @@ export default function AdminListings() {
       if (res.status === 401) {
         showToast('Session expired. Please log in again.', true);
         setTimeout(() => {
-          window.location.href = 'Admin-login.html';
+          window.location.href = '/login';
         }, 1500);
         return;
       }
@@ -455,7 +484,7 @@ export default function AdminListings() {
       if (res.status === 401) {
         showToast('Session expired. Please log in again.', true);
         setTimeout(() => {
-          window.location.href = 'Admin-login.html';
+          window.location.href = '/login';
         }, 1500);
         return;
       }
@@ -521,7 +550,7 @@ export default function AdminListings() {
       if (res.status === 401) {
         showToast('Session expired. Please log in again.', true);
         setTimeout(() => {
-          window.location.href = 'Admin-login.html';
+          window.location.href = '/login';
         }, 1500);
         return;
       }
@@ -540,16 +569,17 @@ export default function AdminListings() {
     }
   };
 
-  const handleLogout = () => {
-    ['mycalinan_admin_token', 'mycalinan_admin_username', 'mycalinan_admin_role'].forEach((key) => {
-      window.localStorage?.removeItem(key);
-      window.sessionStorage?.removeItem(key);
-    });
-    window.location.href = 'Admin-login.html';
-  };
+const handleLogout = () => {
+  [TOKEN_KEY, USERNAME_KEY, ROLE_KEY].forEach((key) => {
+    window.localStorage?.removeItem(key);
+    window.sessionStorage?.removeItem(key);
+  });
+
+  window.location.href = '/login';
+};
 
   return (
-    <div className="admin-listings-root">
+    <div className="admin-page">
       <Sidebar adminName={adminName} adminRole={adminRole} onLogoutClick={() => setLogoutModalOpen(true)} />
 
       <main className="content">

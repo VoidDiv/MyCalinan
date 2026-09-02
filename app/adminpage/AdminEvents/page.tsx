@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Home,
+  Gauge,
   CalendarDays,
   Megaphone,
   LineChart,
+  Store,
   LogOut,
   Plus,
   Save,
@@ -89,9 +90,10 @@ const ROUTES = {
    ──────────────────────────────────────────────────────────────── */
 
 const menuItems = [
-  { label: 'Home Page', href: ROUTES.home, icon: Home },
+  { label: 'Dashboard', href: '/adminpage/AdminDashboard', icon: Gauge },
   { label: 'Events & Festivals', href: ROUTES.events, icon: CalendarDays, active: true },
   { label: 'Announcements', href: ROUTES.announcements, icon: Megaphone },
+  { label: 'Business Listings', href: '/adminpage/AdminListings', icon: Store },
   { label: 'Reports', href: ROUTES.reports, icon: LineChart },
 ];
 
@@ -152,7 +154,7 @@ interface ToastState {
 function Toast({ toast }: { toast: ToastState | null }) {
   if (!toast) return null;
   return (
-    <div className="toast" style={{ background: toast.isError ? '#c0392b' : '#1a5c38' }}>
+    <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
       {toast.message}
     </div>
   );
@@ -179,7 +181,7 @@ function DeleteModal({
       }}
     >
       <div className="modal-box">
-        <Trash2 size={32} color="#e74c3c" />
+        <Trash2 size={32} className="modal-icon modal-icon-danger" />
         <h3>Delete Event?</h3>
         <p>This action cannot be undone. The event will be permanently removed from the database.</p>
         <div className="modal-btns">
@@ -208,12 +210,12 @@ function LogoutModal({
       }}
     >
       <div className="modal-box">
-        <LogOut size={32} color="#1a5c38" />
+        <LogOut size={32} className="modal-icon" />
         <h3>Log Out?</h3>
         <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
         <div className="modal-btns">
           <button className="modal-cancel" onClick={onStay}>Stay</button>
-          <button className="modal-confirm" style={{ background: '#1a5c38' }} onClick={onConfirm}>Log Out</button>
+          <button className="modal-confirm" onClick={onConfirm}>Log Out</button>
         </div>
       </div>
     </div>
@@ -455,7 +457,7 @@ export default function AdminEvents() {
   };
 
   return (
-    <div className="admin-events-root">
+    <div className="admin-page">
 
 
       <Sidebar adminName={adminName} adminRole={adminRole} onLogoutClick={() => setLogoutModalOpen(true)} />
@@ -472,7 +474,7 @@ export default function AdminEvents() {
 
         <div className="header">
           <h1>
-            <CalendarDays size={20} color="#1a5c38" />
+            <CalendarDays size={20} />
             Events &amp; Festivals
           </h1>
           <button className="add-btn" onClick={openCreateForm}>
@@ -485,7 +487,7 @@ export default function AdminEvents() {
           <div className="stat-card">
             <CalendarDays size={24} />
             <h2>{loading ? '—' : stats.total}</h2>
-            <p>Total Listings</p>
+            <p>Total Events &amp; Festivals</p>
           </div>
           <div className="stat-card">
             <CalendarClock size={24} />
@@ -572,7 +574,10 @@ export default function AdminEvents() {
         )}
 
         <section className="table-section">
-          <h2>Event &amp; Festival List</h2>
+          <div className="table-section-head">
+            <h2>Event &amp; Festival List</h2>
+            <span className="table-count">{loading ? "—" : `${events.length} total`}</span>
+          </div>
           <table>
             <thead>
               <tr>
@@ -587,7 +592,7 @@ export default function AdminEvents() {
               {loading ? (
                 <tr className="table-state">
                   <td colSpan={5}>
-                    <Loader2 size={16} className="spin" /> Loading events…
+                    <Loader2 size={16} className="spin" aria-hidden="true" /> Loading events…
                   </td>
                 </tr>
               ) : loadError ? (
@@ -611,7 +616,7 @@ export default function AdminEvents() {
                             src={item.image}
                             alt=""
                             onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              e.currentTarget.classList.add('image-error');
                             }}
                           />
                         )}
@@ -624,10 +629,18 @@ export default function AdminEvents() {
                     <td>{item.date || '—'}</td>
                     <td className="desc-cell">{item.description || '—'}</td>
                     <td>
-                      <button className="edit" onClick={() => openEditForm(item)}>
+                      <button
+                        className="edit"
+                        onClick={() => openEditForm(item)}
+                        type="button"
+                      >
                         <Pencil size={12} /> Edit
                       </button>
-                      <button className="delete" onClick={() => item._id && openDeleteModal(item._id)}>
+                      <button
+                        className="delete"
+                        onClick={() => item._id && openDeleteModal(item._id)}
+                        type="button"
+                      >
                         <Trash2 size={12} /> Delete
                       </button>
                     </td>

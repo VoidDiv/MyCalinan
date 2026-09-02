@@ -8,15 +8,17 @@ export const runtime = "nodejs";
 // business listing. Matches the "Remove" button in AdminListings.tsx.
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const admin = await verifyAdminRequest(req);
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+
   try {
-    const docRef = adminDb.collection("listings").doc(params.id);
+    const docRef = adminDb.collection("listings").doc(id);
     const doc = await docRef.get();
     if (!doc.exists) {
       return NextResponse.json({ error: "Listing not found" }, { status: 404 });
