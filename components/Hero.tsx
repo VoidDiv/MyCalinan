@@ -1,14 +1,25 @@
+import Image from "next/image";
+
 const FACT_CHIPS = [
   { label: "Fruit Basket of Davao City" },
   { label: "3rd District, Davao City" },
   { label: "~27 km from the city center" },
 ];
 
+// ============================================================
+// REPLACE ONLY THIS URL WITH YOUR FIREBASE STORAGE IMAGE URL
+// ============================================================
+const CALINAN_IMAGE_URL =
+  "https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FMap3.png?alt=media&token=8dad5445-25d1-4758-a248-683e2701adac";
+
 export default function Hero() {
   return (
     <section className="grid gap-12 px-6 py-16 sm:px-10 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-16 lg:px-20 lg:py-24">
       <div>
-        <ul className="mb-6 flex flex-wrap gap-2" aria-label="Quick facts about Calinan">
+        <ul
+          className="mb-6 flex flex-wrap gap-2"
+          aria-label="Quick facts about Calinan"
+        >
           {FACT_CHIPS.map((chip) => (
             <li
               key={chip.label}
@@ -21,7 +32,10 @@ export default function Hero() {
 
         <h1 className="font-display text-[2.75rem] font-semibold leading-[1.05] text-canopy-950 sm:text-6xl">
           <br />
-          <em className="text-durian-500 not-italic">durian, banana,</em> and
+          <em className="text-durian-500 not-italic">
+            durian, banana,
+          </em>{" "}
+          and
           <br />
           Bagobo roots.
         </h1>
@@ -42,31 +56,20 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* Art panel — swap the pattern below for a real photo of Calinan
-          (e.g. the Poblacion market or Malagos Garden) when available. */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 bg-gradient-to-br from-canopy-100 via-canopy-400/40 to-durian-400/50 shadow-xl">
-        <svg
-          className="absolute inset-0 h-full w-full opacity-30"
-          viewBox="0 0 400 300"
-          preserveAspectRatio="xMidYMid slice"
-        >
-          <defs>
-            <pattern
-              id="weave"
-              width="40"
-              height="40"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M0 20 L20 0 L40 20 L20 40 Z"
-                fill="none"
-                stroke="var(--canopy-800)"
-                strokeWidth="1.5"
-              />
-            </pattern>
-          </defs>
-          <rect width="400" height="300" fill="url(#weave)" />
-        </svg>
+      {/* Calinan Poblacion image */}
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 shadow-xl">
+        <Image
+          src={CALINAN_IMAGE_URL}
+          alt="Calinan Poblacion, Davao City"
+          fill
+          priority
+          className="object-cover"
+          sizes="(max-width: 1024px) 100vw, 50vw"
+        />
+
+        {/* Image overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
         <div className="absolute bottom-6 left-6 rounded-[var(--radius-stall)] bg-white/85 px-4 py-2 font-mono text-xs text-canopy-900">
           Calinan Poblacion
         </div>

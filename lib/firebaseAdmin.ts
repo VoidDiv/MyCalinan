@@ -1,6 +1,20 @@
-import { cert, getApps, getApp, initializeApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  cert,
+  getApps,
+  getApp,
+  initializeApp,
+  type App,
+} from "firebase-admin/app";
+
+import {
+  getAuth,
+  type Auth,
+} from "firebase-admin/auth";
+
+import {
+  getFirestore,
+  type Firestore,
+} from "firebase-admin/firestore";
 
 interface ServiceAccountJson {
   project_id: string;
@@ -8,35 +22,50 @@ interface ServiceAccountJson {
   private_key: string;
 }
 
-function createFirebaseAdminApp(): App {
-  if (getApps().length) return getApp();
+let cachedApp: App | null = null;
 
-  const encoded = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+/* ---------------------------------------------------------
+   Create Firebase Admin App
+--------------------------------------------------------- */
+
+function createFirebaseAdminApp(): App {
+  // Reuse an existing Firebase Admin app.
+  if (getApps().length > 0) {
+    return getApp();
+  }
+
+  const encoded =
+    process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
 
   if (!encoded) {
     throw new Error(
-      "Missing Firebase Admin credentials. Set FIREBASE_SERVICE_ACCOUNT_BASE64 " +
-        "in your environment (.env.local locally, Vercel → Settings → " +
-        "Environment Variables in prod) to the base64-encoded contents of " +
-        "your service account JSON file."
+      "Missing Firebase Admin credentials. " +
+        "Set FIREBASE_SERVICE_ACCOUNT_BASE64 in your environment."
     );
   }
 
   let serviceAccount: ServiceAccountJson;
+
   try {
-    const json = Buffer.from(encoded, "base64").toString("utf-8");
+    const json = Buffer.from(
+      encoded,
+      "base64"
+    ).toString("utf-8");
+
     serviceAccount = JSON.parse(json);
-  } catch (err) {
+  } catch {
     throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT_BASE64 is set but couldn't be decoded/parsed. " +
-        "Re-generate it: base64-encode the raw serviceAccountKey.json file " +
-        "(don't paste the JSON itself, and don't add extra quotes or line breaks)."
+      "FIREBASE_SERVICE_ACCOUNT_BASE64 could not be decoded or parsed."
     );
   }
 
-  if (!serviceAccount.project_id || !serviceAccount.client_email || !serviceAccount.private_key) {
+  if (
+    !serviceAccount.project_id ||
+    !serviceAccount.client_email ||
+    !serviceAccount.private_key
+  ) {
     throw new Error(
-      "Decoded service account JSON is missing project_id, client_email, or private_key."
+      "Firebase service account is missing project_id, client_email, or private_key."
     );
   }
 
@@ -44,16 +73,41 @@ function createFirebaseAdminApp(): App {
     credential: cert({
       projectId: serviceAccount.project_id,
       clientEmail: serviceAccount.client_email,
-      // JSON.parse already turns the JSON file's literal \n sequences into
-      // real newlines, so no manual .replace() is needed here — that
-      // manual step is exactly what tends to go wrong when the key is
-      // stored as three separate plain env vars instead.
-      privateKey: serviceAccount.private_key,
+      privateKey:
+        serviceAccount.private_key.replace(
+          /\\n/g,
+          "\n"
+        ),
     }),
   });
 }
 
-const app = createFirebaseAdminApp();
+/* ---------------------------------------------------------
+   Get Firebase Admin App
+--------------------------------------------------------- */
 
-export const adminAuth = getAuth(app);
-export const adminDb = getFirestore(app);
+function getFirebaseAdminApp(): App {
+  if (!cachedApp) {
+    cachedApp = createFirebaseAdminApp();
+  }
+
+  return cachedApp;
+}
+
+/* ---------------------------------------------------------
+   Firebase Admin Auth
+--------------------------------------------------------- */
+
+export function getAdminAuth(): Auth {
+  return getAuth(getFirebaseAdminApp());
+}
+
+/* ---------------------------------------------------------
+   Firebase Admin Firestore
+--------------------------------------------------------- */
+
+export function getAdminDb(): Firestore {
+  return getFirestore(
+    getFirebaseAdminApp()
+  );
+}

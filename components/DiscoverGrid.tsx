@@ -10,7 +10,7 @@ const STALLS: Stall[] = [
   {
     title: "Discover places",
     description: "Php Eagle Center, Malagos Garden, Davao Bamboo Sanctuary, and more.",
-    href: "/explore/hotspots",
+    href: "/explore/Hotspots",
   },
   {
     title: "Explore via map",
@@ -20,17 +20,17 @@ const STALLS: Stall[] = [
   {
     title: "Browse marketplace",
     description: "Local shops, eateries, and businesses run by Calinanians.",
-    href: "/explore/shopping",
+    href: "/explore/Shopping",
   },
   {
     title: "Access hotlines",
     description: "Emergency, barangay, and utility numbers in one place.",
-    href: "/hotlines",
+    href: "/others/Hotlines",
   },
   {
     title: "Learn history",
     description: "From the Bagobo settlement under Datu Abeng to today.",
-    href: "/history",
+    href: "/others/History",
   },
 ];
 

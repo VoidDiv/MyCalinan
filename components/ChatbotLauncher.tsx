@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
 }
 
-// How many prior turns to send back to the API as context.
-// Keep this modest to control token usage/cost.
 const HISTORY_LIMIT = 10;
 
 export default function ChatbotLauncher() {
@@ -20,45 +18,88 @@ export default function ChatbotLauncher() {
       text: "Hey! I'm Calibot 🦅 — ask me about schools, hospitals, food, hotlines, or barangay documents in Calinan.",
     },
   ]);
+
   const [isLoading, setIsLoading] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    const element = scrollRef.current;
+
+    if (element) {
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, [messages, isLoading]);
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
+
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
 
-    // Snapshot history BEFORE adding the new user message, so the API
-    // gets "everything said before this turn" plus the new message
-    // separately — avoids double-counting the latest message.
-    const history = messages.slice(-HISTORY_LIMIT);
+    if (!trimmed || isLoading) {
+      return;
+    }
 
-    setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
+    // Keep only actual conversation history.
+    // The current message is sent separately below.
+    const history = messages
+      .filter(
+        (message) =>
+          !(
+            message.role === "assistant" &&
+            message.text.startsWith("Hey! I'm Calibot")
+          )
+      )
+      .slice(-HISTORY_LIMIT);
+
+    // Immediately display the user's message.
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        text: trimmed,
+      },
+    ]);
+
     setInput("");
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmed,
+          history,
+        }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "Request failed");
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Failed to get a response."
+        );
       }
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.reply },
+        {
+          role: "assistant",
+          text:
+            typeof data.reply === "string"
+              ? data.reply
+              : "Sorry, I couldn't generate a response.",
+        },
       ]);
-    } catch (err) {
+    } catch (error) {
+      console.error("Calibot error:", error);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -71,58 +112,62 @@ export default function ChatbotLauncher() {
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const trimmed = input.trim();
-      if (!trimmed || isLoading) return;
-      // Build a minimal FormEvent-shaped object instead of casting the
-      // keyboard event — cleaner than the previous `as unknown as` cast.
-      sendMessage({
-        preventDefault: () => {},
-      } as unknown as React.FormEvent);
-    }
-  }
-
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {open && (
         <div className="mb-3 flex h-[420px] w-[320px] flex-col overflow-hidden rounded-[20px] border border-canopy-600/30 bg-white shadow-2xl">
+          {/* Header */}
           <div className="flex items-center justify-between bg-canopy-800 px-4 py-3 text-white">
-            <span className="font-display font-semibold">Calibot</span>
+            <div className="flex items-center gap-2">
+              <img
+                src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCalibotAi.png?alt=media&token=44e5b03e-1bd9-4d8e-a984-b92dddf2717a"
+                alt="Calibot"
+                className="h-7 w-7 rounded-full object-contain"
+              />
+
+              <span className="font-display font-semibold">
+                Calibot
+              </span>
+            </div>
+
             <button
+              type="button"
               onClick={() => setOpen(false)}
               aria-label="Close chat"
-              className="text-white/80 transition hover:text-white"
+              className="text-lg text-white/80 transition hover:text-white"
             >
               ✕
             </button>
           </div>
 
+          {/* Messages */}
           <div
             ref={scrollRef}
             className="flex-1 space-y-3 overflow-y-auto p-4 text-sm"
           >
-            {messages.map((msg, i) => (
+            {messages.map((message, index) => (
               <div
-                key={i}
+                key={`${message.role}-${index}`}
                 className={
-                  msg.role === "assistant"
-                    ? "max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900"
-                    : "ml-auto max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-700 px-3 py-2 text-white"
+                  message.role === "assistant"
+                    ? "max-w-[85%] whitespace-pre-wrap rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900"
+                    : "ml-auto max-w-[85%] whitespace-pre-wrap rounded-[var(--radius-stall)] bg-canopy-700 px-3 py-2 text-white"
                 }
               >
-                {msg.text}
+                {message.text}
               </div>
             ))}
 
             {isLoading && (
               <div className="max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900">
-                Typing…
+                <span className="animate-pulse">
+                  Calibot is thinking…
+                </span>
               </div>
             )}
           </div>
 
+          {/* Input */}
           <form
             onSubmit={sendMessage}
             className="flex gap-2 border-t border-canopy-100 p-3"
@@ -131,31 +176,36 @@ export default function ChatbotLauncher() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
               placeholder="Ask something…"
               disabled={isLoading}
-              className="flex-1 rounded-full border border-canopy-600/30 px-3 py-2 text-sm outline-none focus:border-canopy-600"
+              autoComplete="off"
+              className="flex-1 rounded-full border border-canopy-600/30 px-3 py-2 text-sm outline-none transition focus:border-canopy-600 focus:ring-2 focus:ring-canopy-600/10 disabled:bg-gray-100"
             />
+
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="rounded-full bg-canopy-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-canopy-800 disabled:opacity-50"
+              className="rounded-full bg-canopy-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-canopy-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Send
+              {isLoading ? "..." : "Send"}
             </button>
           </form>
         </div>
       )}
 
+      {/* Launcher */}
       <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Close Calibot" : "Talk to Calibot"}
-        className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-xl transition hover:opacity-90"
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-label={
+          open ? "Close Calibot" : "Talk to Calibot"
+        }
+        className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-xl transition hover:scale-105 hover:opacity-90"
       >
         <img
           src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCalibotAi.png?alt=media&token=44e5b03e-1bd9-4d8e-a984-b92dddf2717a"
           alt="Calibot"
-          className="h-9 w-9 object-contain"
+          className="h-10 w-10 object-contain"
         />
       </button>
     </div>

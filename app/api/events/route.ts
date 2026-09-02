@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
@@ -14,20 +14,29 @@ interface EventInput {
 
 // GET /api/events — public, returns every event/festival posting.
 // Used by CommunityFeed, AdminDashboard, and AdminReports.
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    await verifyAdminRequest(request);
+
+    const adminDb = getAdminDb();
+
     const snapshot = await adminDb
       .collection("events")
       .orderBy("createdAt", "desc")
       .get();
 
-    const items = snapshot.docs.map((doc) => ({ _id: doc.id, ...doc.data() }));
-    return NextResponse.json(items);
-  } catch (err) {
-    console.error("GET /api/events error:", err);
+    const events = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return NextResponse.json(events);
+  } catch (error) {
+    console.error("Events GET error:", error);
+
     return NextResponse.json(
-      { error: "Failed to load events" },
-      { status: 500 }
+      { error: "Unauthorized or failed to fetch events" },
+      { status: 401 }
     );
   }
 }
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
+    const adminDb = getAdminDb();
     const docRef = await adminDb.collection("events").add({
       title: body.title,
       description: body.description,

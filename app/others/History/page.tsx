@@ -189,12 +189,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-1">
               <img
-                src={img("Calinan today1.jpg")}
+                src={img("Calinan Today1.png")}
                 alt="Calinan Today"
               />
 
               <img
-                src={img("Calinan today2.jpg")}
+                src={img("Calinan Today2.png")}
                 alt="Calinan Today"
               />
             </div>
