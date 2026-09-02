@@ -1,60 +1,87 @@
-// app/api/weather/route.tsx
+// app/api/weather/route.ts
+//
+// Fetches current weather for Calinan, Davao City using Open-Meteo
+// (free, no API key required). Returns the shape expected by
+// WeatherWidget.tsx.
+
 import { NextResponse } from "next/server";
 
-// Barangay Calinan, Davao City coordinates
-const LAT = 7.2005;
-const LON = 125.4553;
+export const runtime = "nodejs";
+export const revalidate = 600; // cache for 10 minutes
 
-// WMO weather codes -> readable condition
-function getCondition(code: number): string {
+// Approximate coordinates for Calinan Poblacion, Davao City
+const LAT = 7.188;
+const LON = 125.456;
+
+// WMO weather codes -> human-readable condition text
+// https://open-meteo.com/en/docs (see "WMO Weather interpretation codes")
+function describeWeatherCode(code: number): string {
   const map: Record<number, string> = {
-    0: "clear sky",
-    1: "mainly clear",
-    2: "partly cloudy",
-    3: "overcast",
-    45: "fog",
-    48: "depositing rime fog",
-    51: "light drizzle",
-    53: "moderate drizzle",
-    55: "dense drizzle",
-    61: "slight rain",
-    63: "moderate rain",
-    65: "heavy rain",
-    80: "rain showers",
-    81: "moderate rain showers",
-    82: "violent rain showers",
-    95: "thunderstorm",
-    96: "thunderstorm with hail",
-    99: "thunderstorm with heavy hail",
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    56: "Light freezing drizzle",
+    57: "Dense freezing drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    66: "Light freezing rain",
+    67: "Heavy freezing rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
   };
-  return map[code] ?? "unknown";
+
+  return map[code] ?? "Unknown";
 }
 
 export async function GET() {
   try {
     const url =
-      `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${LAT}&longitude=${LON}` +
       `&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code` +
-      `&timezone=Asia/Manila`;
+      `&timezone=Asia%2FManila`;
 
-    const res = await fetch(url, { next: { revalidate: 600 } }); // cache 10 min
+    const res = await fetch(url, { next: { revalidate: 600 } });
 
     if (!res.ok) {
-      return NextResponse.json({ error: "Weather fetch failed" }, { status: 502 });
+      throw new Error(`Open-Meteo responded with ${res.status}`);
     }
 
     const data = await res.json();
     const current = data.current;
 
-    return NextResponse.json({
+    const weather = {
       city: "Calinan, Davao City",
       tempC: Math.round(current.temperature_2m),
       feelsLikeC: Math.round(current.apparent_temperature),
-      condition: getCondition(current.weather_code),
+      condition: describeWeatherCode(current.weather_code),
       humidity: Math.round(current.relative_humidity_2m),
       windKph: Math.round(current.wind_speed_10m),
-    });
+    };
+
+    return NextResponse.json(weather);
   } catch (err) {
-    return NextResponse.json({ error: "Weather fetch failed" }, { status: 500 });
+    console.error("Weather API error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch weather" },
+      { status: 500 }
+    );
   }
 }
