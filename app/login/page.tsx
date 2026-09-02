@@ -2,10 +2,12 @@
 import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type UserRole = "admin" | "business" | "user";
+
 interface LoginSuccessPayload {
   token: string;
   username: string;
-  role: string;
+  role: UserRole;
 }
 
 interface LoginErrorPayload {
@@ -14,15 +16,35 @@ interface LoginErrorPayload {
 
 const API_BASE_URL: string = "http://localhost:5000";
 
-type AuthMode = "admin" | "guest";
+type AuthMode = "signin" | "guest";
+
+/**
+ * Hardcoded default admin account for local testing/demo purposes.
+ * Logging in with these credentials skips the backend entirely and
+ * routes straight to the Admin Dashboard.
+ *
+ * ⚠️ Remove or guard this behind an env flag before deploying to production.
+ */
+const DEFAULT_ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_PASSWORD = "admin123";
+
+/**
+ * Where each role lands after a successful sign in.
+ * Extend this map if new roles are introduced later.
+ */
+const ROLE_REDIRECTS: Record<UserRole, string> = {
+  admin: "/adminpage/AdminDashboard",
+  business: "/business/dashboard",
+  user: "/",
+};
 
 const LoginPage: React.FC = () => {
   const router = useRouter();
 
-  const [mode, setMode] = useState<AuthMode>("admin");
+  const [mode, setMode] = useState<AuthMode>("signin");
 
-  /* ---------------- Admin login state ---------------- */
-  const [username, setUsername] = useState<string>("");
+  /* ---------------- Unified sign-in state (admin, business, or user) --- */
+  const [identifier, setIdentifier] = useState<string>(""); // username OR email
   const [password, setPassword] = useState<string>("");
   const [remember, setRemember] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -38,9 +60,9 @@ const LoginPage: React.FC = () => {
   ): void => {
     const storage: Storage = shouldRemember ? localStorage : sessionStorage;
 
-    storage.setItem("mycalinan_admin_token", payload.token);
-    storage.setItem("mycalinan_admin_username", payload.username);
-    storage.setItem("mycalinan_admin_role", payload.role);
+    storage.setItem("mycalinan_token", payload.token);
+    storage.setItem("mycalinan_username", payload.username);
+    storage.setItem("mycalinan_role", payload.role);
 
     /*
       Clear the opposite storage so an old session
@@ -48,35 +70,62 @@ const LoginPage: React.FC = () => {
     */
     const otherStorage: Storage = shouldRemember ? sessionStorage : localStorage;
 
-    otherStorage.removeItem("mycalinan_admin_token");
-    otherStorage.removeItem("mycalinan_admin_username");
-    otherStorage.removeItem("mycalinan_admin_role");
+    otherStorage.removeItem("mycalinan_token");
+    otherStorage.removeItem("mycalinan_username");
+    otherStorage.removeItem("mycalinan_role");
   };
 
-  const handleAdminSubmit = async (
+  /**
+   * Single sign-in handler for every account type.
+   * The backend looks up the identifier, verifies the password, and
+   * reports back which role that account has — the frontend never has
+   * to guess or ask the user to pick a tab.
+   *
+   * Before hitting the backend, we check for the hardcoded default
+   * admin credentials so the Admin Dashboard is reachable even
+   * without a running/seeded backend.
+   */
+  const handleSignIn = async (
     e: FormEvent<HTMLFormElement>
   ): Promise<void> => {
     e.preventDefault();
 
     setError("");
 
-    const trimmedUsername = username.trim();
+    const trimmedIdentifier = identifier.trim();
 
-    if (!trimmedUsername || !password) {
-      setError("Please enter both username and password.");
+    if (!trimmedIdentifier || !password) {
+      setError("Please enter both your username/email and password.");
+      return;
+    }
+
+    /* ---------------- Default admin bypass ---------------- */
+    if (
+      trimmedIdentifier === DEFAULT_ADMIN_USERNAME &&
+      password === DEFAULT_ADMIN_PASSWORD
+    ) {
+      setLoading(true);
+
+      storeSession(remember, {
+        token: "default-admin-token",
+        username: DEFAULT_ADMIN_USERNAME,
+        role: "admin",
+      });
+
+      router.push(ROLE_REDIRECTS.admin);
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: trimmedUsername,
+          identifier: trimmedIdentifier,
           password,
         }),
       });
@@ -85,19 +134,20 @@ const LoginPage: React.FC = () => {
         await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Login failed. Please try again.");
+        setError(data.error || "Login failed. Please check your credentials.");
         return;
       }
 
       storeSession(remember, data);
 
       /*
-        Redirect to the admin dashboard only after
-        successful authentication.
+        Route based on whatever role the backend says this account is —
+        admin, business owner, or a regular user. No manual tab needed.
       */
-      window.location.href = "Admin-Dashboard.html";
+      const destination = ROLE_REDIRECTS[data.role] ?? "/";
+      router.push(destination);
     } catch (err) {
-      console.error("Admin login error:", err);
+      console.error("Sign in error:", err);
 
       setError("Cannot connect to the server. Make sure the API is running.");
     } finally {
@@ -130,8 +180,8 @@ const LoginPage: React.FC = () => {
           <img src="/image/CALINAN LOGO.png" alt="MyCalinan Logo" />
           <h1>MyCalinan</h1>
           <p>
-            {mode === "admin"
-              ? "Administrator Portal"
+            {mode === "signin"
+              ? "Sign in to your MyCalinan account."
               : "Discover Calinan. Explore. Stay Informed."}
           </p>
         </div>
@@ -141,11 +191,11 @@ const LoginPage: React.FC = () => {
           <button
             type="button"
             role="tab"
-            aria-selected={mode === "admin"}
-            className={mode === "admin" ? "active" : ""}
-            onClick={() => setMode("admin")}
+            aria-selected={mode === "signin"}
+            className={mode === "signin" ? "active" : ""}
+            onClick={() => setMode("signin")}
           >
-            Admin Login
+            Sign In
           </button>
 
           <button
@@ -159,14 +209,14 @@ const LoginPage: React.FC = () => {
           </button>
         </div>
 
-        {/* ---------------- ADMIN LOGIN FORM ---------------- */}
-        {mode === "admin" && (
+        {/* ---------------- UNIFIED SIGN IN FORM ---------------- */}
+        {mode === "signin" && (
           <form
             className="login-page-form"
-            id="admin-login-form"
-            onSubmit={handleAdminSubmit}
+            id="signin-form"
+            onSubmit={handleSignIn}
           >
-            <h2>Admin Login</h2>
+            <h2>Sign In</h2>
 
             {error && (
               <div id="login-error" className="login-page-error" role="alert">
@@ -175,15 +225,15 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className="login-page-input-group">
-              <label htmlFor="username">Username</label>
+              <label htmlFor="identifier">Username or Email</label>
 
               <input
                 type="text"
-                id="username"
-                placeholder="Enter username"
+                id="identifier"
+                placeholder="Enter username or email"
                 autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
               />
             </div>
@@ -233,7 +283,7 @@ const LoginPage: React.FC = () => {
             </button>
 
             <div className="login-page-footer-text">
-              Authorized Administrators Only
+              Works for administrator, business, and personal accounts.
             </div>
           </form>
         )}
@@ -296,7 +346,7 @@ const LoginPage: React.FC = () => {
               <strong>Guest Access</strong>
               <p>
                 Guest access does not require an account. Some features may
-                be available only to authorized administrators.
+                be available only to signed-in accounts.
               </p>
             </div>
           </div>

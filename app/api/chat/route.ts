@@ -89,7 +89,7 @@ ${context || "(no matching data found for this question)"}`;
         // https://docs.claude.com/en/docs/about-claude/models before
         // relying on it long-term.
         model: "claude-sonnet-5",
-        max_tokens: 500,
+        max_tokens: 500,  
         system: systemPrompt,
         messages: [{ role: "user", content: message }],
       }),

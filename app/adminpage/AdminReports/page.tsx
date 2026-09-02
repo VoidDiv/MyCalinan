@@ -289,7 +289,7 @@ export default function AdminReports() {
       window.localStorage?.removeItem(key);
       window.sessionStorage?.removeItem(key);
     });
-    window.location.href = 'Admin-login.html';
+    window.location.href = '/login';
   };
 
   return (
@@ -495,7 +495,7 @@ export default function AdminReports() {
         {authWarning && (
           <div className="auth-warning">
             <AlertTriangle size={16} />
-            You are not logged in. <a href="Admin-login.html">Click here to log in</a>.
+            You are not logged in. <a href="/login">Click here to log in</a>.
           </div>
         )}
 

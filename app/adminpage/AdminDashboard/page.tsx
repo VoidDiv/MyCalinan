@@ -1,6 +1,4 @@
-
-
-
+"use client";
 import { useEffect, useState, useCallback } from "react";
 
 /* ── Types ── */
@@ -137,6 +135,7 @@ function LogoutModal({
           </button>
           <button onClick={onConfirm} style={styles.modalConfirmBtn}>
             Log Out
+            
           </button>
         </div>
       </div>
@@ -196,7 +195,7 @@ export default function AdminDashboard() {
     sessionStorage.removeItem("mycalinan_admin_token");
     sessionStorage.removeItem("mycalinan_admin_username");
     sessionStorage.removeItem("mycalinan_admin_role");
-    window.location.href = "Admin-login.html";
+    window.location.href = "/login";
   }
 
   const bothFailed = announcementsFailed && eventsFailed;
@@ -228,27 +227,27 @@ export default function AdminDashboard() {
 
         <ul style={styles.menu}>
           <li>
-            <a href="Admin-Dashboard.html" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
+            <a href="/adminpage/AdminDashboard" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
               <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
             </a>
           </li>
           <li>
-            <a href="HomePage.html" style={styles.menuLink}>
+            <a href="/" style={styles.menuLink}>
               <i className="fas fa-home" style={styles.menuIcon} /> Home Page
             </a>
           </li>
           <li>
-            <a href="Admin-Events.html" style={styles.menuLink}>
+            <a href="/adminpage/AdminEvents" style={styles.menuLink}>
               <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
             </a>
           </li>
           <li>
-            <a href="Admin-Announcements.html" style={styles.menuLink}>
+            <a href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
               <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
             </a>
           </li>
           <li>
-            <a href="Admin-Reports.html" style={styles.menuLink}>
+            <a href="/adminpage/AdminReports" style={styles.menuLink}>
               <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
             </a>
           </li>
@@ -266,7 +265,7 @@ export default function AdminDashboard() {
         {!authed && (
           <div style={styles.authWarning}>
             <i className="fas fa-exclamation-triangle" /> You are not logged in.{" "}
-            <a href="Admin-login.html">Click here to log in</a>.
+            <a href="/login">Click here to log in</a>.
           </div>
         )}
 
@@ -276,10 +275,10 @@ export default function AdminDashboard() {
             Dashboard
           </h1>
           <div style={{ display: "flex", gap: 10 }}>
-            <a href="Admin-Events.html" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
+            <a href="/adminpage/AdminEvents" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
               <i className="fas fa-plus" /> Add Event
             </a>
-            <a href="Admin-Announcements.html" style={styles.addBtn}>
+            <a href="/adminpage/AdminAnnouncements" style={styles.addBtn}>
               <i className="fas fa-plus" /> Add Announcement
             </a>
           </div>
@@ -320,7 +319,7 @@ export default function AdminDashboard() {
                 <i className="fas fa-bullhorn" style={{ color: "#1a5c38", marginRight: 6 }} />
                 Recent Announcements
               </h2>
-              <a href="Admin-Announcements.html" style={styles.panelHeadLink}>
+              <a href="/adminpage/AdminAnnouncements" style={styles.panelHeadLink}>
                 Manage all &rarr;
               </a>
             </div>
@@ -337,7 +336,7 @@ export default function AdminDashboard() {
                 <i className="fas fa-calendar-alt" style={{ color: "#1a5c38", marginRight: 6 }} />
                 Recent Events &amp; Festivals
               </h2>
-              <a href="Admin-Events.html" style={styles.panelHeadLink}>
+              <a href="/adminpage/AdminEvents" style={styles.panelHeadLink}>
                 Manage all &rarr;
               </a>
             </div>

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Home,
@@ -21,16 +23,11 @@ import {
    Config
    ──────────────────────────────────────────────────────────────── */
 
-/* Public GET lives at /api/events.
-   Admin create/update/delete live under /api/admin/events.
-   These mirror the Announcements routes — matching Flask routes should
-   already exist in app.py for a separate "events" collection. */
 const PUBLIC_API = 'http://localhost:5000/api/events';
 const ADMIN_API = 'http://localhost:5000/api/admin/events';
 const POLL_INTERVAL_MS = 30000;
 
 const CATEGORY_OPTIONS = ['General', 'Event', 'Program', 'Advisory', 'Festival'] as const;
-type CategoryOption = (typeof CATEGORY_OPTIONS)[number];
 
 interface EventItem {
   _id?: string;
@@ -69,14 +66,33 @@ function tagClass(category?: string) {
 }
 
 /* ────────────────────────────────────────────────────────────────
+   Auth keys — MUST match what the login page (doc 7) actually writes:
+   mycalinan_token / mycalinan_username / mycalinan_role
+   ──────────────────────────────────────────────────────────────── */
+const TOKEN_KEY = 'mycalinan_token';
+const USERNAME_KEY = 'mycalinan_username';
+const ROLE_KEY = 'mycalinan_role';
+
+/* ────────────────────────────────────────────────────────────────
+   Routes — adjust these three constants if your real paths differ
+   ──────────────────────────────────────────────────────────────── */
+const ROUTES = {
+  home: '/',
+  events: '/adminpage/AdminEvents',
+  announcements: '/adminpage/AdminAnnouncements',
+  reports: '/adminpage/AdminReports',
+  login: '/login',
+};
+
+/* ────────────────────────────────────────────────────────────────
    Sidebar
    ──────────────────────────────────────────────────────────────── */
 
 const menuItems = [
-  { label: 'Home Page', href: 'HomePage.html', icon: Home },
-  { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays, active: true },
-  { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
-  { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart },
+  { label: 'Home Page', href: ROUTES.home, icon: Home },
+  { label: 'Events & Festivals', href: ROUTES.events, icon: CalendarDays, active: true },
+  { label: 'Announcements', href: ROUTES.announcements, icon: Megaphone },
+  { label: 'Reports', href: ROUTES.reports, icon: LineChart },
 ];
 
 function Sidebar({
@@ -233,8 +249,8 @@ export default function AdminEvents() {
   formOpenRef.current = formOpen;
 
   const getToken = () =>
-    window.localStorage?.getItem('mycalinan_admin_token') ||
-    window.sessionStorage?.getItem('mycalinan_admin_token') ||
+    window.localStorage?.getItem(TOKEN_KEY) ||
+    window.sessionStorage?.getItem(TOKEN_KEY) ||
     '';
 
   const authHeaders = () => ({
@@ -253,9 +269,9 @@ export default function AdminEvents() {
     const readStored = (key: string) =>
       window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key) || '';
 
-    const token = readStored('mycalinan_admin_token');
-    setAdminName(readStored('mycalinan_admin_username') || 'Admin');
-    setAdminRole(readStored('mycalinan_admin_role') || 'admin');
+    const token = readStored(TOKEN_KEY);
+    setAdminName(readStored(USERNAME_KEY) || 'Admin');
+    setAdminRole(readStored(ROLE_KEY) || 'admin');
     setAuthWarning(!token);
   }, []);
 
@@ -278,8 +294,6 @@ export default function AdminEvents() {
   useEffect(() => {
     loadEvents();
     const id = setInterval(() => {
-      // Skip the periodic refresh while the form is open so it can't wipe
-      // out an in-progress create/edit.
       if (!formOpenRef.current) loadEvents();
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
@@ -364,7 +378,7 @@ export default function AdminEvents() {
       if (res.status === 401) {
         showToast('Session expired. Please log in again.', true);
         setTimeout(() => {
-          window.location.href = 'Admin-login.html';
+          window.location.href = ROUTES.login;
         }, 1500);
         return;
       }
@@ -413,7 +427,7 @@ export default function AdminEvents() {
       if (res.status === 401) {
         showToast('Session expired. Please log in again.', true);
         setTimeout(() => {
-          window.location.href = 'Admin-login.html';
+          window.location.href = ROUTES.login;
         }, 1500);
         return;
       }
@@ -433,206 +447,16 @@ export default function AdminEvents() {
   };
 
   const handleLogout = () => {
-    ['mycalinan_admin_token', 'mycalinan_admin_username', 'mycalinan_admin_role'].forEach((key) => {
+    [TOKEN_KEY, USERNAME_KEY, ROLE_KEY].forEach((key) => {
       window.localStorage?.removeItem(key);
       window.sessionStorage?.removeItem(key);
     });
-    window.location.href = 'Admin-login.html';
+    window.location.href = ROUTES.login;
   };
 
   return (
     <div className="admin-events-root">
-      <style>{`
-        .admin-events-root, .admin-events-root *, .admin-events-root *::before, .admin-events-root *::after {
-          box-sizing: border-box;
-        }
-        .admin-events-root {
-          font-family: 'Segoe UI', sans-serif;
-          background: #f0f4f8;
-          display: flex;
-          min-height: 100vh;
-          position: relative;
-        }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* ── Sidebar ── */
-        .sidebar {
-          width: 240px; background: #1a5c38; color: #fff;
-          display: flex; flex-direction: column; min-height: 100vh;
-          position: fixed; top: 0; left: 0; z-index: 50;
-        }
-        .sidebar .logo { padding: 24px 24px 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
-        .sidebar .logo h2 { font-size: 1.2rem; font-weight: 700; margin: 0; }
-        .sidebar .logo p { font-size: .75rem; opacity: .65; margin-top: 2px; }
-
-        .admin-badge {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 24px; border-bottom: 1px solid rgba(255,255,255,.1);
-          background: rgba(0,0,0,.12);
-        }
-        .admin-avatar {
-          width: 34px; height: 34px; background: rgba(255,255,255,.25);
-          border-radius: 50%; display: flex; align-items: center; justify-content: center;
-          font-size: .9rem; font-weight: 700; flex-shrink: 0;
-        }
-        .admin-info { min-width: 0; }
-        .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
-
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0; }
-        .sidebar .menu li a {
-          display: flex; align-items: center; gap: 12px; padding: 12px 24px;
-          color: rgba(255,255,255,.82); text-decoration: none; font-size: .88rem;
-          transition: background .2s, color .2s;
-        }
-        .sidebar .menu li a:hover, .sidebar .menu li.active a { background: rgba(255,255,255,.15); color: #fff; }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
-        .logout-btn {
-          display: flex; align-items: center; gap: 10px; width: 100%;
-          padding: 10px 16px; background: rgba(231,76,60,.2);
-          border: 1px solid rgba(231,76,60,.35); color: #ff8f85;
-          border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer;
-          transition: background .2s, color .2s;
-        }
-        .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
-
-        /* ── Main content ── */
-        .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
-
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
-        .header h1 { font-size: 1.4rem; color: #1a3d28; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; }
-
-        .add-btn {
-          background: #1a5c38; color: #fff; border: none; padding: 10px 20px;
-          border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer;
-          display: flex; align-items: center; gap: 8px; transition: background .2s;
-        }
-        .add-btn:hover { background: #145029; }
-
-        /* ── Stats ── */
-        .stats {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 18px; margin-bottom: 28px;
-        }
-        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
-        .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
-        .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
-        .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
-
-        /* ── Auth warning ── */
-        .auth-warning {
-          background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;
-          padding: 14px 20px; margin-bottom: 22px; font-size: .88rem; color: #856404;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .auth-warning a { color: #6b5200; font-weight: 600; }
-
-        /* ── Form section ── */
-        .form-section, .table-section {
-          background: #fff; border-radius: 12px; padding: 26px 28px;
-          box-shadow: 0 2px 10px rgba(0,0,0,.07); margin-bottom: 28px;
-        }
-        .form-section h2, .table-section h2 {
-          font-size: 1rem; font-weight: 700; color: #1a3d28;
-          margin: 0 0 18px; padding-bottom: 12px; border-bottom: 2px solid #e8f5ee;
-        }
-
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        .input-box { display: flex; flex-direction: column; gap: 5px; }
-        .input-box.full { grid-column: 1 / -1; }
-        .input-box label { font-size: .8rem; font-weight: 600; color: #444; }
-        .input-box input, .input-box select, .input-box textarea {
-          padding: 9px 13px; border: 1.5px solid #dce8e0; border-radius: 8px;
-          font-size: .88rem; color: #2c3e50; outline: none; transition: border .2s;
-          font-family: inherit; width: 100%;
-        }
-        .input-box input:focus, .input-box select:focus, .input-box textarea:focus { border-color: #1a5c38; }
-        .input-box textarea { resize: vertical; }
-
-        .btn-row { display: flex; gap: 12px; margin-top: 14px; }
-        .save-btn {
-          background: #1a5c38; color: #fff; border: none; padding: 10px 24px;
-          border-radius: 8px; font-size: .88rem; font-weight: 600; cursor: pointer;
-          transition: background .2s; display: flex; align-items: center; gap: 8px;
-        }
-        .save-btn:hover { background: #145029; }
-        .save-btn.grey { background: #888; }
-        .save-btn.grey:hover { background: #666; }
-
-        /* ── Toast ── */
-        .toast {
-          position: fixed; top: 20px; right: 24px; background: #1a5c38; color: #fff;
-          padding: 12px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          box-shadow: 0 4px 14px rgba(0,0,0,.2); z-index: 9999; animation: slideIn .25s ease;
-        }
-        @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* ── Modals ── */
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: none; align-items: center; justify-content: center; z-index: 8000;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal-box {
-          background: #fff; border-radius: 14px; padding: 30px 32px;
-          max-width: 380px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
-        }
-        .modal-box svg { margin-bottom: 10px; }
-        .modal-box h3 { font-size: 1.1rem; font-weight: 700; color: #1a3d28; margin-bottom: 8px; }
-        .modal-box p { font-size: .88rem; color: #666; margin-bottom: 22px; }
-        .modal-btns { display: flex; gap: 10px; justify-content: center; }
-        .modal-btns button {
-          padding: 9px 24px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          cursor: pointer; border: none; transition: opacity .2s;
-        }
-        .modal-btns button:hover { opacity: .85; }
-        .modal-confirm { background: #e74c3c; color: #fff; }
-        .modal-cancel { background: #e8f0ec; color: #333; }
-
-        /* ── Table ── */
-        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-        thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
-        th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
-        tbody tr:hover td { background: #f9fdfb; }
-
-        .desc-cell {
-          max-width: 320px; color: #666; display: -webkit-box;
-          -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-
-        .title-cell { display: flex; align-items: center; gap: 10px; }
-        .title-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e8f0ec; }
-
-        .tag { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: .75rem; font-weight: 700; background: #e8f5ee; color: #1a5c38; }
-        .tag.event { background: #e3f0ff; color: #1a56a0; }
-        .tag.advisory { background: #fff3cd; color: #856404; }
-        .tag.program { background: #d4edda; color: #155724; }
-        .tag.festival { background: #fde8f5; color: #8b1a6b; }
-
-        td button {
-          padding: 5px 12px; border-radius: 6px; font-size: .78rem; font-weight: 600;
-          cursor: pointer; border: none; margin-right: 5px; transition: opacity .2s;
-          display: inline-flex; align-items: center; gap: 5px;
-        }
-        td button:hover { opacity: .8; }
-        td button.edit { background: #d4edda; color: #155724; }
-        td button.delete { background: #f8d7da; color: #721c24; }
-
-        .table-state td { text-align: center; padding: 40px; color: #888; }
-
-        @media (max-width: 768px) {
-          .sidebar { width: 200px; }
-          .content { margin-left: 200px; padding: 18px; }
-          .form-grid { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 540px) {
-          .sidebar { display: none; }
-          .content { margin-left: 0; }
-        }
-      `}</style>
 
       <Sidebar adminName={adminName} adminRole={adminRole} onLogoutClick={() => setLogoutModalOpen(true)} />
 
@@ -642,7 +466,7 @@ export default function AdminEvents() {
         {authWarning && (
           <div className="auth-warning">
             <AlertTriangle size={16} />
-            You are not logged in. <a href="Admin-login.html">Click here to log in</a> — changes will not be saved until you do.
+            You are not logged in. <a href={ROUTES.login}>Click here to log in</a> — changes will not be saved until you do.
           </div>
         )}
 
@@ -820,5 +644,3 @@ export default function AdminEvents() {
     </div>
   );
 }
-
-
