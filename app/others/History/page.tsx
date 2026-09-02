@@ -1,5 +1,17 @@
 import React from "react";
 
+// ----------------------------------------------------------------------
+// Firebase Storage base path (same pattern as Hotspots/Documents pages)
+// ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/History";
+
+// Helper: builds the full public URL for a filename in the History
+// folder, URL-encoding spaces/special characters as needed.
+function img(filename: string): string {
+  return `${STORAGE_BASE}/${encodeURIComponent(filename)}`;
+}
+
 const HistoryPage: React.FC = () => {
   return (
     <div className="history-page">
@@ -31,12 +43,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-1">
               <img
-                src="/image/Before Colonial Period1.jpg"
+                src={img("Before Colonial Period1.jpg")}
                 alt="Before Colonial Period"
               />
 
               <img
-                src="/image/Before Colonial Period2.png"
+                src={img("Before Colonial Period2.png")}
                 alt="Before Colonial Period"
               />
             </div>
@@ -69,12 +81,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-2">
               <img
-                src="/image/Lt. Cipriano Villafuerte Sr..png"
+                src={img("Lt. Cipriano Villafuerte Sr..png")}
                 alt="Lt. Cipriano Villafuerte Sr."
               />
 
               <img
-                src="/image/Paulino Naraval.png"
+                src={img("Paulino Naraval.png")}
                 alt="Paulino Naraval"
               />
             </div>
@@ -106,12 +118,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-1">
               <img
-                src="/image/Growth-1.jpg"
+                src={img("Growth-1.png")}
                 alt="Growth of Calinan"
               />
 
               <img
-                src="/image/Growth-2.jpg"
+                src={img("Growth-2.png")}
                 alt="Growth of Calinan"
               />
             </div>
@@ -142,12 +154,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-1">
               <img
-                src="/image/Challenges-1.jpg"
+                src={img("Challenges-1.png")}
                 alt="Challenges and Rebuilding After the War"
               />
 
               <img
-                src="/image/Challenges-2.jpg"
+                src={img("Challenges-2.png")}
                 alt="Challenges and Rebuilding After the War"
               />
             </div>
@@ -177,12 +189,12 @@ const HistoryPage: React.FC = () => {
 
             <div className="headline-image-1">
               <img
-                src="/image/Calinan today1.jpg"
+                src={img("Calinan today1.jpg")}
                 alt="Calinan Today"
               />
 
               <img
-                src="/image/Calinan today2.jpg"
+                src={img("Calinan today2.jpg")}
                 alt="Calinan Today"
               />
             </div>
@@ -209,7 +221,7 @@ const HistoryPage: React.FC = () => {
 
           <article className="news-card">
             <img
-              src="/image/Holy Cross Students (1953).jpg"
+              src={img("Holy Cross Students (1953).jpg")}
               alt="Holy Cross Students (1953)"
             />
             <div className="news-content">
@@ -219,7 +231,7 @@ const HistoryPage: React.FC = () => {
 
           <article className="news-card">
             <img
-              src="/image/Old  Calinan Building (1990s).jpg"
+              src={img("Old  Calinan Building (1990s).jpg")}
               alt="Old Calinan Building (1990s)"
             />
             <div className="news-content">
@@ -229,7 +241,7 @@ const HistoryPage: React.FC = () => {
 
           <article className="news-card">
             <img
-              src="/image/Calinan Police Station (1970).jpg"
+              src={img("Calinan Police Station (1970).jpg")}
               alt="Calinan Police Station (1970)"
             />
             <div className="news-content">
@@ -239,7 +251,7 @@ const HistoryPage: React.FC = () => {
 
           <article className="news-card">
             <img
-              src="/image/Calinan Central Elemetary (1970).jpg"
+              src={img("Calinan Central Elemetary (1970).jpg")}
               alt="Calinan Central Elementary (1970)"
             />
             <div className="news-content">
@@ -249,7 +261,7 @@ const HistoryPage: React.FC = () => {
 
           <article className="news-card">
             <img
-              src="/image/Employees of Calinan District Hall (1954).jpg"
+              src={img("Employees of Calinan District Hall (1954).jpg")}
               alt="Employees of Calinan District Hall (1954)"
             />
             <div className="news-content">
@@ -295,7 +307,7 @@ const HistoryPage: React.FC = () => {
 
           <div className="headline-image">
             <img
-              src="/image/Botica Carina (2010).jpg"
+              src={img("Botica Carina (2010).jpg")}
               alt="Botica Carina (2010)"
             />
           </div>
@@ -318,7 +330,7 @@ const HistoryPage: React.FC = () => {
 
           <div className="headline-image">
             <img
-              src="/image/Sacred Heart Parish of Calinan (2012).jpg"
+              src={img("Sacred Heart Parish of Calinan (2012).jpg")}
               alt="Sacred Heart Parish of Calinan (2012)"
             />
           </div>
@@ -342,7 +354,7 @@ const HistoryPage: React.FC = () => {
 
           <div className="headline-image">
             <img
-              src="/image/Calinan Police Station Inauguration (2013).jpg"
+              src={img("Calinan Police Station Inauguration (2013).jpg")}
               alt="Calinan Police Station Inauguration (2013)"
             />
           </div>
@@ -362,7 +374,7 @@ const HistoryPage: React.FC = () => {
 
           <div className="headline-image">
             <img
-              src="/image/Calinan Poblacion Signage (2019).jpg"
+              src={img("Calinan Poblacion Signage (2019).jpg")}
               alt="Calinan Poblacion Signage (2019)"
             />
           </div>

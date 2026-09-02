@@ -2,6 +2,13 @@
 import React from 'react';
 // import './style/Documents.css'; // Make sure to import your CSS file here
 import Link from "next/link";
+
+// ----------------------------------------------------------------------
+// Firebase Storage base path (same pattern as Hotspots/Community pages)
+// ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Documents";
+
 // ----------------------------------------------------------------------
 // Data Arrays (Extracted for easier maintenance)
 // ----------------------------------------------------------------------
@@ -37,8 +44,14 @@ export const PoliceClearancePage: React.FC = () => {
 
       {/* FEATURE IMAGES (SIDE BY SIDE) */}
       <section className="doc-hero-grid">
-        <img src="image/Police-Clearance1.png" alt="Police Clearance" />
-        <img src="image/Police-Clearance2.png" alt="Police Clearance Online" />
+        <img
+          src={`${STORAGE_BASE}/Police-Clearance1.png`}
+          alt="Police Clearance"
+        />
+        <img
+          src={`${STORAGE_BASE}/Police-Clearance2.png`}
+          alt="Police Clearance Online"
+        />
       </section>
 
       <main className="doc-container">

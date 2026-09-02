@@ -3,7 +3,7 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, LineString } from "geojson";
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -13,9 +13,11 @@ import React, {
 } from "react";
 import Link from "next/link";
 
-const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
-mapboxgl.accessToken = token!;
+/* ══════════════════════════════════════════
+   TYPES
+══════════════════════════════════════════ */
 
 type Category =
   | "Restaurant"
@@ -38,6 +40,24 @@ interface FoodPlace {
   image?: string;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distance: string;
+  time: string;
+}
+
+/* ══════════════════════════════════════════
+   DATA
+══════════════════════════════════════════ */
+
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/FoodAndDining";
+
 const foodPlaces: FoodPlace[] = [
   {
     id: "penongs-calinan",
@@ -50,7 +70,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "Calinan District — Founded in 2003, Penong's is known for its Chicken Inato and grilled chicken meals.",
     mapsQuery: "Penong's Calinan District Davao City",
-    image: "/image/Penong_s Calinan.jpg",
+    image: `${STORAGE_BASE}/Penong_s%20Calinan.jpg`,
   },
   {
     id: "tapok-grill",
@@ -63,7 +83,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "Bukidnon Highway, Acacia — Casual dining spot known for grilled seafood and a lively atmosphere.",
     mapsQuery: "Tapok Grill and Seafood Restaurant Acacia Calinan Davao City",
-    image: "/image/TAPOK Grill and Seafood Restaurant.jpg",
+    image: `${STORAGE_BASE}/TAPOK%20Grill%20and%20Seafood%20Restaurant.jpg`,
   },
   {
     id: "station-grill",
@@ -76,7 +96,7 @@ const foodPlaces: FoodPlace[] = [
     description:
       "National Highway, Calinan District — Casual Filipino restaurant offering grilled specialties and comfort food.",
     mapsQuery: "Station Grill National Highway Calinan Davao City",
-    image: "/image/Station Grill.png",
+    image: `${STORAGE_BASE}/Station%20Grill.png`,
   },
   {
     id: "dowens-food-drinks",
@@ -88,7 +108,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍽️",
     description: "Calinan District — Small local eatery serving affordable meals and refreshments.",
     mapsQuery: "Dowens Food & Drinks Calinan District Davao City",
-    image: "/image/DOWENS FOOD & DRINKS.png",
+    image: `${STORAGE_BASE}/DOWENS%20FOOD%20%26%20DRINKS.png`,
   },
   {
     id: "kabawan-sa-calinan",
@@ -100,7 +120,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍲",
     description: "Davao–Bukidnon Highway, Calinan Poblacion — Well-known eatery serving hearty local dishes.",
     mapsQuery: "Kabawan Sa Calinan Davao-Bukidnon Highway Calinan Davao City",
-    image: "/image/Kabawan Sa Calinan.png",
+    image: `${STORAGE_BASE}/Kabawan%20Sa%20Calinan.png`,
   },
   {
     id: "lahers-lechon-haus",
@@ -112,7 +132,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🐷",
     description: "Villafuerte Street, Calinan Poblacion — Local lechon eatery known for roasted pork.",
     mapsQuery: "Laher's Lechon Haus Villafuerte Street Calinan Davao City",
-    image: "/image/Laher_s Lechon Haus.jpg",
+    image: `${STORAGE_BASE}/Laher_s%20Lechon%20Haus.jpg`,
   },
   {
     id: "kwekens-carenderia",
@@ -124,7 +144,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍱",
     description: "Datu Abing Street, Calinan Poblacion — Small carinderia serving affordable lutong-bahay meals.",
     mapsQuery: "Kwekens Carenderia Datu Abing Street Calinan Davao City",
-    image: "/image/Kwekens Carenderia.png",
+    image: `${STORAGE_BASE}/Kwekens%20Carenderia.png`,
   },
   {
     id: "onens-chicken-house",
@@ -136,7 +156,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Datu Abing Street, Calinan Poblacion — Fried chicken spot offering affordable meals.",
     mapsQuery: "Onen's Chicken House Datu Abing Street Calinan Davao City",
-    image: "/image/Onen’s Chicken House.png",
+    image: `${STORAGE_BASE}/Onen%E2%80%99s%20Chicken%20House.png`,
   },
   {
     id: "kunam-chicken-house",
@@ -148,7 +168,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Calinan Poblacion — Local fried chicken eatery offering affordable chicken meals.",
     mapsQuery: "Kunam Chicken House Calinan Poblacion Davao City",
-    image: "/image/Kunam Chicken House.png",
+    image: `${STORAGE_BASE}/Kunam%20Chicken%20House.png`,
   },
   {
     id: "nam-manok-1",
@@ -160,7 +180,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Datu Abing St, Calinan District — Local chicken house offering fried chicken and chicken meals.",
     mapsQuery: "Nam Manok Chicken House Datu Abing St Calinan Davao City",
-    image: "/image/Nam…Manok Chicken House Branch 1.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20House%20Branch%201.png`,
   },
   {
     id: "nam-manok-2",
@@ -172,7 +192,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Purok 32 Roman Diaz St, Calinan District — Local chicken house offering chicken meals.",
     mapsQuery: "Nam Manok Chicken House Purok 32 Roman Diaz St Calinan Davao City",
-    image: "/image/Nam…Manok Chicken Branch 2.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20Branch%202.png`,
   },
   {
     id: "nam-manok-3",
@@ -184,7 +204,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍗",
     description: "Canete Building, Calinan District — Local chicken house offering chicken meals.",
     mapsQuery: "Nam Manok Chicken House Canete Building Calinan Davao City",
-    image: "/image/Nam…Manok Chicken House Branch 3.png",
+    image: `${STORAGE_BASE}/Nam%E2%80%A6Manok%20Chicken%20House%20Branch%203.png`,
   },
   {
     id: "minute-burger-1",
@@ -196,7 +216,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍔",
     description: "Datu Abing St, Calinan District — Affordable burger meals and Buy 1, Take 1 offerings.",
     mapsQuery: "Minute Burger Datu Abing St Calinan Davao City",
-    image: "/image/Minute Burger1.png",
+    image: `${STORAGE_BASE}/Minute%20Burger1.png`,
   },
   {
     id: "minute-burger-2",
@@ -208,7 +228,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍔",
     description: "Aurora St, Calinan District — Affordable burger meals and Buy 1, Take 1 offerings.",
     mapsQuery: "Minute Burger Aurora St Calinan Davao City",
-    image: "/image/Minute Burger2.png",
+    image: `${STORAGE_BASE}/Minute%20Burger2.png`,
   },
   {
     id: "jollibee",
@@ -220,7 +240,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍟",
     description: "Canete Building, Calinan District — Fast-food branch serving popular Filipino fast-food meals.",
     mapsQuery: "Jollibee Canete Building Calinan Davao City",
-    image: "/image/Jollibee.png",
+    image: `${STORAGE_BASE}/Jollibee.png`,
   },
   {
     id: "kopikuys",
@@ -232,7 +252,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Calinan District — Local café offering coffee, drinks, and light meals.",
     mapsQuery: "Kopikuys Calinan Davao City",
-    image: "/image/Kopikuys.jpg",
+    image: `${STORAGE_BASE}/Kopikuys.jpg`,
   },
   {
     id: "hikaru-de-cielo-cafe",
@@ -244,7 +264,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Purok 21, San Roque, Davao–Bukidnon Hwy — Cozy café-restaurant with a scenic atmosphere.",
     mapsQuery: "Hikaru de Cielo Cafe Calinan Davao City",
-    image: "/image/Hikaru de Cielo Cafe.jpg",
+    image: `${STORAGE_BASE}/Hikaru%20de%20Cielo%20Cafe.jpg`,
   },
   {
     id: "kapekol-calinan",
@@ -256,7 +276,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "☕",
     description: "Calinan Poblacion — Small budget-friendly coffee stall.",
     mapsQuery: "Kapekol Calinan Poblacion Davao City",
-    image: "/image/Kapekol.png",
+    image: `${STORAGE_BASE}/Kapekol.png`,
   },
   {
     id: "teatuh-cafe",
@@ -268,7 +288,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🧋",
     description: "Villafuerte Street, Calinan Poblacion — Coffee and milk tea shop.",
     mapsQuery: "TeaTuh Cafe Villafuerte Street Calinan Poblacion Davao City",
-    image: "/image/TeaTuh Cafe.png",
+    image: `${STORAGE_BASE}/TeaTuh%20Cafe.png`,
   },
   {
     id: "machatuals",
@@ -280,7 +300,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍵",
     description: "R. Magsaysay St, Calinan — Milk tea and matcha drink shop.",
     mapsQuery: "Machatuals Calinan Poblacion Davao City",
-    image: "/image/Machatuals.jpg",
+    image: `${STORAGE_BASE}/Machatuals.jpg`,
   },
   {
     id: "rose-bakeshop-1",
@@ -292,7 +312,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Davao–Bukidnon Hwy, Calinan — Bakery offering breads and pastries.",
     mapsQuery: "Rose Bakeshop Davao-Bukidnon Hwy Calinan Davao City",
-    image: "/image/Rose Bakeshop1.png",
+    image: `${STORAGE_BASE}/Rose%20Bakeshop1.png`,
   },
   {
     id: "rose-bakeshop-2",
@@ -304,7 +324,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "De Lara St, Calinan District — Bakery offering breads and pastries.",
     mapsQuery: "Rose Bakeshop De Lara St Calinan Davao City",
-    image: "/image/Rose Bakeshop2.png",
+    image: `${STORAGE_BASE}/Rose%20Bakeshop2.png`,
   },
   {
     id: "panadero-bakeshop-1",
@@ -316,7 +336,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Fausta St, National Highway, Calinan — Bakery offering everyday breads and pastries.",
     mapsQuery: "Panadero Bakeshop Fausta St Calinan Davao City",
-    image: "/image/Panadero Bakeshop1.png",
+    image: `${STORAGE_BASE}/Panadero%20Bakeshop1.png`,
   },
   {
     id: "panadero-bakeshop-2",
@@ -328,7 +348,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Purok 30, Calinan — Bakery offering everyday breads and pastries.",
     mapsQuery: "Panadero Bakeshop Purok 30 Calinan Davao City",
-    image: "/image/Panadero Bakeshop2.png",
+    image: `${STORAGE_BASE}/Panadero%20Bakeshop2.png`,
   },
   {
     id: "manolette-bakeshop-1",
@@ -340,7 +360,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Villafuerte St, Calinan District — Local bakery offering bread, cakes, and pastries.",
     mapsQuery: "Manolette Bakeshop Villafuerte St Calinan District Davao City",
-    image: "/image/Manolette Bakeshop1.png",
+    image: `${STORAGE_BASE}/Manolette%20Bakeshop1.png`,
   },
   {
     id: "manolette-bakeshop-2",
@@ -352,7 +372,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Aurora St, Calinan District — Local bakery offering bread, cakes, and pastries.",
     mapsQuery: "Manolette Bakeshop Aurora Calinan District Davao City",
-    image: "/image/Manolette Bakeshop2.jpg",
+    image: `${STORAGE_BASE}/Manolette%20Bakeshop2.jpg`,
   },
   {
     id: "nikkas-breadhaus",
@@ -364,7 +384,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "H. Garcia St corner Roman Diaz St, Calinan Poblacion — Local bakery.",
     mapsQuery: "Nikka's Breadhaus H. Garcia Street Corner Roman Diaz St Calinan Davao City",
-    image: "/image/Nikka_s Breadhaus.jpg",
+    image: `${STORAGE_BASE}/Nikka_s%20Breadhaus.jpg`,
   },
   {
     id: "aa-breadhaus",
@@ -376,7 +396,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🍞",
     description: "Villafuerte St, Calinan — Local bakery offering breads, cakes, and pastries.",
     mapsQuery: "A&A Breadhaus Villafuerte St Calinan Davao City",
-    image: "/image/A&A Breadhaus.jpg",
+    image: `${STORAGE_BASE}/A%26A%20Breadhaus.jpg`,
   },
   {
     id: "starlett-night-bar",
@@ -388,7 +408,7 @@ const foodPlaces: FoodPlace[] = [
     pin: "🎤",
     description: "Calinan District — Casual nightlife spot offering music and social entertainment.",
     mapsQuery: "Starlett Night Bar Calinan Davao City",
-    image: "/image/Starlett Night Bar.png",
+    image: `${STORAGE_BASE}/Starlett%20Night%20Bar.png`,
   },
 ];
 
@@ -402,65 +422,74 @@ const categories: Array<"All" | Category> = [
   "Bar",
 ];
 
-/* ============================================================
+/* ══════════════════════════════════════════
    HELPERS
-   ============================================================ */
+══════════════════════════════════════════ */
 
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const earthRadius = 6371;
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function formatDistance(distance: number): string {
-  if (distance < 1) return `${Math.round(distance * 1000)} m away`;
-  return `${distance.toFixed(1)} km away`;
-}
-
-function formatDuration(mins: number): string {
-  return mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+function formatDistance(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 }
 
 function googleMapsSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
 
-/* ============================================================
+/* ══════════════════════════════════════════
    COMPONENT
-   ============================================================ */
+   Map lifecycle mirrors TransportUtilitiesPage: string-id
+   container, map torn down whenever the panel closes, route
+   drawn via OSRM, marker placement done inside a short
+   setTimeout after the panel opens/map mounts.
+══════════════════════════════════════════ */
 
 export default function FoodDiningPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<"All" | Category>("All");
-
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
   const [sortNearest, setSortNearest] = useState(false);
 
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locStatusText, setLocStatusText] = useState("Detecting your location…");
+  const [isLocError, setIsLocError] = useState(false);
+  const [hasLocationActive, setHasLocationActive] = useState(false);
+
   const [selectedPlace, setSelectedPlace] = useState<FoodPlace | null>(null);
-  const [mapOpen, setMapOpen] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{ distance: string; time: string } | null>(null);
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingId, setRoutingId] = useState<string | null>(null);
 
+  const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const routeSourceAddedRef = useRef(false);
+  const mapLoadedRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = useCallback((message: string) => {
+  /* ---------- toast ---------- */
+
+  const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
   }, []);
 
   useEffect(() => {
@@ -469,12 +498,72 @@ export default function FoodDiningPage() {
     };
   }, []);
 
+  /* ---------- ESC closes image modal ---------- */
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  /* ---------- locate me (live tracking) ---------- */
+
+  function startLocating() {
+    if (!navigator.geolocation) {
+      setIsLocError(true);
+      setLocStatusText("Geolocation is not supported by this browser.");
+      showToast("⚠️ Geolocation is not supported by this browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
+        setIsLocating(false);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
+      },
+      (error) => {
+        const errorMessages: Record<number, string> = {
+          1: "Location permission was denied. Please allow location access.",
+          2: "Your location is currently unavailable.",
+          3: "Location request timed out. Please try again.",
+        };
+        const message = errorMessages[error.code] || "Unable to get your location.";
+        setIsLocating(false);
+        setIsLocError(true);
+        setLocStatusText(message);
+        showToast("⚠️ " + message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  }
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
+
   /* ---------- filtering / sorting ---------- */
 
   const filteredPlaces = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const result = foodPlaces.filter((place) => {
+    let result = foodPlaces.filter((place) => {
       const matchesSearch =
         !query ||
         place.name.toLowerCase().includes(query) ||
@@ -484,53 +573,21 @@ export default function FoodDiningPage() {
       return matchesSearch && matchesCategory;
     });
 
-    if (sortNearest && userLocation) {
-      result.sort(
+    if (sortNearest && userLoc) {
+      result = [...result].sort(
         (a, b) =>
-          calculateDistance(userLocation.lat, userLocation.lng, a.lat, a.lng) -
-          calculateDistance(userLocation.lat, userLocation.lng, b.lat, b.lng)
+          haversineKm(userLoc.lat, userLoc.lng, a.lat, a.lng) -
+          haversineKm(userLoc.lat, userLoc.lng, b.lat, b.lng)
       );
     }
 
     return result;
-  }, [search, activeCategory, sortNearest, userLocation]);
+  }, [search, activeCategory, sortNearest, userLoc]);
 
-  /* ---------- locate me ---------- */
-
-  function locateUser() {
-    if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by this browser.");
-      return;
-    }
-
-    setLocationLoading(true);
-    setLocationError("");
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-        setLocationLoading(false);
-      },
-      (error) => {
-        let message = "Unable to get your location.";
-        if (error.code === error.PERMISSION_DENIED) {
-          message = "Location permission was denied. Please allow location access.";
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          message = "Your location is currently unavailable.";
-        } else if (error.code === error.TIMEOUT) {
-          message = "Location request timed out. Please try again.";
-        }
-        setLocationError(message);
-        setLocationLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-    );
-  }
-
-  /* ---------- map lifecycle ---------- */
+  /* ---------- map init & lifetime (mirrors Transportation) ---------- */
 
   useEffect(() => {
-    if (!mapOpen || !selectedPlace) return;
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
       showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -538,141 +595,167 @@ export default function FoodDiningPage() {
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "food-map",
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [selectedPlace.lng, selectedPlace.lat],
-        zoom: 16,
+        center: [125.4535, 7.1885],
+        zoom: 15,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#c0392b", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
     } else {
-      mapRef.current.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 16 });
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    const map = mapRef.current;
-
-    if (markerRef.current) markerRef.current.remove();
-
-    const popupHtml = `
-      <div class="food-place-popup">
-        <span class="food-popup-tag">${selectedPlace.tag}</span>
-        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-        <p>${selectedPlace.description}</p>
-        <a href="${googleMapsSearchUrl(selectedPlace.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      </div>
-    `;
-
-    markerRef.current = new mapboxgl.Marker({ color: "#c0392b" })
-      .setLngLat([selectedPlace.lng, selectedPlace.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-      .addTo(map);
-    markerRef.current.togglePopup();
-
-    if (userLocation) {
-      if (userMarkerRef.current) userMarkerRef.current.remove();
-      const el = document.createElement("div");
-      el.className = "food-user-dot-wrapper";
-      el.innerHTML = '<div class="food-user-dot-ring"></div><div class="food-user-dot-inner"></div>';
-      userMarkerRef.current = new mapboxgl.Marker({ element: el })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 16 }).setHTML(
-            '<div class="food-user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          )
-        )
-        .addTo(map);
-    }
-
-    setTimeout(() => map.resize(), 250);
-  }, [mapOpen, selectedPlace, userLocation, showToast]);
-
+  // Tear down the map whenever the panel closes, same as Transportation
   useEffect(() => {
-    if (!mapOpen && mapRef.current) {
+    if (!isMapPanelOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
-      markerRef.current = null;
+      mapLoadedRef.current = false;
       userMarkerRef.current = null;
-      routeSourceAddedRef.current = false;
+      activeMarkerRef.current = null;
     }
-  }, [mapOpen]);
+  }, [isMapPanelOpen]);
+
+  // Sync user location marker independently of the selected place
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLoc) return;
+
+    if (userMarkerRef.current) userMarkerRef.current.remove();
+
+    const el = document.createElement("div");
+    el.className = "food-user-dot-wrapper";
+    el.innerHTML = '<div class="food-user-dot-ring"></div><div class="food-user-dot-inner"></div>';
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLoc.lng, userLoc.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="food-user-popup"><h4>You are here</h4><p>Your current location</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLoc, isMapPanelOpen]);
 
   function showOnMap(place: FoodPlace) {
     setSelectedPlace(place);
+    setIsMapPanelOpen(true);
     setRouteInfo(null);
-    setMapOpen(true);
+
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
+      };
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
+
+      const popupHtml = `
+        <div class="food-place-popup">
+          <span class="food-popup-tag">${place.tag}</span>
+          <h4>${place.pin} ${place.name}</h4>
+          <p>${place.description}</p>
+          <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        </div>
+      `;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ color: "#c0392b" })
+        .setLngLat([place.lng, place.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [place.lng, place.lat], zoom: 16, duration: 1000 });
+      map.resize();
+    }, 100);
   }
 
   function closeMap() {
-    setMapOpen(false);
+    setIsMapPanelOpen(false);
     setSelectedPlace(null);
     setRouteInfo(null);
   }
 
-  const waitForMap = useCallback((): Promise<mapboxgl.Map | null> => {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      const check = () => {
-        if (mapRef.current) {
-          resolve(mapRef.current);
-        } else if (Date.now() - start > 2000) {
-          resolve(null);
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-      check();
-    });
-  }, []);
+  /* ---------- directions / route (OSRM, draws the actual road path) ---------- */
 
   async function getRoute(place: FoodPlace) {
-    if (!userLocation) {
-      showToast("Enable location first to get directions.");
+    if (!userLoc) {
+      showToast("📍 Enable location first to get directions.");
       return;
     }
-    setSelectedPlace(place);
-    setMapOpen(true);
+
     setRoutingId(place.id);
-    setRouteInfo(null);
+    showOnMap(place);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`;
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`
-      );
+      const res = await fetch(url);
       const data = await res.json();
       const route = data?.routes?.[0];
-      if (route) {
-        const km = route.distance / 1000;
-        const mins = Math.round(route.duration / 60);
 
-        const map = await waitForMap();
-        if (map) {
-          if (routeSourceAddedRef.current && map.getSource("route")) {
-            (map.getSource("route") as mapboxgl.GeoJSONSource).setData(route.geometry);
-          } else {
-            map.addSource("route", { type: "geojson", data: route.geometry });
-            map.addLayer({
-              id: "route-line",
-              type: "line",
-              source: "route",
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: { "line-color": "#c0392b", "line-width": 5, "line-opacity": 0.85 },
-            });
-            routeSourceAddedRef.current = true;
-          }
-          const coords: [number, number][] = route.geometry.coordinates;
-          const bounds = coords.reduce(
-            (b, c) => b.extend(c as [number, number]),
-            new mapboxgl.LngLatBounds(coords[0], coords[0])
-          );
-          map.fitBounds(bounds, { padding: 40 });
-        }
-
-        setRouteInfo({ distance: formatDistance(km), time: formatDuration(mins) });
-      } else {
-        showToast("Couldn't calculate a route.");
+      if (!route) {
+        showToast("⚠️ Couldn't calculate a route.");
+        return;
       }
+
+      const coordinates: [number, number][] = route.geometry.coordinates;
+      const km = route.distance / 1000;
+      const mins = Math.round(route.duration / 60);
+      const timeLabel = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
+
+        const bounds = coordinates.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
+      }
+
+      setRouteInfo({ distance: formatDistance(km), time: timeLabel });
+      showToast(`🧭 Route to ${place.name}: ${formatDistance(km)} · ${timeLabel}`);
     } catch {
-      showToast("Couldn't reach the routing service.");
+      showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
       setRoutingId(null);
     }
@@ -687,7 +770,6 @@ export default function FoodDiningPage() {
           <Link href="/" className="back-btn">
             ← Home
           </Link>
-
           <h1>Food &amp; Dining</h1>
         </div>
 
@@ -697,27 +779,40 @@ export default function FoodDiningPage() {
             <input
               type="text"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
               placeholder="Search restaurant, cafe..."
               aria-label="Search food places"
               autoComplete="off"
             />
           </div>
 
-          <button type="button" onClick={locateUser} disabled={locationLoading}>
-            {locationLoading ? "Locating..." : "📍 Locate Me"}
+          <button type="button" className={isLocating ? "loading" : ""} onClick={startLocating} disabled={isLocating}>
+            {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
           </button>
         </div>
       </header>
 
+      {/* IMAGE MODAL */}
+      <div
+        className={`image-modal ${modalImage ? "active" : ""}`}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImage(null);
+        }}
+      >
+        <span className="close" onClick={() => setModalImage(null)}>
+          &times;
+        </span>
+        {modalImage && <img className="modal-content" src={modalImage} alt="Preview" />}
+      </div>
+
       <section className="food-hero">
         <h2>Savor the Flavors of Calinan</h2>
-
         <p>Discover restaurants, eateries, cafés, bakeshops, and other food places around the Calinan area.</p>
 
-        {userLocation && <p className="location-success">📍 Location detected successfully.</p>}
-
-        {locationError && <p className="location-error">⚠️ {locationError}</p>}
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} />
+          <span>{locStatusText}</span>
+        </div>
       </section>
 
       <section className="food-toolbar">
@@ -736,8 +831,8 @@ export default function FoodDiningPage() {
 
         <button
           type="button"
-          disabled={!userLocation}
-          title={userLocation ? "" : "Enable location first"}
+          disabled={!userLoc}
+          title={userLoc ? "" : "Enable location first"}
           onClick={() => setSortNearest((current) => !current)}
         >
           {sortNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
@@ -756,14 +851,12 @@ export default function FoodDiningPage() {
       ) : (
         <section className="food-card-grid">
           {filteredPlaces.map((place) => {
-            const distance = userLocation
-              ? calculateDistance(userLocation.lat, userLocation.lng, place.lat, place.lng)
-              : null;
+            const distance = userLoc ? haversineKm(userLoc.lat, userLoc.lng, place.lat, place.lng) : null;
 
             return (
               <article className="food-card" key={place.id}>
                 {place.image ? (
-                  <div className="food-card-image">
+                  <div className="food-card-image" onClick={() => setModalImage(place.image!)}>
                     <img
                       src={place.image}
                       alt={place.name}
@@ -778,18 +871,17 @@ export default function FoodDiningPage() {
 
                 <div className="food-card-content">
                   <h3>{place.name}</h3>
-
                   <p>{place.description}</p>
-
                   <span className="food-tag">{place.tag}</span>
 
-                  {distance !== null && <div className="food-distance">📍 {formatDistance(distance)}</div>}
+                  <div className={`food-distance${distance !== null ? " visible" : ""}`}>
+                    📍 {distance !== null ? formatDistance(distance) + " away" : ""}
+                  </div>
 
                   <div className="food-card-actions">
                     <button type="button" onClick={() => showOnMap(place)}>
                       📍 View on Map
                     </button>
-
                     <button type="button" onClick={() => getRoute(place)}>
                       {routingId === place.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                     </button>
@@ -802,10 +894,10 @@ export default function FoodDiningPage() {
       )}
 
       {/* SPACER */}
-      <div className={`food-map-panel-spacer${mapOpen ? " active" : ""}`} />
+      <div className={`food-map-panel-spacer${isMapPanelOpen ? " active" : ""}`} />
 
       {/* MAP PANEL */}
-      <div className={`food-map-panel${mapOpen ? " active" : ""}`}>
+      <div className={`food-map-panel${isMapPanelOpen ? " active" : ""}`}>
         <div className="food-map-panel-header">
           <div>
             <div className="food-map-panel-title">📍 {selectedPlace ? selectedPlace.name : "Map"}</div>

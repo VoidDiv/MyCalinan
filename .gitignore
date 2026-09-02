@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# firebase / google cloud credentials — never commit these
+serviceAccountKey.json
+*serviceAccountKey*.json
+firebase-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+
+# additional common secrets
+*.key
+*.pem
+credentials.json
+config/secrets*.json

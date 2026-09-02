@@ -37,6 +37,20 @@ interface TransportPlace {
   mapsQuery: string;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distance: string;
+  time: string;
+}
+
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Transport";
+
 const PLACES: TransportPlace[] = [
   {
     id: "petron-1",
@@ -46,7 +60,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.45,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Petron1.png",
+    image: `${STORAGE_BASE}/Petron1.png`,
     description:
       "Davao–Buda National Highway, Calinan District — Full-service fuel station in Petron's nationwide network providing fuel, lubricants, and related vehicle services.",
     mapsQuery: "Petron+Davao+Buda+Calinan+District+Davao+City+Davao+del+Sur",
@@ -59,7 +73,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4562,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Petron2.png",
+    image: `${STORAGE_BASE}/Petron2.png`,
     description:
       "Villafuerte St., Calinan District — Part of Petron Corporation's nationwide network providing fuel, lubricants, and vehicle services for motorists in the Calinan area.",
     mapsQuery: "Petron+Villafuerte+Street+Calinan+District+Davao+City+Davao+del+Sur",
@@ -72,7 +86,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4495,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Shell.png",
+    image: `${STORAGE_BASE}/Shell.png`,
     description:
       "Davao–Buda National Highway, Purok 16, Calinan — Shell service station offering fuel, car care, and vehicle maintenance as part of Shell's nationwide retail network.",
     mapsQuery: "Shell+Davao+Buda+National+Highway+Calinan+District+Davao+City+Davao+del+Sur",
@@ -85,7 +99,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4545,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Caltex1.jpg",
+    image: `${STORAGE_BASE}/Caltex1.jpg`,
     description:
       "Datu Abing St., Calinan — Convenient fueling point strategically placed along key transport routes toward downtown Davao and nearby municipalities.",
     mapsQuery: "Caltex+Datu+Abing+Street+Calinan+District+Davao+City+Davao+del+Sur",
@@ -98,7 +112,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.451,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Caltex2.jpg",
+    image: `${STORAGE_BASE}/Caltex2.jpg`,
     description:
       "Davao–Bukidnon Road, Corner Aurora, Calinan — Fueling point connecting major transport routes for residents and travelers within western Davao City.",
     mapsQuery:
@@ -112,7 +126,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4575,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/SEAOIL.jpg",
+    image: `${STORAGE_BASE}/SEAOIL.jpg`,
     description:
       "Fausta St., Calinan District — Fuel service station under SEAOIL Philippines Inc., known for locally refined and imported petroleum products across a nationwide chain.",
     mapsQuery: "SEAOIL+Fausta+St+Calinan+District+Davao+City+Davao+del+Sur",
@@ -125,7 +139,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4515,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/MyGas.jpg",
+    image: `${STORAGE_BASE}/MyGas.jpg`,
     description:
       "Aurora St., Calinan District — Part of My Gas Petroleum Corporation's growing regional network of service stations across Southern Mindanao.",
     mapsQuery: "MyGas+Aurora+Calinan+District+Davao+City+Davao+del+Sur",
@@ -138,7 +152,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4522,
     tag: "Gas Station",
     pin: "⛽",
-    image: "/image/Gazz.png",
+    image: `${STORAGE_BASE}/Gazz.png`,
     description:
       "De Lara St., Calinan — Compact roadside station ideal for motorcycles, tricycles, and private vehicles along the busy Davao–Bukidnon Road.",
     mapsQuery: "Gazz+De+Lara+St+Calinan+District+Davao+City+Davao+del+Sur",
@@ -151,7 +165,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4556,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/CALMALBA TODA.jpg",
+    image: `${STORAGE_BASE}/CALMALBA%20TODA.jpg`,
     description:
       "R. Magsaysay St., Calinan — Also known as Malagos Terminal, a key transport hub connecting Malagos and neighboring barangays to the wider Davao metropolitan area.",
     mapsQuery:
@@ -165,7 +179,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4558,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/CALTRANSCO (CALODA).jpg",
+    image: `${STORAGE_BASE}/CALTRANSCO%20(CALODA).jpg`,
     description:
       "R. Magsaysay St., Calinan — Member-driven transport service cooperative providing organized public transportation within and around Davao del Sur.",
     mapsQuery:
@@ -179,7 +193,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.456,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Third District Transport Cooperative.png",
+    image: `${STORAGE_BASE}/Third%20District%20Transport%20Cooperative.png`,
     description:
       "R. Magsaysay St., Calinan — CDA-recognized transport cooperative serving the Davao Region's third district with organized public transport services.",
     mapsQuery:
@@ -193,7 +207,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.4578,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Jeepney Terminal Mintal & Davao.png",
+    image: `${STORAGE_BASE}/Jeepney%20Terminal%20Mintal%20%26%20Davao.png`,
     description:
       "Fausta, Calinan District — Central loading and unloading point for jeepneys connecting Mintal, Calinan, and surrounding barangays to the city proper.",
     mapsQuery:
@@ -207,7 +221,7 @@ const PLACES: TransportPlace[] = [
     lng: 125.455,
     tag: "Transport Terminal",
     pin: "🚐",
-    image: "/image/Anatolio Taxi Terminal.png",
+    image: `${STORAGE_BASE}/Anatolio%20Taxi%20Terminal.png`,
     description:
       "Calinan Poblacion — Local taxi terminal offering faster point-to-point travel for residents, shoppers, workers, and visitors heading to and from Davao City.",
     mapsQuery:
@@ -262,6 +276,12 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 /* ============================================================
@@ -273,38 +293,37 @@ export default function TransportUtilitiesPage() {
   const [activeFilter, setActiveFilter] = useState<Category | "all">("all");
   const [sortNearest, setSortNearest] = useState(false);
 
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  // User location states (mirrors Education/Shopping: live tracking, not one-shot)
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locStatusText, setLocStatusText] = useState("Detecting your location…");
+  const [isLocError, setIsLocError] = useState(false);
+  const [hasLocationActive, setHasLocationActive] = useState(false);
 
   const [selectedPlace, setSelectedPlace] = useState<TransportPlace | null>(
     null
   );
-  const [mapOpen, setMapOpen] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{
-    distance: string;
-    time: string;
-  } | null>(null);
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingId, setRoutingId] = useState<string | null>(null);
 
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapLoadedRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---------- toast ---------- */
 
-  function showToast(message: string) {
+  const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
-  }
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -312,30 +331,53 @@ export default function TransportUtilitiesPage() {
     };
   }, []);
 
-  /* ---------- locate me ---------- */
+  /* ---------- locate me (live tracking, matches Education/Shopping) ---------- */
 
-  function handleLocate() {
+  function startLocating() {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation isn't supported on this device.");
+      showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
-    setLocating(true);
-    setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
+
+    setIsLocating(true);
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-        setLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
+        setIsLocating(false);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
       },
-      () => {
-        setLocationError("Couldn't get your location. Check permissions.");
-        setLocating(false);
+      (err) => {
+        setIsLocating(false);
+        setIsLocError(true);
+        const errorMessages: Record<number, string> = {
+          1: "Location access denied. Please allow location permissions in your browser.",
+          2: "Location unavailable. Check your GPS or connection.",
+          3: "Location request timed out. Please try again.",
+        };
+        const msg = errorMessages[err.code] || "Could not retrieve your location.";
+        setLocStatusText(msg);
+        showToast("⚠️ " + msg);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   }
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   /* ---------- filtering / sorting ---------- */
 
@@ -351,21 +393,21 @@ export default function TransportUtilitiesPage() {
       return matchesFilter && matchesSearch;
     });
 
-    if (sortNearest && userLocation) {
+    if (sortNearest && userLoc) {
       list = [...list].sort(
         (a, b) =>
-          haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) -
-          haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng)
+          haversineKm(userLoc.lat, userLoc.lng, a.lat, a.lng) -
+          haversineKm(userLoc.lat, userLoc.lng, b.lat, b.lng)
       );
     }
 
     return list;
-  }, [search, activeFilter, sortNearest, userLocation]);
+  }, [search, activeFilter, sortNearest, userLoc]);
 
-  /* ---------- map lifecycle ---------- */
+  /* ---------- map init & lifetime (route source added on load, like Education/Shopping) ---------- */
 
   useEffect(() => {
-    if (!mapOpen || !selectedPlace) return;
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
       showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -373,118 +415,185 @@ export default function TransportUtilitiesPage() {
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "transport-map",
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [selectedPlace.lng, selectedPlace.lat],
-        zoom: 16,
+        center: [125.454, 7.188],
+        zoom: 14,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
     } else {
-      mapRef.current.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 16 });
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    const map = mapRef.current;
-
-    // clear old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const popupHtml = `
-      <div class="place-popup">
-        <span class="popup-tag">${selectedPlace.tag}</span>
-        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-        <p>${selectedPlace.description}</p>
-        <a href="${googleMapsSearchUrl(
-          selectedPlace.mapsQuery
-        )}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      </div>
-    `;
-
-    const marker = new mapboxgl.Marker({ color: "#2b6b45" })
-      .setLngLat([selectedPlace.lng, selectedPlace.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-      .addTo(map);
-    marker.togglePopup();
-    markersRef.current.push(marker);
-
-    if (userLocation) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-      }
-      const el = document.createElement("div");
-      el.className = "user-dot-wrapper";
-      el.innerHTML =
-        '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
-
-      userMarkerRef.current = new mapboxgl.Marker({ element: el })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 16 }).setHTML(
-            '<div class="user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          )
-        )
-        .addTo(map);
-    }
-
-    setTimeout(() => map.resize(), 250);
-  }, [mapOpen, selectedPlace, userLocation]);
-
+  // Tear down map when panel closes
   useEffect(() => {
-    if (!mapOpen && mapRef.current) {
+    if (!isMapPanelOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
-      markersRef.current = [];
+      mapLoadedRef.current = false;
       userMarkerRef.current = null;
+      activeMarkerRef.current = null;
     }
-  }, [mapOpen]);
+  }, [isMapPanelOpen]);
+
+  // Sync user location marker (independent of which place is selected)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLoc) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+    }
+
+    const el = document.createElement("div");
+    el.className = "user-dot-wrapper";
+    el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLoc.lng, userLoc.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLoc, isMapPanelOpen]);
 
   function showOnMap(place: TransportPlace) {
     setSelectedPlace(place);
+    setIsMapPanelOpen(true);
     setRouteInfo(null);
-    setMapOpen(true);
+
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
+      };
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
+
+      const popupHtml = `
+        <div class="place-popup">
+          <span class="popup-tag">${place.tag}</span>
+          <h4>${place.pin} ${place.name}</h4>
+          <p>${place.description}</p>
+          <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        </div>
+      `;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ color: "#2b6b45" })
+        .setLngLat([place.lng, place.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [place.lng, place.lat], zoom: 16, duration: 1000 });
+      map.resize();
+    }, 100);
   }
 
   function closeMap() {
-    setMapOpen(false);
+    setIsMapPanelOpen(false);
     setSelectedPlace(null);
     setRouteInfo(null);
   }
 
-  /* ---------- directions / route ---------- */
+  /* ---------- directions / route (now draws the actual road path) ---------- */
 
   async function getRoute(place: TransportPlace) {
-    if (!userLocation) {
-      showToast("Enable location first to get directions.");
+    if (!userLoc) {
+      showToast("📍 Enable location first to get directions.");
       return;
     }
-    setSelectedPlace(place);
-    setMapOpen(true);
+
     setRoutingId(place.id);
-    setRouteInfo(null);
+    showOnMap(place);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${place.lng},${place.lat}?overview=full&geometries=geojson`;
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${place.lng},${place.lat}?overview=false`
-      );
+      const res = await fetch(url);
       const data = await res.json();
       const route = data?.routes?.[0];
-      if (route) {
-        const km = route.distance / 1000;
-        const mins = Math.round(route.duration / 60);
-        setRouteInfo({
-          distance: formatDistance(km),
-          time: mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`,
-        });
-      } else {
-        showToast("Couldn't calculate a route.");
+
+      if (!route) {
+        showToast("⚠️ Couldn't calculate a route.");
+        return;
       }
+
+      const coordinates: [number, number][] = route.geometry.coordinates;
+      const km = route.distance / 1000;
+      const mins = Math.round(route.duration / 60);
+
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
+
+        const bounds = coordinates.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
+      }
+
+      setRouteInfo({
+        distance: formatDistance(km),
+        time: mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`,
+      });
+      showToast(`🧭 Route to ${place.name}: ${formatDistance(km)} · ${mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`}`);
     } catch {
-      showToast("Couldn't reach the routing service.");
+      showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
       setRoutingId(null);
     }
   }
+
+  /* ---------- ESC key closes image modal (was missing) ---------- */
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   /* ---------- render ---------- */
 
@@ -510,32 +619,39 @@ export default function TransportUtilitiesPage() {
               placeholder="Search gas stations, terminals…"
               autoComplete="off"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             />
           </div>
           <button
             id="locate-btn"
-            className={locating ? "loading" : ""}
-            onClick={handleLocate}
-            disabled={locating}
+            className={isLocating ? "loading" : ""}
+            onClick={startLocating}
+            disabled={isLocating}
             title="Find my location"
           >
             <div className="spinner" />
-            <span className="btn-label">📍 Locate Me</span>
+            <span className="btn-label">
+              {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
+            </span>
           </button>
         </div>
       </header>
 
       {/* IMAGE MODAL */}
-      {modalImage && (
-        <div className="image-modal active" onClick={() => setModalImage(null)}>
-          <span className="close" onClick={() => setModalImage(null)}>
-            &times;
-          </span>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={modalImage} alt="Photo" onClick={(e) => e.stopPropagation()} />
-        </div>
-      )}
+      <div
+        className={`image-modal ${modalImage ? "active" : ""}`}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImage(null);
+        }}
+      >
+        <span className="close" onClick={() => setModalImage(null)}>
+          &times;
+        </span>
+        {modalImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="modal-content" src={modalImage} alt="Photo" />
+        )}
+      </div>
 
       {/* HERO */}
       <section className="hero">
@@ -544,17 +660,9 @@ export default function TransportUtilitiesPage() {
           Find gas stations, transport terminals, and essential services near
           you. Enable location to see distances and get directions.
         </p>
-        <div id="location-status" className={locating || userLocation || locationError ? "visible" : ""}>
-          <div className={`loc-dot ${locationError ? "loc-err" : ""}`} />
-          <span>
-            {locating
-              ? "Detecting your location…"
-              : locationError
-              ? locationError
-              : userLocation
-              ? "Location enabled — distances shown below"
-              : ""}
-          </span>
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} />
+          <span>{locStatusText}</span>
         </div>
       </section>
 
@@ -572,11 +680,11 @@ export default function TransportUtilitiesPage() {
         ))}
         <button
           className={`sort-btn ${sortNearest ? "active" : ""}`}
-          disabled={!userLocation}
-          title={userLocation ? "" : "Enable location first"}
+          disabled={!userLoc}
+          title={userLoc ? "" : "Enable location first"}
           onClick={() => setSortNearest((s) => !s)}
         >
-          📶 Sort by nearest
+          {sortNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
       <div id="result-count">{resultCountLabel}</div>
@@ -584,8 +692,8 @@ export default function TransportUtilitiesPage() {
       {/* CARDS */}
       <section className="container">
         {visiblePlaces.map((place) => {
-          const distance = userLocation
-            ? haversineKm(userLocation.lat, userLocation.lng, place.lat, place.lng)
+          const distance = userLoc
+            ? haversineKm(userLoc.lat, userLoc.lng, place.lat, place.lng)
             : null;
 
           return (
@@ -615,12 +723,12 @@ export default function TransportUtilitiesPage() {
                     📍 View on Map
                   </button>
                   <button
-                    className={`route-btn ${userLocation ? "visible" : ""} ${
+                    className={`route-btn ${userLoc ? "visible" : ""} ${
                       routingId === place.id ? "loading" : ""
                     }`}
                     onClick={() => getRoute(place)}
                   >
-                    🧭 Get Directions
+                    {routingId === place.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                   </button>
                 </div>
               </div>
@@ -629,7 +737,7 @@ export default function TransportUtilitiesPage() {
         })}
 
         {visiblePlaces.length === 0 && (
-          <div id="empty-state" className="visible">
+          <div id="empty-state" className="visible" style={{ display: "flex" }}>
             <svg
               width="56"
               height="56"
@@ -651,14 +759,14 @@ export default function TransportUtilitiesPage() {
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={mapOpen ? "active" : ""} />
+      <div id="map-panel-spacer" className={isMapPanelOpen ? "active" : ""} />
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={mapOpen ? "active" : ""}>
+      <div id="map-panel" className={isMapPanelOpen ? "active" : ""}>
         <div id="map-panel-header">
           <div>
-            <div id="map-panel-title">📍 Map</div>
-            <div id="map-panel-subtitle">{selectedPlace?.name ?? ""}</div>
+            <div id="map-panel-title">📍 {selectedPlace ? selectedPlace.name : "Map"}</div>
+            <div id="map-panel-subtitle">{selectedPlace?.tag ?? ""}</div>
           </div>
           <div id="map-panel-actions">
             <a
@@ -666,7 +774,7 @@ export default function TransportUtilitiesPage() {
               className={selectedPlace ? "visible" : ""}
               href={
                 selectedPlace
-                  ? googleMapsDirectionsUrl(userLocation, selectedPlace.lat, selectedPlace.lng)
+                  ? googleMapsDirectionsUrl(userLoc, selectedPlace.lat, selectedPlace.lng)
                   : "#"
               }
               target="_blank"

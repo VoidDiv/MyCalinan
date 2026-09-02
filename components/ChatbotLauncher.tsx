@@ -1,14 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
-/**
- * UI shell for Calibot. Handles open/close and the static layout only —
- * the actual send/receive logic (and its Anthropic-powered backend call)
- * is a separate migration step from the Flask version.
- */
+interface ChatMessage {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export default function ChatbotLauncher() {
   const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      text: "Hey! I'm Calibot 🦅 — ask me about schools, hospitals, food, hotlines, or barangay documents in Calinan.",
+    },
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages, isLoading]);
+
+  async function sendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || isLoading) return;
+
+    setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: data.reply },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "Sorry, I ran into a problem answering that. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -24,24 +76,47 @@ export default function ChatbotLauncher() {
               ✕
             </button>
           </div>
-          <div className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
-            <div className="max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900">
-              Hey! I&rsquo;m Calibot 🦅 — ask me about schools, hospitals,
-              food, hotlines, or barangay documents in Calinan.
-            </div>
+
+          <div
+            ref={scrollRef}
+            className="flex-1 space-y-3 overflow-y-auto p-4 text-sm"
+          >
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={
+                  msg.role === "assistant"
+                    ? "max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900"
+                    : "ml-auto max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-700 px-3 py-2 text-white"
+                }
+              >
+                {msg.text}
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="max-w-[85%] rounded-[var(--radius-stall)] bg-canopy-100 px-3 py-2 text-ink-900">
+                Typing…
+              </div>
+            )}
           </div>
+
           <form
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={sendMessage}
             className="flex gap-2 border-t border-canopy-100 p-3"
           >
             <input
               type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Ask something…"
+              disabled={isLoading}
               className="flex-1 rounded-full border border-canopy-600/30 px-3 py-2 text-sm outline-none focus:border-canopy-600"
             />
             <button
               type="submit"
-              className="rounded-full bg-canopy-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-canopy-800"
+              disabled={isLoading || !input.trim()}
+              className="rounded-full bg-canopy-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-canopy-800 disabled:opacity-50"
             >
               Send
             </button>

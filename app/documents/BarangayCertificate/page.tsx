@@ -4,6 +4,12 @@ import Link from "next/link";
 // import './style/Documents.css'; // Make sure to import your CSS file here
 
 // ----------------------------------------------------------------------
+// Firebase Storage base path (same pattern as Hotspots/Community pages)
+// ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Documents";
+
+// ----------------------------------------------------------------------
 // Data Arrays (Extracted for easier maintenance)
 // ----------------------------------------------------------------------
 const COMMON_USES_DATA: string[] = [
@@ -46,8 +52,14 @@ export const BarangayCertificationPage: React.FC = () => {
 
       {/* FEATURE IMAGES (SIDE BY SIDE) */}
       <section className="doc-hero-grid">
-        <img src="image/Baranggay-Certification1.png" alt="Barangay Certification" />
-        <img src="image/Baranggay-Certification2.png" alt="Barangay Office Certification" />
+        <img
+          src={`${STORAGE_BASE}/Baranggay-Certification1.png`}
+          alt="Barangay Certification"
+        />
+        <img
+          src={`${STORAGE_BASE}/Baranggay-Certification2.png`}
+          alt="Barangay Office Certification"
+        />
       </section>
 
       <main className="doc-container">

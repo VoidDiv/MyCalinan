@@ -19,10 +19,10 @@ mapboxgl.accessToken = token!;
 
 /* ============================================================
    DATA
-   Converted 1:1 from the Community static cards.
    ============================================================ */
 
 type Category = "Church" | "Cemetery" | "Barangay Hall" | "District Hall";
+type FilterValue = Category | "all";
 
 interface CommunityPlace {
   id: string;
@@ -37,6 +37,20 @@ interface CommunityPlace {
   mapsQuery: string;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distKm: string;
+  timeStr: string;
+}
+
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Community";
+
 const PLACES: CommunityPlace[] = [
   {
     id: "sacred-heart-parish",
@@ -46,7 +60,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4543,
     tag: "Church",
     pin: "⛪",
-    image: "/image/The Most Sacred Heart of Jesus Parish.png",
+    image: `${STORAGE_BASE}/The%20Most%20Sacred%20Heart%20of%20Jesus%20Parish.png`,
     description:
       "Datu Abing St., Calinan — Roman Catholic parish under the Archdiocese of Davao serving as the central place of worship for Calinan's Catholic community, offering daily Masses and full sacraments.",
     mapsQuery:
@@ -60,7 +74,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4505,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Calinan Central Adventist Church of Davao Mission.png",
+    image: `${STORAGE_BASE}/Calinan%20Central%20Adventist%20Church%20of%20Davao%20Mission.png`,
     description:
       "McArthur Highway, Calinan District — Seventh-day Adventist congregation under the Davao Mission, serving as a community worship center for members in the Davao Region.",
     mapsQuery:
@@ -74,7 +88,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.458,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Iglesia Ni Cristo1.png",
+    image: `${STORAGE_BASE}/Iglesia%20Ni%20Cristo1.png`,
     description:
       "Purok 18, De Lara St., Calinan District — Local congregation of the international Christian organization headquartered in Quezon City, serving as a place of worship for INC members in the Calinan area.",
     mapsQuery:
@@ -88,7 +102,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4548,
     tag: "Church",
     pin: "⛪",
-    image: "/image/Iglesia Ni Cristo2.png",
+    image: `${STORAGE_BASE}/Iglesia%20Ni%20Cristo2.png`,
     description:
       "Lanzona Subd., Calinan Poblacion — Local meetinghouse for the global Latter-day Saint community, offering weekly services and programs emphasizing faith in Jesus Christ and family values.",
     mapsQuery:
@@ -102,7 +116,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4552,
     tag: "Church",
     pin: "⛪",
-    image: "/image/International Bible Baptist Church.png",
+    image: `${STORAGE_BASE}/International%20Bible%20Baptist%20Church.png`,
     description:
       "Guiho Street, Calinan Poblacion — Baptist congregation offering worship services, Bible preaching, prayer meetings, youth fellowship, and outreach programs for the Calinan community.",
     mapsQuery:
@@ -116,7 +130,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.453,
     tag: "Public Cemetery",
     pin: "🪦",
-    image: "/image/Calinan Public Cementery.png",
+    image: `${STORAGE_BASE}/Calinan%20Public%20Cementery.png`,
     description:
       "Calinan Poblacion — Traditional public burial ground serving families and residents of Calinan, providing accessible burial services and long part of the district's history and heritage.",
     mapsQuery:
@@ -130,7 +144,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4565,
     tag: "Private Cemetery",
     pin: "🪦",
-    image: "/image/Calinan Private Cementery.png",
+    image: `${STORAGE_BASE}/Calinan%20Private%20Cementery.png`,
     description:
       "R. Magsaysay Street, Calinan — Privately managed memorial park offering burial and commemorative services in a landscaped setting, part of Calinan's network of community memorial spaces.",
     mapsQuery:
@@ -144,7 +158,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4513,
     tag: "Barangay Hall",
     pin: "🏛️",
-    image: "/image/Calinan Poblacion Barangay Hall.png",
+    image: `${STORAGE_BASE}/Calinan%20Poblacion%20Barangay%20Hall.png`,
     description:
       "34 Aurora, Calinan Poblacion — Primary local government office providing barangay clearances, certificates of residency, dispute mediation, peace and order coordination, and assistance programs.",
     mapsQuery:
@@ -158,7 +172,7 @@ const PLACES: CommunityPlace[] = [
     lng: 125.4548,
     tag: "District Hall",
     pin: "🏛️",
-    image: "/image/Calinan District Hall.png",
+    image: `${STORAGE_BASE}/Calinan%20District%20Hall.png`,
     description:
       "H. Quiambao Street, Calinan Poblacion — District-level government office managing programs, administrative concerns, infrastructure coordination, and public services for all barangays under Calinan.",
     mapsQuery:
@@ -166,7 +180,7 @@ const PLACES: CommunityPlace[] = [
   },
 ];
 
-const FILTERS: Array<{ label: string; value: Category | "all" }> = [
+const FILTERS: { label: string; value: FilterValue }[] = [
   { label: "All", value: "all" },
   { label: "Churches", value: "Church" },
   { label: "Cemeteries", value: "Cemetery" },
@@ -178,12 +192,7 @@ const FILTERS: Array<{ label: string; value: Category | "all" }> = [
    HELPERS
    ============================================================ */
 
-function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -195,8 +204,9 @@ function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function formatDistance(km: number): string {
-  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+function formatDist(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m away`;
+  return `${km.toFixed(1)} km away`;
 }
 
 function googleMapsSearchUrl(query: string): string {
@@ -215,6 +225,18 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
+  1: "Location access denied. Please allow it in your browser settings.",
+  2: "Location unavailable. Check your GPS or network.",
+  3: "Location request timed out. Try again.",
+};
+
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 /* ============================================================
@@ -222,42 +244,46 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
    ============================================================ */
 
 export default function CommunityPage() {
-  const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState<Category | "all">("all");
-  const [sortNearest, setSortNearest] = useState(false);
+  // --- States ---
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
+  const [sortByNearest, setSortByNearest] = useState<boolean>(false);
 
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  // User location
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locStatusText, setLocStatusText] = useState<string>("Detecting your location…");
+  const [isLocError, setIsLocError] = useState<boolean>(false);
+  const [hasLocationActive, setHasLocationActive] = useState<boolean>(false);
 
-  const [selectedPlace, setSelectedPlace] = useState<CommunityPlace | null>(
-    null
-  );
-  const [mapOpen, setMapOpen] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{
-    distance: string;
-    time: string;
-  } | null>(null);
-  const [routingId, setRoutingId] = useState<string | null>(null);
+  // Modal state
+  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
 
-  const [modalImage, setModalImage] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  // Toast state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Map & active item panel
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState<boolean>(false);
+  const [selectedPlace, setSelectedPlace] = useState<CommunityPlace | null>(null);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
+  const [isRoutingLoading, setIsRoutingLoading] = useState<string | null>(null);
+
+  // --- Refs for Mapbox objects ---
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapLoadedRef = useRef<boolean>(false);
+  const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* ---------- toast ---------- */
-
-  function showToast(message: string) {
-    setToast(message);
+  // --- Toast Trigger ---
+  const showToast = useCallback((msg: string, duration = 3000) => {
+    setToastMessage(msg);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
-  }
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, duration);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -265,185 +291,281 @@ export default function CommunityPage() {
     };
   }, []);
 
-  /* ---------- locate me ---------- */
-
-  function handleLocate() {
+  // --- Geolocation (continuous tracking via watchPosition) ---
+  const startLocating = () => {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation isn't supported on this device.");
+      showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
-    setLocating(true);
-    setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-        setLocating(false);
-      },
-      () => {
-        setLocationError("Couldn't get your location. Check permissions.");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }
 
-  /* ---------- filtering / sorting ---------- */
+    setIsLocating(true);
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
 
-  const visiblePlaces = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    let list = PLACES.filter((p) => {
-      const matchesFilter = activeFilter === "all" || p.category === activeFilter;
-      const matchesSearch =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.tag.toLowerCase().includes(q);
-      return matchesFilter && matchesSearch;
-    });
-
-    if (sortNearest && userLocation) {
-      list = [...list].sort(
-        (a, b) =>
-          haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) -
-          haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng)
-      );
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
     }
 
-    return list;
-  }, [search, activeFilter, sortNearest, userLocation]);
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
+        setIsLocating(false);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
+      },
+      (err) => {
+        setIsLocating(false);
+        setIsLocError(true);
+        const errorMsg = GEOLOCATION_ERROR_MESSAGES[err.code] || "Could not get location.";
+        setLocStatusText(errorMsg);
+        showToast("⚠️ " + errorMsg);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  };
 
-  /* ---------- map lifecycle ---------- */
-
+  // Cleanup geolocation watch on unmount
   useEffect(() => {
-    if (!mapOpen || !selectedPlace) return;
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
+
+  // --- Map Initialization & Lifetime ---
+  useEffect(() => {
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
-      showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
+      showToast("⚠️ Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
       return;
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "community-map",
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [selectedPlace.lng, selectedPlace.lat],
-        zoom: 16,
+        center: [125.4548, 7.1878],
+        zoom: 15,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
     } else {
-      mapRef.current.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 16 });
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    const map = mapRef.current;
-
-    // clear old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const popupHtml = `
-      <div class="place-popup">
-        <span class="popup-tag">${selectedPlace.tag}</span>
-        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-        <p>${selectedPlace.description}</p>
-        <a href="${googleMapsSearchUrl(
-          selectedPlace.mapsQuery
-        )}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      </div>
-    `;
-
-    const marker = new mapboxgl.Marker({ color: "#2b6b45" })
-      .setLngLat([selectedPlace.lng, selectedPlace.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-      .addTo(map);
-    marker.togglePopup();
-    markersRef.current.push(marker);
-
-    if (userLocation) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-      }
-      const el = document.createElement("div");
-      el.className = "user-dot-wrapper";
-      el.innerHTML =
-        '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
-
-      userMarkerRef.current = new mapboxgl.Marker({ element: el })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 16 }).setHTML(
-            '<div class="user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          )
-        )
-        .addTo(map);
-    }
-
-    setTimeout(() => map.resize(), 250);
-  }, [mapOpen, selectedPlace, userLocation]);
-
+  // Tear down map when panel closes
   useEffect(() => {
-    if (!mapOpen && mapRef.current) {
+    if (!isMapPanelOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
-      markersRef.current = [];
+      mapLoadedRef.current = false;
       userMarkerRef.current = null;
+      activeMarkerRef.current = null;
     }
-  }, [mapOpen]);
+  }, [isMapPanelOpen]);
 
-  function showOnMap(place: CommunityPlace) {
-    setSelectedPlace(place);
+  // Update user marker on map (kept separate from the place marker so
+  // continuous location tracking doesn't re-trigger the place popup)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLoc) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+    }
+
+    const el = document.createElement("div");
+    el.className = "user-dot-wrapper";
+    el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLoc.lng, userLoc.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLoc, isMapPanelOpen]);
+
+  // --- Map Actions ---
+  const handleShowOnMap = (item: CommunityPlace) => {
+    setSelectedPlace(item);
+    setIsMapPanelOpen(true);
     setRouteInfo(null);
-    setMapOpen(true);
-  }
 
-  function closeMap() {
-    setMapOpen(false);
-    setSelectedPlace(null);
-    setRouteInfo(null);
-  }
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
 
-  /* ---------- directions / route ---------- */
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
 
-  async function getRoute(place: CommunityPlace) {
-    if (!userLocation) {
-      showToast("Enable location first to get directions.");
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
+      };
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
+
+      const el = document.createElement("div");
+      el.style.cssText =
+        "background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;" +
+        "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
+        "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
+        "border:2px solid white;";
+      el.innerHTML = `<span style="transform:rotate(45deg)">${item.pin}</span>`;
+
+      const distText = userLoc
+        ? `<br><strong>${formatDist(
+            haversine(userLoc.lat, userLoc.lng, item.lat, item.lng)
+          )}</strong> straight-line from you`
+        : "";
+
+      const popupHtml = `
+        <div class="place-popup">
+          <span class="popup-tag">${item.tag}</span>
+          <h4>${item.pin} ${item.name}</h4>
+          <p>${item.description}${distText}</p>
+          <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+        </div>`;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([item.lng, item.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24, maxWidth: "260px" }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
+      map.resize();
+    }, 100);
+  };
+
+  const handleGetDirections = async (item: CommunityPlace) => {
+    if (!userLoc) {
+      showToast("📍 Enable location first to get directions.");
       return;
     }
-    setSelectedPlace(place);
-    setMapOpen(true);
-    setRoutingId(place.id);
-    setRouteInfo(null);
+
+    setIsRoutingLoading(item.id);
+    handleShowOnMap(item);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${item.lng},${item.lat}?overview=full&geometries=geojson`;
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${place.lng},${place.lat}?overview=false`
-      );
+      const res = await fetch(url);
       const data = await res.json();
-      const route = data?.routes?.[0];
-      if (route) {
-        const km = route.distance / 1000;
-        const mins = Math.round(route.duration / 60);
-        setRouteInfo({
-          distance: formatDistance(km),
-          time: mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`,
-        });
-      } else {
-        showToast("Couldn't calculate a route.");
+
+      if (!data.routes || data.routes.length === 0) {
+        throw new Error("No route found");
       }
+
+      const route = data.routes[0];
+      const coordinates: [number, number][] = route.geometry.coordinates;
+      const distKm = (route.distance / 1000).toFixed(1);
+      const mins = Math.round(route.duration / 60);
+      const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
+
+        const bounds = coordinates.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
+      }
+
+      setRouteInfo({ distKm, timeStr });
+      showToast(`🧭 Route to ${item.name}: ${distKm} km · ${timeStr}`);
     } catch {
-      showToast("Couldn't reach the routing service.");
+      showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
-      setRoutingId(null);
+      setIsRoutingLoading(null);
     }
-  }
+  };
 
-  /* ---------- render ---------- */
+  const handleCloseMap = () => {
+    setIsMapPanelOpen(false);
+    setRouteInfo(null);
+    setSelectedPlace(null);
+  };
 
-  const resultCountLabel = `${visiblePlaces.length} place${
-    visiblePlaces.length === 1 ? "" : "s"
+  // --- Filtering & Sorting Data ---
+  const processedPlaces = useMemo(() => {
+    return PLACES.map((item) => {
+      const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
+      return { ...item, distance };
+    })
+      .filter((item) => {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          item.name.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          item.category.toLowerCase().includes(q) ||
+          item.tag.toLowerCase().includes(q);
+
+        const matchesFilter = activeFilter === "all" || item.category === activeFilter;
+
+        return matchesSearch && matchesFilter;
+      })
+      .sort((a, b) => {
+        if (sortByNearest && userLoc && a.distance !== null && b.distance !== null) {
+          return a.distance - b.distance;
+        }
+        return 0;
+      });
+  }, [searchQuery, activeFilter, sortByNearest, userLoc]);
+
+  // Handle ESC key for modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImageSrc(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const resultCountLabel = `${processedPlaces.length} place${
+    processedPlaces.length === 1 ? "" : "s"
   } found`;
 
   return (
@@ -469,58 +591,55 @@ export default function CommunityPage() {
             <span className="search-icon">🔍</span>
             <input
               type="text"
+              id="searchBar"
               placeholder="Search church, barangay hall, cemetery…"
               autoComplete="off"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchQuery}
+              onChange={handleSearchChange}
             />
           </div>
           <button
             id="locate-btn"
-            className={locating ? "loading" : ""}
-            onClick={handleLocate}
-            disabled={locating}
             title="Find my location"
+            onClick={startLocating}
+            disabled={isLocating}
+            className={isLocating ? "loading" : ""}
           >
-            <div className="spinner" />
-            <span className="btn-label">📍 Locate Me</span>
+            <div className="spinner"></div>
+            <span className="btn-label">
+              {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
+            </span>
           </button>
         </div>
       </header>
 
       {/* IMAGE MODAL */}
-      {modalImage && (
-        <div className="image-modal active" onClick={() => setModalImage(null)}>
-          <span className="close" onClick={() => setModalImage(null)}>
-            &times;
-          </span>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={modalImage} alt="Photo" onClick={(e) => e.stopPropagation()} />
-        </div>
-      )}
+      <div
+        className={`image-modal ${modalImageSrc ? "active" : ""}`}
+        id="imageModal"
+        onClick={(e) => {
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImageSrc(null);
+        }}
+      >
+        <span className="close" onClick={() => setModalImageSrc(null)}>
+          &times;
+        </span>
+        {modalImageSrc && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img id="modalImg" className="modal-content" src={modalImageSrc} alt="Photo" />
+        )}
+      </div>
 
       {/* HERO */}
       <section className="hero">
         <h2>Community Services in Calinan</h2>
         <p>
-          Explore essential public spaces and institutions that serve the
-          Calinan community. Enable location to see distances and get
-          directions.
+          Explore essential public spaces and institutions that serve the Calinan community. Enable
+          location to see distances and get directions.
         </p>
-        <div
-          id="location-status"
-          className={locating || userLocation || locationError ? "visible" : ""}
-        >
-          <div className={`loc-dot ${locationError ? "loc-err" : ""}`} />
-          <span>
-            {locating
-              ? "Detecting your location…"
-              : locationError
-              ? locationError
-              : userLocation
-              ? "Location enabled — distances shown below"
-              : ""}
-          </span>
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} id="loc-dot"></div>
+          <span id="loc-text">{locStatusText}</span>
         </div>
       </section>
 
@@ -536,74 +655,66 @@ export default function CommunityPage() {
             {f.label}
           </button>
         ))}
+
         <button
-          className={`sort-btn ${sortNearest ? "active" : ""}`}
-          disabled={!userLocation}
-          title={userLocation ? "" : "Enable location first"}
-          onClick={() => setSortNearest((s) => !s)}
+          className={`sort-btn ${sortByNearest ? "active" : ""}`}
+          id="sort-btn"
+          disabled={!userLoc}
+          title={!userLoc ? "Enable location first" : ""}
+          onClick={() => setSortByNearest(!sortByNearest)}
         >
-          📶 Sort by nearest
+          {sortByNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
+
+      {/* RESULT COUNT */}
       <div id="result-count">{resultCountLabel}</div>
 
-      {/* CARDS */}
+      {/* CARDS CONTAINER */}
       <section className="container" id="cards-container">
-        {visiblePlaces.map((place) => {
-          const distance = userLocation
-            ? haversineKm(userLocation.lat, userLocation.lng, place.lat, place.lng)
-            : null;
+        {processedPlaces.map((place) => (
+          <div key={place.id} className="card">
+            <div className="card-image" onClick={() => setModalImageSrc(place.image)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={place.image} alt={place.name} />
+            </div>
+            <div className="card-content">
+              <h3>
+                <a href={googleMapsSearchUrl(place.mapsQuery)} target="_blank" rel="noreferrer">
+                  {place.name}
+                </a>
+              </h3>
+              <p>{place.description}</p>
+              <span className="tag">{place.tag}</span>
 
-          return (
-            <div className="card" key={place.id}>
-              <div className="card-image" onClick={() => setModalImage(place.image)}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={place.image} alt={place.name} />
+              <div className={`dist-badge ${place.distance !== null ? "visible" : ""}`}>
+                <div className="dot"></div>
+                <span className="dist-text">
+                  {place.distance !== null ? formatDist(place.distance) : ""}
+                </span>
               </div>
-              <div className="card-content">
-                <h3>
-                  <a
-                    href={googleMapsSearchUrl(place.mapsQuery)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {place.name}
-                  </a>
-                </h3>
-                <p>{place.description}</p>
-                <span className="tag">{place.tag}</span>
-                <div className={`dist-badge ${distance !== null ? "visible" : ""}`}>
-                  <div className="dot" />
-                  <span>{distance !== null ? formatDistance(distance) : ""}</span>
-                </div>
-                <div className="card-actions">
-                  <button className="view-map-btn" onClick={() => showOnMap(place)}>
-                    📍 View on Map
-                  </button>
-                  <button
-                    className={`route-btn ${userLocation ? "visible" : ""} ${
-                      routingId === place.id ? "loading" : ""
-                    }`}
-                    onClick={() => getRoute(place)}
-                  >
-                    🧭 Get Directions
-                  </button>
-                </div>
+
+              <div className="card-actions">
+                <button className="view-map-btn" onClick={() => handleShowOnMap(place)}>
+                  📍 View on Map
+                </button>
+                <button
+                  className={`route-btn ${userLoc ? "visible" : ""} ${
+                    isRoutingLoading === place.id ? "loading" : ""
+                  }`}
+                  onClick={() => handleGetDirections(place)}
+                >
+                  {isRoutingLoading === place.id ? "⏳ Loading route…" : "🧭 Get Directions"}
+                </button>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
 
-        {visiblePlaces.length === 0 && (
-          <div id="empty-state" className="visible">
-            <svg
-              width="56"
-              height="56"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="#2b6b45"
-              strokeWidth="1.5"
-            >
+        {/* Empty state */}
+        {processedPlaces.length === 0 && (
+          <div id="empty-state" className="visible" style={{ display: "flex" }}>
+            <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth={1.5}>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -617,14 +728,14 @@ export default function CommunityPage() {
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={mapOpen ? "active" : ""} />
+      <div id="map-panel-spacer" className={isMapPanelOpen ? "active" : ""}></div>
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={mapOpen ? "active" : ""}>
+      <div id="map-panel" className={isMapPanelOpen ? "active" : ""}>
         <div id="map-panel-header">
           <div>
-            <div id="map-panel-title">📍 Map</div>
-            <div id="map-panel-subtitle">{selectedPlace?.name ?? ""}</div>
+            <div id="map-panel-title">📍 {selectedPlace ? selectedPlace.name : "Map"}</div>
+            <div id="map-panel-subtitle">{selectedPlace?.tag || ""}</div>
           </div>
           <div id="map-panel-actions">
             <a
@@ -632,7 +743,7 @@ export default function CommunityPage() {
               className={selectedPlace ? "visible" : ""}
               href={
                 selectedPlace
-                  ? googleMapsDirectionsUrl(userLocation, selectedPlace.lat, selectedPlace.lng)
+                  ? googleMapsDirectionsUrl(userLoc, selectedPlace.lat, selectedPlace.lng)
                   : "#"
               }
               target="_blank"
@@ -640,25 +751,27 @@ export default function CommunityPage() {
             >
               🧭 Open in Google Maps
             </a>
-            <button id="map-panel-close" onClick={closeMap} title="Close map">
+            <button id="map-panel-close" onClick={handleCloseMap} title="Close map">
               ✕
             </button>
           </div>
         </div>
-        <div id="community-map" />
+
+        <div id="community-map"></div>
+
         <div id="route-info" className={routeInfo ? "visible" : ""}>
           <span>
-            🛣️ Road distance: <strong>{routeInfo?.distance ?? "–"}</strong>
+            🛣️ Road distance: <strong id="route-dist">{routeInfo?.distKm || "–"} km</strong>
           </span>
           <span>
-            ⏱️ Estimated time: <strong>{routeInfo?.time ?? "–"}</strong>
+            ⏱️ Estimated time: <strong id="route-time">{routeInfo?.timeStr || "–"}</strong>
           </span>
         </div>
       </div>
 
       {/* TOAST */}
-      <div id="toast" className={toast ? "show" : ""}>
-        {toast}
+      <div id="toast" className={toastMessage ? "show" : ""}>
+        {toastMessage}
       </div>
     </>
   );

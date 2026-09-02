@@ -2,6 +2,13 @@
 import React from 'react';
 // import './style/Documents.css'; // Make sure to import your CSS file here
 import Link from "next/link";
+
+// ----------------------------------------------------------------------
+// Firebase Storage base path (same pattern as Hotspots/Community pages)
+// ----------------------------------------------------------------------
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Documents";
+
 // ----------------------------------------------------------------------
 // Data Arrays (Extracted for easier maintenance)
 // ----------------------------------------------------------------------
@@ -39,8 +46,14 @@ export const PostalIDPage: React.FC = () => {
 
       {/* FEATURE IMAGES (SIDE BY SIDE) */}
       <section className="doc-hero-grid">
-        <img src="image/Postal-ID1.png" alt="Postal ID Card" />
-        <img src="image/Postal-ID2.png" alt="Postal ID Application" />
+        <img
+          src={`${STORAGE_BASE}/Postal-ID1.png`}
+          alt="Postal ID Card"
+        />
+        <img
+          src={`${STORAGE_BASE}/Postal-ID2.png`}
+          alt="Postal ID Application"
+        />
       </section>
 
       <main className="doc-container">

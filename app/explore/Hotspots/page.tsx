@@ -35,13 +35,27 @@ interface Hotspot {
   lng: number;
 }
 
+interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+}
+
+interface RouteInfo {
+  distance: string;
+  time: string;
+}
+
+const STORAGE_BASE =
+  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Hotspots";
+
 const hotspots: Hotspot[] = [
   {
     id: "bamboo-sanctuary",
     name: "Bamboo Sanctuary",
     category: "Nature Spot",
     tag: "Nature Spot",
-    image: "/image/bamboo-sanctuary-and-ecological-park.webp",
+    image: `${STORAGE_BASE}/bamboo-sanctuary-and-ecological-park.webp`,
     description:
       "A peaceful eco-tourism spot in Calinan, Davao City, known for its relaxing bamboo scenery, fresh air, and calm natural surroundings. Popular for nature walks, scenic photos, and quiet relaxation away from the busy city.",
     location:
@@ -55,7 +69,7 @@ const hotspots: Hotspot[] = [
     name: "Philippine Eagle Center (PEC)",
     category: "Wildlife & Conservation",
     tag: "Wildlife & Conservation",
-    image: "/image/PhpEagleCenter.png",
+    image: `${STORAGE_BASE}/Philippine Eagle Center (PEC).png`,
     description:
       "A conservation and education facility in Malagos, Davao City, dedicated to protecting the critically endangered Philippine Eagle. Home to the country's national bird and other wildlife — great for families, nature lovers, and visitors.",
     location: "Purok 5, Malagos-Baguio District, Davao City",
@@ -68,7 +82,7 @@ const hotspots: Hotspot[] = [
     name: "Malagos Garden Resort",
     category: "Eco Tourism",
     tag: "Eco Tourism",
-    image: "/image/Malagos Garden Resort.jpg",
+    image: `${STORAGE_BASE}/Malagos%20Garden%20Resort.jpg`,
     description:
       "A 12-hectare eco-tourism destination in Malagos, Davao City, known for its lush gardens, nature attractions, and award-winning Malagos Chocolate. Offers a relaxing and educational experience promoting sustainable tourism.",
     location: "Malagos-Baguio District, Davao City",
@@ -81,7 +95,7 @@ const hotspots: Hotspot[] = [
     name: "Malagos Chocolate Museum",
     category: "Cultural Attraction",
     tag: "Cultural Attraction",
-    image: "/image/Malagos Chocolate Museum.jpg",
+    image: `${STORAGE_BASE}/Malagos%20Chocolate%20Museum.jpg`,
     description:
       "The first chocolate museum in the Philippines, inside Malagos Garden Resort in Davao City. An interactive attraction showcasing the country's growing cacao industry and the award-winning chocolates of Malagos.",
     location: "Malagos-Baguio District, Davao City",
@@ -94,7 +108,7 @@ const hotspots: Hotspot[] = [
     name: "Tamayong Prayer Mountain",
     category: "Spiritual Retreat",
     tag: "Spiritual Retreat",
-    image: "/image/Tamayong Prayer Mountain.jpg",
+    image: `${STORAGE_BASE}/Tamayong%20Prayer%20Mountain.jpg`,
     description:
       "Also known as the Garden of Eden Restored, this private spiritual retreat in Tamayong, Calinan serves as a place for prayer, meditation, worship, and spiritual reflection in a serene highland setting.",
     location: "Tamayong, Calinan District, Davao City",
@@ -107,7 +121,7 @@ const hotspots: Hotspot[] = [
     name: "Lantaw Bukid Resort",
     category: "Resort / Leisure",
     tag: "Resort / Leisure",
-    image: "/image/Lantaw Bukid Resort.jpg",
+    image: `${STORAGE_BASE}/Lantaw%20Bukid%20Resort.jpg`,
     description:
       "A family-friendly inland resort known for its peaceful countryside atmosphere, open green spaces, pools, cottages, and relaxing nature views. A popular budget-friendly getaway for outings, reunions, and weekend swimming.",
     location:
@@ -121,7 +135,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Public Market",
     category: "Local Market",
     tag: "Local Market",
-    image: "/image/Calinan Public Market.jpg",
+    image: `${STORAGE_BASE}/Calinan%20Public%20Market.jpg`,
     description:
       "The main marketplace in Calinan where locals and farmers trade fresh produce and daily goods. Known for experiencing local life and buying fresh fruits, vegetables, durian, souvenirs, and local snacks.",
     location: "Calinan District, Davao City",
@@ -134,7 +148,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Park",
     category: "Community Park",
     tag: "Community Park",
-    image: "/image/Calinan Park.png",
+    image: `${STORAGE_BASE}/Calinan%20Park.png`,
     description:
       "A small community park in the heart of Calinan offering a quiet green space where locals can relax, socialize, or take a break. A common meeting spot for commuters, students, and families in the poblacion area.",
     location: "H Quiambao St, Calinan District, Davao City",
@@ -147,7 +161,7 @@ const hotspots: Hotspot[] = [
     name: "Calinan Commercial Center",
     category: "Commercial Hub",
     tag: "Commercial Hub",
-    image: "/image/Brows1.png",
+    image: `${STORAGE_BASE}/Brows1.png`,
     description:
       "A local hub in Calinan where people gather for daily needs, small businesses, and community activities. Reflects the active local life in the district and serves nearby residents and visitors passing through the area.",
     location: "H Quiambao St, Calinan District, Davao City",
@@ -211,6 +225,12 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
+  type: "Feature",
+  properties: {},
+  geometry: { type: "LineString", coordinates: [] },
+};
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 /* ============================================================
@@ -222,38 +242,37 @@ export default function HotspotPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [sortNearest, setSortNearest] = useState(false);
 
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  // User location states (live tracking, matches Education/Shopping/Transport)
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locStatusText, setLocStatusText] = useState("Detecting your location…");
+  const [isLocError, setIsLocError] = useState(false);
+  const [hasLocationActive, setHasLocationActive] = useState(false);
 
   const [selectedHotspot, setSelectedHotspot] = useState<Hotspot | null>(
     null
   );
-  const [mapOpen, setMapOpen] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{
-    distance: string;
-    time: string;
-  } | null>(null);
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingId, setRoutingId] = useState<string | null>(null);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapLoadedRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ---------- toast ---------- */
 
-  function showToast(message: string) {
+  const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(""), 2600);
-  }
+    toastTimerRef.current = setTimeout(() => setToast(""), duration);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -261,7 +280,7 @@ export default function HotspotPage() {
     };
   }, []);
 
-  /* ---------- image modal body scroll lock + esc ---------- */
+  /* ---------- image modal body scroll lock + esc (already correct, kept as-is) ---------- */
 
   useEffect(() => {
     if (!selectedImage) {
@@ -285,30 +304,53 @@ export default function HotspotPage() {
     };
   }, [selectedImage]);
 
-  /* ---------- locate me ---------- */
+  /* ---------- locate me (live tracking, matches Education/Shopping/Transport) ---------- */
 
-  function handleLocate() {
+  function startLocating() {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation isn't supported on this device.");
+      showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
-    setLocating(true);
-    setLocationError(null);
-    navigator.geolocation.getCurrentPosition(
+
+    setIsLocating(true);
+    setHasLocationActive(true);
+    setLocStatusText("Detecting your location…");
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        });
-        setLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        setUserLoc({ lat: latitude, lng: longitude, accuracy });
+        setIsLocating(false);
+        setIsLocError(false);
+        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
       },
-      () => {
-        setLocationError("Couldn't get your location. Check permissions.");
-        setLocating(false);
+      (err) => {
+        setIsLocating(false);
+        setIsLocError(true);
+        const errorMessages: Record<number, string> = {
+          1: "Location access denied. Please allow location permissions in your browser.",
+          2: "Location unavailable. Check your GPS or connection.",
+          3: "Location request timed out. Please try again.",
+        };
+        const msg = errorMessages[err.code] || "Could not retrieve your location.";
+        setLocStatusText(msg);
+        showToast("⚠️ " + msg);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   }
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   /* ---------- filtering / sorting ---------- */
 
@@ -332,21 +374,21 @@ export default function HotspotPage() {
       return matchSearch && matchFilter;
     });
 
-    if (sortNearest && userLocation) {
+    if (sortNearest && userLoc) {
       list = [...list].sort(
         (a, b) =>
-          haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) -
-          haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng)
+          haversineKm(userLoc.lat, userLoc.lng, a.lat, a.lng) -
+          haversineKm(userLoc.lat, userLoc.lng, b.lat, b.lng)
       );
     }
 
     return list;
-  }, [searchQuery, activeFilter, sortNearest, userLocation]);
+  }, [searchQuery, activeFilter, sortNearest, userLoc]);
 
-  /* ---------- map lifecycle ---------- */
+  /* ---------- map init & lifetime (route source added on load, like Education/Shopping/Transport) ---------- */
 
   useEffect(() => {
-    if (!mapOpen || !selectedHotspot) return;
+    if (!isMapPanelOpen) return;
 
     if (!mapboxgl.accessToken) {
       showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
@@ -354,118 +396,169 @@ export default function HotspotPage() {
     }
 
     if (!mapRef.current) {
-      mapRef.current = new mapboxgl.Map({
+      const map = new mapboxgl.Map({
         container: "hotspot-map",
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [selectedHotspot.lng, selectedHotspot.lat],
-        zoom: 15,
+        center: [125.454, 7.19],
+        zoom: 13,
       });
-      mapRef.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+      map.on("load", () => {
+        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+        map.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#2e8b57", "line-width": 5, "line-opacity": 0.85 },
+        });
+        mapLoadedRef.current = true;
+      });
+
+      mapRef.current = map;
     } else {
-      mapRef.current.flyTo({
-        center: [selectedHotspot.lng, selectedHotspot.lat],
-        zoom: 15,
-      });
+      setTimeout(() => mapRef.current?.resize(), 100);
     }
+  }, [isMapPanelOpen, showToast]);
 
-    const map = mapRef.current;
-
-    // clear old markers
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const popupHtml = `
-      <div class="place-popup">
-        <span class="popup-tag">${selectedHotspot.tag}</span>
-        <h4>${selectedHotspot.name}</h4>
-        <p>${selectedHotspot.description}</p>
-        <a href="${googleMapsSearchUrl(
-          selectedHotspot.mapsQuery
-        )}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      </div>
-    `;
-
-    const marker = new mapboxgl.Marker({ color: "#2e8b57" })
-      .setLngLat([selectedHotspot.lng, selectedHotspot.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-      .addTo(map);
-    marker.togglePopup();
-    markersRef.current.push(marker);
-
-    if (userLocation) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-      }
-      const el = document.createElement("div");
-      el.className = "user-dot-wrapper";
-      el.innerHTML =
-        '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
-
-      userMarkerRef.current = new mapboxgl.Marker({ element: el })
-        .setLngLat([userLocation.lng, userLocation.lat])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 16 }).setHTML(
-            '<div class="user-popup"><h4>You are here</h4><p>Your current location</p></div>'
-          )
-        )
-        .addTo(map);
-    }
-
-    setTimeout(() => map.resize(), 250);
-  }, [mapOpen, selectedHotspot, userLocation]);
-
+  // Tear down map when panel closes
   useEffect(() => {
-    if (!mapOpen && mapRef.current) {
+    if (!isMapPanelOpen && mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
-      markersRef.current = [];
+      mapLoadedRef.current = false;
       userMarkerRef.current = null;
+      activeMarkerRef.current = null;
     }
-  }, [mapOpen]);
+  }, [isMapPanelOpen]);
+
+  // Sync user location marker (independent of which hotspot is selected)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLoc) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+    }
+
+    const el = document.createElement("div");
+    el.className = "user-dot-wrapper";
+    el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el })
+      .setLngLat([userLoc.lng, userLoc.lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
+        )
+      )
+      .addTo(map);
+  }, [userLoc, isMapPanelOpen]);
 
   function showOnMap(hotspot: Hotspot) {
     setSelectedHotspot(hotspot);
+    setIsMapPanelOpen(true);
     setRouteInfo(null);
-    setMapOpen(true);
+
+    setTimeout(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+      const clearRoute = () => {
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        source?.setData(EMPTY_ROUTE_GEOJSON);
+      };
+      if (mapLoadedRef.current) {
+        clearRoute();
+      } else {
+        map.once("load", clearRoute);
+      }
+
+      const popupHtml = `
+        <div class="place-popup">
+          <span class="popup-tag">${hotspot.tag}</span>
+          <h4>${hotspot.name}</h4>
+          <p>${hotspot.description}</p>
+          <a href="${googleMapsSearchUrl(hotspot.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+        </div>
+      `;
+
+      activeMarkerRef.current = new mapboxgl.Marker({ color: "#2e8b57" })
+        .setLngLat([hotspot.lng, hotspot.lat])
+        .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+        .addTo(map);
+      activeMarkerRef.current.togglePopup();
+
+      map.flyTo({ center: [hotspot.lng, hotspot.lat], zoom: 15, duration: 1000 });
+      map.resize();
+    }, 100);
   }
 
   function closeMap() {
-    setMapOpen(false);
+    setIsMapPanelOpen(false);
     setSelectedHotspot(null);
     setRouteInfo(null);
   }
 
-  /* ---------- directions / route ---------- */
+  /* ---------- directions / route (now draws the actual road path) ---------- */
 
   async function getRoute(hotspot: Hotspot) {
-    if (!userLocation) {
-      showToast("Enable location first to get directions.");
+    if (!userLoc) {
+      showToast("📍 Enable location first to get directions.");
       return;
     }
-    setSelectedHotspot(hotspot);
-    setMapOpen(true);
+
     setRoutingId(hotspot.id);
-    setRouteInfo(null);
+    showOnMap(hotspot);
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${hotspot.lng},${hotspot.lat}?overview=full&geometries=geojson`;
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${hotspot.lng},${hotspot.lat}?overview=false`
-      );
+      const res = await fetch(url);
       const data = await res.json();
       const route = data?.routes?.[0];
-      if (route) {
-        const km = route.distance / 1000;
-        const mins = Math.round(route.duration / 60);
-        setRouteInfo({
-          distance: formatDistance(km),
-          time:
-            mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`,
-        });
-      } else {
-        showToast("Couldn't calculate a route.");
+
+      if (!route) {
+        showToast("⚠️ Couldn't calculate a route.");
+        return;
       }
+
+      const coordinates: [number, number][] = route.geometry.coordinates;
+      const km = route.distance / 1000;
+      const mins = Math.round(route.duration / 60);
+
+      const drawRoute = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+        const geojson: Feature<LineString> = {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates },
+        };
+        source?.setData(geojson);
+
+        const bounds = coordinates.reduce(
+          (b, c) => b.extend(c as [number, number]),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        map.fitBounds(bounds, { padding: 40 });
+      };
+
+      if (mapLoadedRef.current) {
+        drawRoute();
+      } else {
+        mapRef.current?.once("load", drawRoute);
+      }
+
+      const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+      setRouteInfo({ distance: formatDistance(km), time: timeStr });
+      showToast(`🧭 Route to ${hotspot.name}: ${formatDistance(km)} · ${timeStr}`);
     } catch {
-      showToast("Couldn't reach the routing service.");
+      showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
       setRoutingId(null);
     }
@@ -479,7 +572,6 @@ export default function HotspotPage() {
           <Link href="/" className="back-btn">
             ← Home
           </Link>
-
           <h1 className="logo">Hotspots</h1>
         </div>
 
@@ -490,7 +582,7 @@ export default function HotspotPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)}
               placeholder="Search hotspots, nature, resort…"
               autoComplete="off"
               aria-label="Search hotspots"
@@ -499,13 +591,15 @@ export default function HotspotPage() {
 
           <button
             id="locate-btn"
-            className={locating ? "loading" : ""}
-            onClick={handleLocate}
-            disabled={locating}
+            className={isLocating ? "loading" : ""}
+            onClick={startLocating}
+            disabled={isLocating}
             title="Find my location"
           >
             <div className="spinner" />
-            <span className="btn-label">📍 Locate Me</span>
+            <span className="btn-label">
+              {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
+            </span>
           </button>
         </div>
       </header>
@@ -546,20 +640,9 @@ export default function HotspotPage() {
           distances and get directions.
         </p>
 
-        <div
-          id="location-status"
-          className={locating || userLocation || locationError ? "visible" : ""}
-        >
-          <div className={`loc-dot ${locationError ? "loc-err" : ""}`} />
-          <span>
-            {locating
-              ? "Detecting your location…"
-              : locationError
-              ? locationError
-              : userLocation
-              ? "Location enabled — distances shown below"
-              : ""}
-          </span>
+        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
+          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} />
+          <span>{locStatusText}</span>
         </div>
       </section>
 
@@ -582,11 +665,11 @@ export default function HotspotPage() {
 
         <button
           className={`sort-btn ${sortNearest ? "active" : ""}`}
-          disabled={!userLocation}
-          title={userLocation ? "" : "Enable location first"}
+          disabled={!userLoc}
+          title={userLoc ? "" : "Enable location first"}
           onClick={() => setSortNearest((s) => !s)}
         >
-          📶 Sort by nearest
+          {sortNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
 
@@ -600,13 +683,8 @@ export default function HotspotPage() {
       {/* CARDS */}
       <section className="container" id="cards-container">
         {filteredHotspots.map((hotspot) => {
-          const distance = userLocation
-            ? haversineKm(
-                userLocation.lat,
-                userLocation.lng,
-                hotspot.lat,
-                hotspot.lng
-              )
+          const distance = userLoc
+            ? haversineKm(userLoc.lat, userLoc.lng, hotspot.lat, hotspot.lng)
             : null;
 
           return (
@@ -652,12 +730,12 @@ export default function HotspotPage() {
                     📍 View on Map
                   </button>
                   <button
-                    className={`route-btn ${userLocation ? "visible" : ""} ${
+                    className={`route-btn ${userLoc ? "visible" : ""} ${
                       routingId === hotspot.id ? "loading" : ""
                     }`}
                     onClick={() => getRoute(hotspot)}
                   >
-                    🧭 Get Directions
+                    {routingId === hotspot.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                   </button>
                 </div>
               </div>
@@ -667,7 +745,7 @@ export default function HotspotPage() {
 
         {/* EMPTY STATE */}
         {filteredHotspots.length === 0 && (
-          <div id="empty-state">
+          <div id="empty-state" style={{ display: "flex" }}>
             <svg
               width="56"
               height="56"
@@ -691,14 +769,14 @@ export default function HotspotPage() {
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={mapOpen ? "active" : ""} />
+      <div id="map-panel-spacer" className={isMapPanelOpen ? "active" : ""} />
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={mapOpen ? "active" : ""}>
+      <div id="map-panel" className={isMapPanelOpen ? "active" : ""}>
         <div id="map-panel-header">
           <div>
-            <div id="map-panel-title">📍 Map</div>
-            <div id="map-panel-subtitle">{selectedHotspot?.name ?? ""}</div>
+            <div id="map-panel-title">📍 {selectedHotspot ? selectedHotspot.name : "Map"}</div>
+            <div id="map-panel-subtitle">{selectedHotspot?.tag ?? ""}</div>
           </div>
           <div id="map-panel-actions">
             <a
@@ -707,7 +785,7 @@ export default function HotspotPage() {
               href={
                 selectedHotspot
                   ? googleMapsDirectionsUrl(
-                      userLocation,
+                      userLoc,
                       selectedHotspot.lat,
                       selectedHotspot.lng
                     )
