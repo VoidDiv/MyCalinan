@@ -29,10 +29,11 @@ import {
    Config
    ──────────────────────────────────────────────────────────────── */
 
-/* Public/admin GET of every submitted listing lives under /api/admin/listings
-   (admins need to see pending + denied ones too, not just approved).
-   Status changes (approve/deny) and delete live under the same resource. */
-const ADMIN_API = 'http://localhost:5000/api/admin/listings';
+/* Now backed by Next.js's own Firestore-backed API routes:
+   GET /api/admin/listings           — list all (any status)
+   PATCH /api/admin/listings/:id/status
+   DELETE /api/admin/listings/:id    */
+const ADMIN_API = '/api/admin/listings';
 const POLL_INTERVAL_MS = 30000;
 
 type ListingStatus = 'pending' | 'approved' | 'denied';
@@ -471,7 +472,7 @@ export default function AdminListings() {
       loadListings();
     } catch (err) {
       console.error('Status update error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      showToast('Cannot reach server.', true);
     }
   };
 
@@ -535,7 +536,7 @@ export default function AdminListings() {
       loadListings();
     } catch (err) {
       console.error('Delete error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      showToast('Cannot reach server.', true);
     }
   };
 
@@ -649,7 +650,7 @@ export default function AdminListings() {
                 </tr>
               ) : loadError ? (
                 <tr className="table-state">
-                  <td colSpan={6}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
+                  <td colSpan={6}>⚠️ Cannot connect to server. Check the browser console for details.</td>
                 </tr>
               ) : filteredListings.length === 0 ? (
                 <tr className="table-state">

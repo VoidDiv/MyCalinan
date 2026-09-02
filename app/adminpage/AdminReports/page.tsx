@@ -5,6 +5,7 @@ import {
   Home,
   CalendarDays,
   Megaphone,
+  Store,
   LineChart,
   LogOut,
   Printer,
@@ -18,8 +19,9 @@ import {
    Config
    ──────────────────────────────────────────────────────────────── */
 
-const ANNOUNCEMENTS_API = 'http://localhost:5000/api/announcements';
-const EVENTS_API = 'http://localhost:5000/api/events';
+/* Now backed by Next.js's own Firestore-backed API routes. */
+const ANNOUNCEMENTS_API = '/api/announcements';
+const EVENTS_API = '/api/events';
 const POLL_INTERVAL_MS = 30000;
 
 const CATEGORIES = ['General', 'Event', 'Program', 'Advisory', 'Festival'] as const;
@@ -80,6 +82,7 @@ const menuItems = [
   { label: 'Home Page', href: 'HomePage.html', icon: Home },
   { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays },
   { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
+  { label: 'Business Listings', href: 'Admin-Listings.html', icon: Store },
   { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart, active: true },
 ];
 
@@ -574,7 +577,7 @@ export default function AdminReports() {
                 </tr>
               ) : loadError ? (
                 <tr className="table-state">
-                  <td colSpan={4}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
+                  <td colSpan={4}>⚠️ Cannot connect to server. Check the browser console for details.</td>
                 </tr>
               ) : (
                 <>
@@ -607,5 +610,3 @@ export default function AdminReports() {
     </div>
   );
 }
-
-

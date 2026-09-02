@@ -177,7 +177,7 @@ const LoginPage: React.FC = () => {
       <div className="login-page-card">
         {/* LOGO SECTION */}
         <div className="login-page-logo-section">
-          <img src="/image/CALINAN LOGO.png" alt="MyCalinan Logo" />
+            <img src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCALINAN%20LOGO.png?alt=media&token=42cb2f15-375c-4975-a8ce-591018ceb036" alt="MyCalinan Logo" />
           <h1>MyCalinan</h1>
           <p>
             {mode === "signin"

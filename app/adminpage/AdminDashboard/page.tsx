@@ -11,9 +11,9 @@ interface Posting {
   description?: string;
 }
 
-/* ── Same public read endpoints used by the Announcements and Events admin pages. ── */
-const ANNOUNCEMENTS_API = "http://localhost:5000/api/announcements";
-const EVENTS_API = "http://localhost:5000/api/events";
+/* ── Now backed by Next.js's own Firestore-backed API routes. ── */
+const ANNOUNCEMENTS_API = "/api/announcements";
+const EVENTS_API = "/api/events";
 
 function getToken(): string {
   return (
@@ -244,6 +244,11 @@ export default function AdminDashboard() {
           <li>
             <a href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
               <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
+            </a>
+          </li>
+          <li>
+            <a href="/adminpage/AdminListings" style={styles.menuLink}>
+              <i className="fas fa-store" style={styles.menuIcon} /> Business Listings
             </a>
           </li>
           <li>
@@ -556,6 +561,3 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
   },
 };
-
-
-

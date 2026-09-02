@@ -7,6 +7,10 @@ interface ChatMessage {
   text: string;
 }
 
+// How many prior turns to send back to the API as context.
+// Keep this modest to control token usage/cost.
+const HISTORY_LIMIT = 10;
+
 export default function ChatbotLauncher() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -28,6 +32,11 @@ export default function ChatbotLauncher() {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
+    // Snapshot history BEFORE adding the new user message, so the API
+    // gets "everything said before this turn" plus the new message
+    // separately — avoids double-counting the latest message.
+    const history = messages.slice(-HISTORY_LIMIT);
+
     setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setIsLoading(true);
@@ -36,7 +45,7 @@ export default function ChatbotLauncher() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, history }),
       });
 
       const data = await res.json();
@@ -65,7 +74,13 @@ export default function ChatbotLauncher() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(e as unknown as React.FormEvent);
+      const trimmed = input.trim();
+      if (!trimmed || isLoading) return;
+      // Build a minimal FormEvent-shaped object instead of casting the
+      // keyboard event — cleaner than the previous `as unknown as` cast.
+      sendMessage({
+        preventDefault: () => {},
+      } as unknown as React.FormEvent);
     }
   }
 
@@ -135,9 +150,13 @@ export default function ChatbotLauncher() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Close Calibot" : "Talk to Calibot"}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-durian-500 text-2xl shadow-xl transition hover:bg-durian-400"
+        className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-xl transition hover:opacity-90"
       >
-        🦅
+        <img
+          src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCalibotAi.png?alt=media&token=44e5b03e-1bd9-4d8e-a984-b92dddf2717a"
+          alt="Calibot"
+          className="h-9 w-9 object-contain"
+        />
       </button>
     </div>
   );
