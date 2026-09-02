@@ -85,11 +85,8 @@ ${context || "(no matching data found for this question)"}`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        // Double check this is still a current model at
-        // https://docs.claude.com/en/docs/about-claude/models before
-        // relying on it long-term.
         model: "claude-sonnet-5",
-        max_tokens: 500,  
+        max_tokens: 500,
         system: systemPrompt,
         messages: [{ role: "user", content: message }],
       }),

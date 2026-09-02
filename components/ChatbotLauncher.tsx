@@ -62,6 +62,13 @@ export default function ChatbotLauncher() {
     }
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(e as unknown as React.FormEvent);
+    }
+  }
+
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {open && (
@@ -109,6 +116,7 @@ export default function ChatbotLauncher() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Ask something…"
               disabled={isLoading}
               className="flex-1 rounded-full border border-canopy-600/30 px-3 py-2 text-sm outline-none focus:border-canopy-600"
