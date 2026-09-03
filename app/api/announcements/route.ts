@@ -1,13 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
-import { verifyAuth } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 
-export async function GET(request: NextRequest) {
+// GET /api/announcements — PUBLIC
+export async function GET() {
   try {
-    await verifyAuth(request);
-
     const adminDb = getAdminDb();
 
     const snapshot = await adminDb
@@ -25,8 +23,8 @@ export async function GET(request: NextRequest) {
     console.error("Announcements GET error:", error);
 
     return NextResponse.json(
-      { error: "Unauthorized or failed to fetch announcements" },
-      { status: 401 }
+      { error: "Failed to fetch announcements" },
+      { status: 500 }
     );
   }
 }
