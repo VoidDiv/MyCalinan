@@ -5,12 +5,12 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+apiKey: "AIzaSyBu_HalimbawaLangIto_M2y4", 
+authDomain: "mycalinan.firebaseapp.com",
+projectId: "mycalinan",
+storageBucket: "mycalinan.appspot.com",
+messagingSenderId: "123456789012",
+appId: "1:123456789012:web:abc123def456"
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
