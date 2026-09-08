@@ -2,7 +2,9 @@
 
 import React, { useState, FormEvent } from "react";
 import Link from "next/link";
-
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../../lib/Firebase";
 interface FormErrors {
   fullName?: string;
   phoneNumber?: string;
