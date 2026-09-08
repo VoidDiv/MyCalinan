@@ -284,6 +284,12 @@ const LoginPage: React.FC = () => {
 
             <div className="login-page-footer-text">
               Works for administrator, business, and personal accounts.
+              <div className="login-page-footer-text">
+  <span>New user? </span>
+  <a href="/signup" style={{ fontWeight: 'bold', color: '#1b4332' }}>
+    Sign Up
+  </a>
+</div>
             </div>
           </form>
         )}
