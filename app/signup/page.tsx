@@ -2,9 +2,11 @@
 
 import React, { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../lib/Firebase";
+
 interface FormErrors {
   fullName?: string;
   phoneNumber?: string;
@@ -16,6 +18,7 @@ interface FormErrors {
 }
 
 export default function SignUpPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: "",
     phoneNumber: "",
@@ -98,11 +101,37 @@ export default function SignUpPage() {
 
     setLoading(true);
     try {
-      // Dito ilalagay ang Firebase Auth / Firestore registration logic
-      console.log("Submitting registration data:", formData);
-      alert("Registration successful!");
-    } catch (err) {
-      console.error(err);
+      // 1. Gagawa ng user account sa Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email.trim(),
+        formData.password
+      );
+
+      // 2. I-sa-save ang karagdagang profile data sa Firestore Database ("users" collection)
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        fullName: formData.fullName.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        address: formData.address.trim(),
+        sex: formData.sex,
+        email: formData.email.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      // 3. Awtomatikong dadalhin ang user sa Login page matapos ang matagumpay na registration
+      router.push("/login");
+    } catch (err: any) {
+      console.error("Firebase Registration Error:", err);
+
+      if (err.code === "auth/email-already-in-use") {
+        setErrors((prev) => ({ ...prev, email: "This email address is already registered." }));
+      } else if (err.code === "auth/invalid-email") {
+        setErrors((prev) => ({ ...prev, email: "Invalid email address format." }));
+      } else if (err.code === "auth/weak-password") {
+        setErrors((prev) => ({ ...prev, password: "Password is too weak." }));
+      } else {
+        alert("Registration failed: " + (err.message || "Please check your network connection."));
+      }
     } finally {
       setLoading(false);
     }
@@ -220,7 +249,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#1b4332] text-white py-2 rounded-md font-medium text-sm hover:bg-[#143326] transition mt-2"
+            className="w-full bg-[#1b4332] text-white py-2 rounded-md font-medium text-sm hover:bg-[#143326] transition mt-2 disabled:opacity-50"
           >
             {loading ? "Registering..." : "Sign Up"}
           </button>
