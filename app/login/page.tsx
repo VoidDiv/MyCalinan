@@ -1,6 +1,11 @@
 "use client";
+
 import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../../lib/Firebase";
 
 type UserRole = "admin" | "business" | "user";
 
@@ -10,27 +15,16 @@ interface LoginSuccessPayload {
   role: UserRole;
 }
 
-interface LoginErrorPayload {
-  error?: string;
-}
-
-const API_BASE_URL: string = "http://localhost:5000";
-
 type AuthMode = "signin" | "guest";
 
 /**
  * Hardcoded default admin account for local testing/demo purposes.
- * Logging in with these credentials skips the backend entirely and
- * routes straight to the Admin Dashboard.
- *
- * ⚠️ Remove or guard this behind an env flag before deploying to production.
  */
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "@admin1906";
 
 /**
  * Where each role lands after a successful sign in.
- * Extend this map if new roles are introduced later.
  */
 const ROLE_REDIRECTS: Record<UserRole, string> = {
   admin: "/adminpage/AdminDashboard",
@@ -43,15 +37,15 @@ const LoginPage: React.FC = () => {
 
   const [mode, setMode] = useState<AuthMode>("signin");
 
-  /* ---------------- Unified sign-in state (admin, business, or user) --- */
-  const [identifier, setIdentifier] = useState<string>(""); // username OR email
+  /* ---------------- Unified sign-in state ---------------- */
+  const [identifier, setIdentifier] = useState<string>(""); // Email address
   const [password, setPassword] = useState<string>("");
   const [remember, setRemember] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
-  /* ---------------- Guest sign-in state --------------- */
+  /* ---------------- Guest sign-in state ---------------- */
   const [guestLoading, setGuestLoading] = useState<boolean>(false);
 
   const storeSession = (
@@ -64,10 +58,6 @@ const LoginPage: React.FC = () => {
     storage.setItem("mycalinan_username", payload.username);
     storage.setItem("mycalinan_role", payload.role);
 
-    /*
-      Clear the opposite storage so an old session
-      does not remain active.
-    */
     const otherStorage: Storage = shouldRemember ? sessionStorage : localStorage;
 
     otherStorage.removeItem("mycalinan_token");
@@ -75,27 +65,16 @@ const LoginPage: React.FC = () => {
     otherStorage.removeItem("mycalinan_role");
   };
 
-  /**
-   * Single sign-in handler for every account type.
-   * The backend looks up the identifier, verifies the password, and
-   * reports back which role that account has — the frontend never has
-   * to guess or ask the user to pick a tab.
-   *
-   * Before hitting the backend, we check for the hardcoded default
-   * admin credentials so the Admin Dashboard is reachable even
-   * without a running/seeded backend.
-   */
   const handleSignIn = async (
     e: FormEvent<HTMLFormElement>
   ): Promise<void> => {
     e.preventDefault();
-
     setError("");
 
     const trimmedIdentifier = identifier.trim();
 
     if (!trimmedIdentifier || !password) {
-      setError("Please enter both your username/email and password.");
+      setError("Please enter both your email address and password.");
       return;
     }
 
@@ -119,37 +98,65 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          identifier: trimmedIdentifier,
-          password,
-        }),
-      });
+      // 1. Firebase Auth Sign-in
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        trimmedIdentifier,
+        password
+      );
+      const user = userCredential.user;
 
-      const data: LoginSuccessPayload & LoginErrorPayload =
-        await response.json();
+      // 2. Kuhanin ang user profile/role sa Firestore
+      let userRole: UserRole = "user";
+      let username = user.email?.split("@")[0] || "User";
 
-      if (!response.ok) {
-        setError(data.error || "Login failed. Please check your credentials.");
-        return;
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (
+            data.role &&
+            (data.role === "admin" || data.role === "business" || data.role === "user")
+          ) {
+            userRole = data.role as UserRole;
+          }
+          if (data.fullName) {
+            username = data.fullName;
+          }
+        }
+      } catch (firestoreErr) {
+        console.warn("Could not fetch user profile from Firestore:", firestoreErr);
       }
 
-      storeSession(remember, data);
+      const idToken = await user.getIdToken();
 
-      /*
-        Route based on whatever role the backend says this account is —
-        admin, business owner, or a regular user. No manual tab needed.
-      */
-      const destination = ROLE_REDIRECTS[data.role] ?? "/";
+      storeSession(remember, {
+        token: idToken,
+        username: username,
+        role: userRole,
+      });
+
+      // 3. I-redirect ang user depende sa kanyang role
+      const destination = ROLE_REDIRECTS[userRole] ?? "/";
       router.push(destination);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Sign in error:", err);
 
-      setError("Cannot connect to the server. Make sure the API is running.");
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
+      ) {
+        setError("Invalid email or password. Please try again.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else {
+        setError("Failed to sign in. Please check your internet connection.");
+      }
     } finally {
       setLoading(false);
     }
@@ -158,11 +165,9 @@ const LoginPage: React.FC = () => {
   const handleGuestSignIn = (): void => {
     setGuestLoading(true);
 
-    // Store guest session
     sessionStorage.setItem("mycalinan_guest", "true");
     sessionStorage.setItem("mycalinan_guest_name", "Guest");
 
-    // Small delay for a natural loading experience
     setTimeout(() => {
       router.push("/");
     }, 500);
@@ -177,7 +182,10 @@ const LoginPage: React.FC = () => {
       <div className="login-page-card">
         {/* LOGO SECTION */}
         <div className="login-page-logo-section">
-            <img src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCALINAN%20LOGO.png?alt=media&token=42cb2f15-375c-4975-a8ce-591018ceb036" alt="MyCalinan Logo" />
+          <img
+            src="https://firebasestorage.googleapis.com/v0/b/mycalinan.firebasestorage.app/o/Logo%2FCALINAN%20LOGO.png?alt=media&token=42cb2f15-375c-4975-a8ce-591018ceb036"
+            alt="MyCalinan Logo"
+          />
           <h1>MyCalinan</h1>
           <p>
             {mode === "signin"
@@ -225,13 +233,13 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className="login-page-input-group">
-              <label htmlFor="identifier">Username or Email</label>
+              <label htmlFor="identifier">Email Address</label>
 
               <input
-                type="text"
+                type="email"
                 id="identifier"
-                placeholder="Enter username or email"
-                autoComplete="username"
+                placeholder="Enter email address"
+                autoComplete="email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
@@ -283,13 +291,13 @@ const LoginPage: React.FC = () => {
             </button>
 
             <div className="login-page-footer-text">
-              Works for administrator, business, and personal accounts.
-              <div className="login-page-footer-text">
-  <span>New user? </span>
-  <a href="/signup" style={{ fontWeight: 'bold', color: '#1b4332' }}>
-    Sign Up
-  </a>
-</div>
+              <p className="mb-1">Works for administrator, business, and personal accounts.</p>
+              <div>
+                <span>New user? </span>
+                <Link href="/signup" style={{ fontWeight: "bold", color: "#1b4332" }}>
+                  Sign Up
+                </Link>
+              </div>
             </div>
           </form>
         )}
