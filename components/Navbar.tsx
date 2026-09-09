@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../lib/Firebase"; // Baguhin ang path kung iba ang kinalalagyan ng Firebase.ts (e.g., "@/lib/Firebase")
 
 const EXPLORE_LINKS = [
-  // ✅ href must be a URL path (what you'd type in the browser),
-  // NOT a file path in your project. This matches your folder at
-  // app/explore/HealthCare/page.tsx -> served at /explore/HealthCare
   { label: "Health", href: "/explore/HealthCare" },
   { label: "Education", href: "/explore/Education" },
   { label: "Transport & Utilities", href: "/explore/Transportation" },
@@ -28,10 +29,6 @@ const DOCUMENT_LINKS = [
 
 const DIRECT_LINKS = [
   { label: "Barangay Map", href: "/map" },
-  // app/others/History/page.tsx -> served at /others/History.
-  // Must start with "/" — without it, Next.js's <Link> treats the
-  // href as relative to the CURRENT page instead of the site root,
-  // so it only worked by coincidence when clicked from "/".
   { label: "History", href: "/others/History" },
   { label: "Hotlines", href: "/others/Hotlines" },
   { label: "Announcements", href: "/others/Announcements" },
@@ -79,7 +76,56 @@ function NavDropdown({
 }
 
 export default function Navbar() {
+  const router = useRouter();
   const [lang, setLang] = useState<"en" | "ceb">("en");
+  const [userName, setUserName] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Monitoring ng Auth State at Pagkuha ng Profile Data
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists() && userDoc.data().fullName) {
+            setUserName(userDoc.data().fullName);
+          } else {
+            setUserName(user.displayName || user.email?.split("@")[0] || "User");
+          }
+        } catch (err) {
+          console.error("Error fetching user name:", err);
+          setUserName(user.email?.split("@")[0] || "User");
+        }
+      } else {
+        const isGuest = sessionStorage.getItem("mycalinan_guest") === "true";
+        if (isGuest) {
+          setUserName("Guest");
+        } else {
+          setUserName(null);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Handler para sa Sign Out
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem("mycalinan_token");
+      localStorage.removeItem("mycalinan_username");
+      localStorage.removeItem("mycalinan_role");
+      sessionStorage.clear();
+      setUserName(null);
+      router.push("/login");
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50">
@@ -109,13 +155,30 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <div className="justify-self-end">
-          <Link
-            href="/login"
-            className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
-          >
-            Login
-          </Link>
+        {/* User Profile & Auth Button Area */}
+        <div className="justify-self-end flex items-center gap-3">
+          {loading ? (
+            <span className="text-xs text-white/70">Loading...</span>
+          ) : userName ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-white">
+                Hello, <strong className="font-semibold text-durian-400">{userName}</strong>
+              </span>
+              <button
+                onClick={handleLogout}
+                className="rounded-full bg-red-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
+            >
+              Login
+            </Link>
+          )}
         </div>
       </div>
 
