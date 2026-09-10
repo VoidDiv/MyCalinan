@@ -20,7 +20,7 @@ type AuthMode = "signin" | "guest";
 /**
  * Hardcoded default admin account for local testing/demo purposes.
  */
-const DEFAULT_ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_USERNAME = "mycalinanadmin@gmail.com";
 const DEFAULT_ADMIN_PASSWORD = "@admin1906";
 
 /**
