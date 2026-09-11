@@ -11,7 +11,7 @@ type FeedItem = {
 };
 
 // Shown until the real API responds (or if it's unavailable), so the
-// section never renders empty during local dev or the Firebase migration.
+// section never renders empty during local dev.
 const SAMPLE_ANNOUNCEMENTS: FeedItem[] = [
   {
     title: "Barangay clinic free check-up day",
@@ -42,7 +42,8 @@ function useFeed(endpoint: string, fallback: FeedItem[]) {
   useEffect(() => {
     let cancelled = false;
 
-    // TODO: point this at the Firebase-backed API once that migration lands.
+    // Relative path — this now hits Next.js's own app/api route
+    // (Firestore-backed), not a separate server.
     fetch(endpoint)
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: FeedItem[]) => {
