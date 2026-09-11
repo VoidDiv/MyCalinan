@@ -1,28 +1,37 @@
 "use client";
 import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../../lib/Firebase";
+
+type UserRole = "admin" | "user";
 
 interface LoginSuccessPayload {
+  uid: string;
   token: string;
   username: string;
-  role: string;
+  role: UserRole;
 }
 
-interface LoginErrorPayload {
-  error?: string;
-}
+type AuthMode = "signin" | "guest";
 
-const API_BASE_URL: string = "http://localhost:5000";
-
-type AuthMode = "admin" | "guest";
-
+/**
+ * Where each role lands after a successful sign in.
+ * "user" role = business owner accounts.
+ */
+const ROLE_REDIRECTS: Record<UserRole, string> = {
+  admin: "/adminpage/AdminDashboard",
+  user: "/",
+};
 const LoginPage: React.FC = () => {
   const router = useRouter();
 
-  const [mode, setMode] = useState<AuthMode>("admin");
+  const [mode, setMode] = useState<AuthMode>("signin");
 
-  /* ---------------- Admin login state ---------------- */
-  const [username, setUsername] = useState<string>("");
+  /* ---------------- Unified sign-in state ---------------- */
+  const [identifier, setIdentifier] = useState<string>(""); // email
   const [password, setPassword] = useState<string>("");
   const [remember, setRemember] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -38,68 +47,86 @@ const LoginPage: React.FC = () => {
   ): void => {
     const storage: Storage = shouldRemember ? localStorage : sessionStorage;
 
-    storage.setItem("mycalinan_admin_token", payload.token);
-    storage.setItem("mycalinan_admin_username", payload.username);
-    storage.setItem("mycalinan_admin_role", payload.role);
+    storage.setItem("mycalinan_uid", payload.uid);
+    storage.setItem("mycalinan_token", payload.token);
+    storage.setItem("mycalinan_username", payload.username);
+    storage.setItem("mycalinan_role", payload.role);
 
-    /*
-      Clear the opposite storage so an old session
-      does not remain active.
-    */
     const otherStorage: Storage = shouldRemember ? sessionStorage : localStorage;
 
-    otherStorage.removeItem("mycalinan_admin_token");
-    otherStorage.removeItem("mycalinan_admin_username");
-    otherStorage.removeItem("mycalinan_admin_role");
+    otherStorage.removeItem("mycalinan_uid");
+    otherStorage.removeItem("mycalinan_token");
+    otherStorage.removeItem("mycalinan_username");
+    otherStorage.removeItem("mycalinan_role");
   };
 
-  const handleAdminSubmit = async (
+  const handleSignIn = async (
     e: FormEvent<HTMLFormElement>
   ): Promise<void> => {
     e.preventDefault();
-
     setError("");
 
-    const trimmedUsername = username.trim();
+    const trimmedIdentifier = identifier.trim();
 
-    if (!trimmedUsername || !password) {
-      setError("Please enter both username and password.");
+    if (!trimmedIdentifier || !password) {
+      setError("Please enter both your email address and password.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: trimmedUsername,
-          password,
-        }),
-      });
+      // 1. Firebase Auth sign-in
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        trimmedIdentifier,
+        password
+      );
+      const user = userCredential.user;
 
-      const data: LoginSuccessPayload & LoginErrorPayload =
-        await response.json();
+      // 2. Get role + profile info from Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
 
-      if (!response.ok) {
-        setError(data.error || "Login failed. Please try again.");
+      if (!userDoc.exists()) {
+        setError("No profile found for this account. Please contact support.");
+        setLoading(false);
         return;
       }
 
-      storeSession(remember, data);
+      const userData = userDoc.data();
+      const role: UserRole = userData.role === "admin" ? "admin" : "user";
+      const username: string = userData.fullName || user.email?.split("@")[0] || "User";
 
-      /*
-        Redirect to the admin dashboard only after
-        successful authentication.
-      */
-      window.location.href = "Admin-Dashboard.html";
-    } catch (err) {
-      console.error("Admin login error:", err);
+      // Get Firebase ID token — used as the auth token for backend API calls
+      const idToken = await user.getIdToken();
 
-      setError("Cannot connect to the server. Make sure the API is running.");
+      storeSession(remember, {
+        uid: user.uid,
+        token: idToken,
+        username,
+        role,
+      });
+
+      // 3. Redirect based on role
+      const destination = ROLE_REDIRECTS[role] ?? "/";
+      router.push(destination);
+    } catch (err: any) {
+      console.error("Sign in error:", err);
+
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
+      ) {
+        setError("Invalid email or password. Please try again.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else {
+        setError("Cannot connect to the server. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -108,11 +135,9 @@ const LoginPage: React.FC = () => {
   const handleGuestSignIn = (): void => {
     setGuestLoading(true);
 
-    // Store guest session
     sessionStorage.setItem("mycalinan_guest", "true");
     sessionStorage.setItem("mycalinan_guest_name", "Guest");
 
-    // Small delay for a natural loading experience
     setTimeout(() => {
       router.push("/");
     }, 500);
@@ -130,8 +155,8 @@ const LoginPage: React.FC = () => {
           <img src="/image/CALINAN LOGO.png" alt="MyCalinan Logo" />
           <h1>MyCalinan</h1>
           <p>
-            {mode === "admin"
-              ? "Administrator Portal"
+            {mode === "signin"
+              ? "Sign in to your MyCalinan account."
               : "Discover Calinan. Explore. Stay Informed."}
           </p>
         </div>
@@ -141,11 +166,11 @@ const LoginPage: React.FC = () => {
           <button
             type="button"
             role="tab"
-            aria-selected={mode === "admin"}
-            className={mode === "admin" ? "active" : ""}
-            onClick={() => setMode("admin")}
+            aria-selected={mode === "signin"}
+            className={mode === "signin" ? "active" : ""}
+            onClick={() => setMode("signin")}
           >
-            Admin Login
+            Sign In
           </button>
 
           <button
@@ -159,14 +184,14 @@ const LoginPage: React.FC = () => {
           </button>
         </div>
 
-        {/* ---------------- ADMIN LOGIN FORM ---------------- */}
-        {mode === "admin" && (
+        {/* ---------------- UNIFIED SIGN IN FORM ---------------- */}
+        {mode === "signin" && (
           <form
             className="login-page-form"
-            id="admin-login-form"
-            onSubmit={handleAdminSubmit}
+            id="signin-form"
+            onSubmit={handleSignIn}
           >
-            <h2>Admin Login</h2>
+            <h2>Sign In</h2>
 
             {error && (
               <div id="login-error" className="login-page-error" role="alert">
@@ -175,15 +200,15 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className="login-page-input-group">
-              <label htmlFor="username">Username</label>
+              <label htmlFor="identifier">Email Address</label>
 
               <input
-                type="text"
-                id="username"
-                placeholder="Enter username"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                id="identifier"
+                placeholder="Enter email address"
+                autoComplete="email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
               />
             </div>
@@ -233,7 +258,10 @@ const LoginPage: React.FC = () => {
             </button>
 
             <div className="login-page-footer-text">
-              Authorized Administrators Only
+              Works for administrator and business accounts.
+              <br />
+              Don&apos;t have a business account?{" "}
+              <Link href="/signup">Sign up here</Link>
             </div>
           </form>
         )}
@@ -296,7 +324,7 @@ const LoginPage: React.FC = () => {
               <strong>Guest Access</strong>
               <p>
                 Guest access does not require an account. Some features may
-                be available only to authorized administrators.
+                be available only to signed-in accounts.
               </p>
             </div>
           </div>

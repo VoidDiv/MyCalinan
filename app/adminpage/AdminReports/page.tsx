@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Gauge,
@@ -12,14 +13,13 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { db, auth } from '@/lib/Firebase';
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Config
-   ──────────────────────────────────────────────────────────────── */
-
-const ANNOUNCEMENTS_API = 'http://localhost:5000/api/announcements';
-const EVENTS_API = 'http://localhost:5000/api/events';
-const POLL_INTERVAL_MS = 30000;
+   ───────────────────────────────────────────────────────── */
 
 const CATEGORIES = ['General', 'Event', 'Program', 'Advisory', 'Festival'] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -64,9 +64,9 @@ function tally(items: Posting[]): CategoryCounts {
 const sumCounts = (counts: CategoryCounts) =>
   Object.values(counts).reduce((s, n) => s + n, 0);
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Sidebar
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 interface SidebarProps {
   adminName: string;
@@ -75,11 +75,12 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { label: 'Dashboard', href: 'Admin-Dashboard.html', icon: Gauge },
-  { label: 'Home Page', href: 'HomePage.html', icon: Home },
-  { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays },
-  { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
-  { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart, active: true },
+  { label: 'Dashboard', href: '/adminpage/AdminDashboard', icon: Gauge },
+  { label: 'Home Page', href: '/', icon: Home },
+  { label: 'Events & Festivals', href: '/adminpage/AdminEvents', icon: CalendarDays },
+  { label: 'Announcements', href: '/adminpage/AdminAnnouncements', icon: Megaphone },
+  { label: 'Listings', href: '/adminpage/AdminListings', icon: Layers },
+  { label: 'Reports', href: '/adminpage/AdminReports', icon: LineChart, active: true },
 ];
 
 function Sidebar({ adminName, adminRole, onLogoutClick }: SidebarProps) {
@@ -119,9 +120,9 @@ function Sidebar({ adminName, adminRole, onLogoutClick }: SidebarProps) {
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Breakdown panel (bars)
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 function BreakdownPanel({
   title,
@@ -150,7 +151,7 @@ function BreakdownPanel({
           <Loader2 size={16} className="spin" /> Loading…
         </div>
       ) : error ? (
-        <div className="panel-state">⚠️ Cannot connect to server.</div>
+        <div className="panel-state">⚠️ Unable to load data.</div>
       ) : total === 0 ? (
         <div className="panel-state">No data yet.</div>
       ) : (
@@ -177,9 +178,9 @@ function BreakdownPanel({
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Logout confirm modal
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 function LogoutModal({
   open,
@@ -215,9 +216,9 @@ function LogoutModal({
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Main component
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 export default function AdminReports() {
   const [adminName, setAdminName] = useState('Admin');
@@ -230,18 +231,18 @@ export default function AdminReports() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  // Read admin identity + auth token from storage on mount
+  // Firebase Auth state
   useEffect(() => {
-    const readStored = (key: string) =>
-      window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key) || '';
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+      setAuthWarning(!user);
 
-    const token = readStored('mycalinan_admin_token');
-    const username = readStored('mycalinan_admin_username') || 'Admin';
-    const role = readStored('mycalinan_admin_role') || 'admin';
+      if (user) {
+        setAdminName(user.displayName || user.email || 'Admin');
+        setAdminRole('admin');
+      }
+    });
 
-    setAdminName(username);
-    setAdminRole(role);
-    setAuthWarning(!token);
+    return () => unsubscribe();
   }, []);
 
   const loadReport = useCallback(async () => {
@@ -250,18 +251,16 @@ export default function AdminReports() {
     let evtData: Posting[] = [];
 
     try {
-      const res = await fetch(ANNOUNCEMENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      annData = await res.json();
+      const snapshot = await getDocs(collection(db, 'announcements'));
+      annData = snapshot.docs.map((d) => d.data() as Posting);
     } catch (err) {
       console.error('Load announcements error:', err);
       failed = true;
     }
 
     try {
-      const res = await fetch(EVENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      evtData = await res.json();
+      const snapshot = await getDocs(collection(db, 'events'));
+      evtData = snapshot.docs.map((d) => d.data() as Posting);
     } catch (err) {
       console.error('Load events error:', err);
       failed = true;
@@ -275,8 +274,6 @@ export default function AdminReports() {
 
   useEffect(() => {
     loadReport();
-    const id = setInterval(loadReport, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
   }, [loadReport]);
 
   const annCounts = tally(announcements);
@@ -285,11 +282,12 @@ export default function AdminReports() {
   const allTotal = announcements.length + events.length;
 
   const handleLogout = () => {
-    ['mycalinan_admin_token', 'mycalinan_admin_username', 'mycalinan_admin_role'].forEach((key) => {
+    auth.signOut();
+    ['mycalinan_uid', 'mycalinan_token', 'mycalinan_username', 'mycalinan_role'].forEach((key) => {
       window.localStorage?.removeItem(key);
       window.sessionStorage?.removeItem(key);
     });
-    window.location.href = 'Admin-login.html';
+    window.location.href = '/login';
   };
 
   return (
@@ -307,7 +305,6 @@ export default function AdminReports() {
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* ── Sidebar ── */
         .sidebar {
           width: 240px;
           background: #1a5c38;
@@ -340,7 +337,7 @@ export default function AdminReports() {
         .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
 
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0; }
+        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0;}
         .sidebar .menu li a {
           display: flex; align-items: center; gap: 12px;
           padding: 12px 24px;
@@ -367,7 +364,6 @@ export default function AdminReports() {
         }
         .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
 
-        /* ── Main content ── */
         .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
 
         .header {
@@ -397,7 +393,6 @@ export default function AdminReports() {
         }
         .auth-warning a { color: #6b5200; font-weight: 600; }
 
-        /* ── Stats ── */
         .stats {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -411,7 +406,6 @@ export default function AdminReports() {
         .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
         .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
 
-        /* ── Report panels ── */
         .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
         .panel { background: #fff; border-radius: 12px; padding: 26px 28px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
         .panel h2 {
@@ -432,7 +426,6 @@ export default function AdminReports() {
           display: flex; align-items: center; justify-content: center; gap: 8px;
         }
 
-        /* ── Table panel ── */
         .table-section { background: #fff; border-radius: 12px; padding: 26px 28px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
         .table-section h2 {
           font-size: 1rem; font-weight: 700; color: #1a3d28;
@@ -440,17 +433,16 @@ export default function AdminReports() {
         }
         table { width: 100%; border-collapse: collapse; font-size: .86rem; }
         thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
+        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid#e8f0ec; vertical-align: top; }
         th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
         tbody tr:hover td { background: #f9fdfb; }
         td.num { text-align: right; font-weight: 600; color: #1a3d28; }
         .table-state td { text-align: center; padding: 40px; color: #888; }
         .total-row { background: #f4faf6; }
 
-        /* ── Logout modal ── */
         .modal-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: flex; align-items: center; justify-content: center; z-index: 8000;
+          display: flex; align-items: center; justify-content: center; z-index:8000;
         }
         .modal-box {
           background: #fff; border-radius: 14px; padding: 30px 32px;
@@ -495,7 +487,7 @@ export default function AdminReports() {
         {authWarning && (
           <div className="auth-warning">
             <AlertTriangle size={16} />
-            You are not logged in. <a href="Admin-login.html">Click here to log in</a>.
+            You are not logged in. <a href="/login">Click here to log in</a>.
           </div>
         )}
 
@@ -573,7 +565,7 @@ export default function AdminReports() {
                 </tr>
               ) : loadError ? (
                 <tr className="table-state">
-                  <td colSpan={4}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
+                  <td colSpan={4}>⚠️ Unable to load report. Check your connection and try again.</td>
                 </tr>
               ) : (
                 <>
@@ -606,5 +598,3 @@ export default function AdminReports() {
     </div>
   );
 }
-
-

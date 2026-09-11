@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { db } from "@/lib/Firebase";
 
 interface EventItem {
   id?: string | number;
@@ -13,8 +15,6 @@ interface EventItem {
   location?: string;
   description?: string;
 }
-
-const API_URL = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000"}/api/events`;
 
 function getCategoryClass(category?: string): string {
   const c = (category || "").toLowerCase();
@@ -36,15 +36,16 @@ export default function EventsPage() {
     try {
       setError(false);
 
-      const response = await fetch(API_URL);
+      const eventsRef = collection(db, "events");
+      const q = query(eventsRef, orderBy("date", "desc"));
+      const snapshot = await getDocs(q);
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
+      const data: EventItem[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-      const data: EventItem[] = await response.json();
-
-      setEvents(Array.isArray(data) ? data : []);
+      setEvents(data);
     } catch (err) {
       console.error("Failed to load events:", err);
       setError(true);
@@ -56,14 +57,6 @@ export default function EventsPage() {
 
   useEffect(() => {
     loadEvents();
-
-    const interval = window.setInterval(() => {
-      loadEvents();
-    }, 30000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
   }, []);
 
   const eventCount = events.filter((item) =>
@@ -127,9 +120,7 @@ export default function EventsPage() {
             </div>
           ) : error ? (
             <div className="events-empty">
-              ⚠️ Unable to load events.
-              <br />
-              Make sure Flask is running on port 5000.
+              ⚠️ Unable to load events. Please try again later.
             </div>
           ) : events.length === 0 ? (
             <div className="events-empty">No events available.</div>

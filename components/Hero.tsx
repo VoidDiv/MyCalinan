@@ -21,7 +21,7 @@ export default function Hero() {
 
         <h1 className="font-display text-[2.75rem] font-semibold leading-[1.05] text-canopy-950 sm:text-6xl">
           <br />
-          <em className="text-durian-500 not-italic">durian, banana,</em> and
+          <em className="text-durian-500 not-italic">Duurian, Banana,</em> and
           <br />
           Bagobo roots.
         </h1>

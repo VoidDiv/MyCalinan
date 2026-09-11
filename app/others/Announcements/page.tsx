@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { db } from "@/lib/Firebase";
 
 interface AnnouncementItem {
   _id?: string;
@@ -11,8 +13,6 @@ interface AnnouncementItem {
   image?: string;
   description?: string;
 }
-
-const PUBLIC_API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000"}/api/announcements`;
 
 export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -28,20 +28,21 @@ export default function AnnouncementPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(PUBLIC_API);
+      const announcementsRef = collection(db, "announcements");
+      const q = query(announcementsRef, orderBy("date", "desc"));
+      const snapshot = await getDocs(q);
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
+      const data: AnnouncementItem[] = snapshot.docs.map((doc) => ({
+        _id: doc.id,
+        ...doc.data(),
+      }));
 
-      const data: AnnouncementItem[] = await response.json();
-
-      setAnnouncements(Array.isArray(data) ? data : []);
+      setAnnouncements(data);
     } catch (err) {
       console.error("Failed to load announcements:", err);
 
       setError(
-        "Unable to load announcements. Please make sure the server is running."
+        "Unable to load announcements. Please try again later."
       );
     } finally {
       setLoading(false);
@@ -87,16 +88,14 @@ export default function AnnouncementPage() {
     <div className="announcement-page">
       <header className="announcement-header">
         <Link href="/" className="announcement-back-btn">
-          ← Back to Home
+          ← Back
         </Link>
-
-        <h1>📢 Community Announcements</h1>
+        <h1>Community Announcements</h1>
       </header>
 
-      <main className="announcement-container">
+      <main className="announcement-main">
         {loading && (
           <div className="announcement-state loading">
-            <div className="spinner"></div>
             <p>Loading announcements...</p>
           </div>
         )}

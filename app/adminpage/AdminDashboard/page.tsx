@@ -1,7 +1,18 @@
-
-
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/Firebase";
 
 /* ── Types ── */
 interface Posting {
@@ -13,26 +24,38 @@ interface Posting {
   description?: string;
 }
 
+interface BusinessSubmission {
+  id: string;
+  username?: string;
+  ownerFullName?: string;
+  businessName?: string;
+  businessType?: string;
+  yearOperating?: string;
+  establishmentPictureUrl?: string;
+  registrationStatus?: string;
+  submittedAt?: { toDate?: () => Date } | null;
+}
+
 /* ── Same public read endpoints used by the Announcements and Events admin pages. ── */
-const ANNOUNCEMENTS_API = "http://localhost:5000/api/announcements";
-const EVENTS_API = "http://localhost:5000/api/events";
+const ANNOUNCEMENTS_API = "/api/announcements";
+const EVENTS_API = "/api/events";
 
 function getToken(): string {
   return (
-    localStorage.getItem("mycalinan_admin_token") ||
-    sessionStorage.getItem("mycalinan_admin_token") ||
+    localStorage.getItem("mycalinan_token") ||
+    sessionStorage.getItem("mycalinan_token") ||
     ""
   );
 }
 
 function getStoredAdmin() {
   const username =
-    localStorage.getItem("mycalinan_admin_username") ||
-    sessionStorage.getItem("mycalinan_admin_username") ||
+    localStorage.getItem("mycalinan_username") ||
+    sessionStorage.getItem("mycalinan_username") ||
     "Admin";
   const role =
-    localStorage.getItem("mycalinan_admin_role") ||
-    sessionStorage.getItem("mycalinan_admin_role") ||
+    localStorage.getItem("mycalinan_role") ||
+    sessionStorage.getItem("mycalinan_role") ||
     "admin";
   return { username, role };
 }
@@ -107,6 +130,65 @@ function RecentList({
   );
 }
 
+/* ── Pending business submissions panel (real-time) ── */
+function BusinessApprovalPanel({
+  items,
+  onApprove,
+  onReject,
+  actioningId,
+}: {
+  items: BusinessSubmission[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  actioningId: string | null;
+}) {
+  if (!items || items.length === 0) {
+    return <div style={styles.panelState}>No pending business submissions.</div>;
+  }
+
+  return (
+    <>
+      {items.map((biz, idx) => (
+        <div
+          key={biz.id}
+          style={{
+            ...styles.itemRow,
+            borderBottom: idx === items.length - 1 ? "none" : "1px solid #f0f4f0",
+          }}
+        >
+          {biz.establishmentPictureUrl ? (
+            <img src={biz.establishmentPictureUrl} alt="" style={styles.itemThumb} />
+          ) : (
+            <div style={styles.itemThumb} />
+          )}
+          <div style={styles.itemBody}>
+            <div style={styles.itemTitle}>{biz.businessName || "—"}</div>
+            <div style={styles.itemMeta}>
+              {biz.ownerFullName || biz.username} • {biz.businessType || "—"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button
+              style={styles.approveBtn}
+              disabled={actioningId === biz.id}
+              onClick={() => onApprove(biz.id)}
+            >
+              {actioningId === biz.id ? "..." : "Approve"}
+            </button>
+            <button
+              style={styles.rejectBtn}
+              disabled={actioningId === biz.id}
+              onClick={() => onReject(biz.id)}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 /* ── Logout confirm modal ── */
 function LogoutModal({
   open,
@@ -146,6 +228,8 @@ function LogoutModal({
 
 /* ── Main component ── */
 export default function AdminDashboard() {
+  const router = useRouter();
+
   const [admin, setAdmin] = useState({ username: "Admin", role: "admin" });
   const [authed, setAuthed] = useState(true);
   const [announcements, setAnnouncements] = useState<Posting[]>([]);
@@ -154,10 +238,25 @@ export default function AdminDashboard() {
   const [eventsFailed, setEventsFailed] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
+  /* ── Pending business submissions (real-time) ── */
+  const [pendingBusinesses, setPendingBusinesses] = useState<BusinessSubmission[]>([]);
+  const [businessesFailed, setBusinessesFailed] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+
   useEffect(() => {
+    const role =
+      localStorage.getItem("mycalinan_role") ||
+      sessionStorage.getItem("mycalinan_role");
+    const token = getToken();
+
+    if (!token || role !== "admin") {
+      router.push("/login");
+      return;
+    }
+
     setAdmin(getStoredAdmin());
-    setAuthed(!!getToken());
-  }, []);
+    setAuthed(true);
+  }, [router]);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -189,14 +288,71 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, [loadDashboard]);
 
+  /* ── Real-time listener for pending business submissions ── */
+  useEffect(() => {
+    const q = query(
+      collection(db, "businesses"),
+      where("registrationStatus", "==", "pending"),
+      orderBy("submittedAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items: BusinessSubmission[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        setPendingBusinesses(items);
+        setBusinessesFailed(false);
+      },
+      (err) => {
+        console.error("Pending businesses listener error:", err);
+        setBusinessesFailed(true);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  async function handleApprove(id: string) {
+    setActioningId(id);
+    try {
+      await updateDoc(doc(db, "businesses", id), {
+        registrationStatus: "approved",
+        reviewedAt: new Date(),
+      });
+    } catch (err) {
+      console.error("Approve error:", err);
+      alert("Failed to approve. Please try again.");
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  async function handleReject(id: string) {
+    setActioningId(id);
+    try {
+      await updateDoc(doc(db, "businesses", id), {
+        registrationStatus: "rejected",
+        reviewedAt: new Date(),
+      });
+    } catch (err) {
+      console.error("Reject error:", err);
+      alert("Failed to reject. Please try again.");
+    } finally {
+      setActioningId(null);
+    }
+  }
+
   function doLogout() {
-    localStorage.removeItem("mycalinan_admin_token");
-    localStorage.removeItem("mycalinan_admin_username");
-    localStorage.removeItem("mycalinan_admin_role");
-    sessionStorage.removeItem("mycalinan_admin_token");
-    sessionStorage.removeItem("mycalinan_admin_username");
-    sessionStorage.removeItem("mycalinan_admin_role");
-    window.location.href = "Admin-login.html";
+    localStorage.removeItem("mycalinan_token");
+    localStorage.removeItem("mycalinan_username");
+    localStorage.removeItem("mycalinan_role");
+    sessionStorage.removeItem("mycalinan_token");
+    sessionStorage.removeItem("mycalinan_username");
+    sessionStorage.removeItem("mycalinan_role");
+    router.push("/login");
   }
 
   const bothFailed = announcementsFailed && eventsFailed;
@@ -208,6 +364,7 @@ export default function AdminDashboard() {
       ? "—"
       : (announcementsFailed ? 0 : countByCategory(announcements, "advisory")) +
         (eventsFailed ? 0 : countByCategory(events, "advisory"));
+  const pendingTotal = businessesFailed ? "—" : pendingBusinesses.length;
 
   return (
     <div style={styles.body}>
@@ -228,29 +385,34 @@ export default function AdminDashboard() {
 
         <ul style={styles.menu}>
           <li>
-            <a href="Admin-Dashboard.html" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
+            <Link href="/adminpage/AdminDashboard" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
               <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
-            </a>
+            </Link>
           </li>
           <li>
-            <a href="HomePage.html" style={styles.menuLink}>
+            <Link href="/" style={styles.menuLink}>
               <i className="fas fa-home" style={styles.menuIcon} /> Home Page
-            </a>
+            </Link>
           </li>
           <li>
-            <a href="Admin-Events.html" style={styles.menuLink}>
+            <Link href="/adminpage/AdminEvents" style={styles.menuLink}>
               <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
-            </a>
+            </Link>
           </li>
           <li>
-            <a href="Admin-Announcements.html" style={styles.menuLink}>
+            <Link href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
               <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
-            </a>
+            </Link>
           </li>
           <li>
-            <a href="Admin-Reports.html" style={styles.menuLink}>
+            <Link href="/adminpage/AdminListings" style={styles.menuLink}>
+              <i className="fas fa-list" style={styles.menuIcon} /> Listings
+            </Link>
+          </li>
+          <li>
+            <Link href="/adminpage/AdminReports" style={styles.menuLink}>
               <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
-            </a>
+            </Link>
           </li>
         </ul>
 
@@ -266,7 +428,7 @@ export default function AdminDashboard() {
         {!authed && (
           <div style={styles.authWarning}>
             <i className="fas fa-exclamation-triangle" /> You are not logged in.{" "}
-            <a href="Admin-login.html">Click here to log in</a>.
+            <Link href="/login">Click here to log in</Link>.
           </div>
         )}
 
@@ -276,12 +438,12 @@ export default function AdminDashboard() {
             Dashboard
           </h1>
           <div style={{ display: "flex", gap: 10 }}>
-            <a href="Admin-Events.html" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
+            <Link href="/adminpage/AdminEvents" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
               <i className="fas fa-plus" /> Add Event
-            </a>
-            <a href="Admin-Announcements.html" style={styles.addBtn}>
+            </Link>
+            <Link href="/adminpage/AdminAnnouncements" style={styles.addBtn}>
               <i className="fas fa-plus" /> Add Announcement
-            </a>
+            </Link>
           </div>
         </div>
         <p style={styles.subtitle}>
@@ -310,7 +472,31 @@ export default function AdminDashboard() {
             <h2 style={styles.statH2}>{advTotal}</h2>
             <p style={styles.statP}>Advisories</p>
           </div>
+          <div style={styles.statCard}>
+            <i className="fas fa-store" style={styles.statIcon} />
+            <h2 style={styles.statH2}>{pendingTotal}</h2>
+            <p style={styles.statP}>Pending Businesses</p>
+          </div>
         </div>
+
+        {/* Business approval panel (real-time) */}
+        <section style={{ ...styles.panel, marginBottom: 24 }}>
+          <div style={styles.panelHead}>
+            <h2 style={styles.panelH2}>
+              <i className="fas fa-store" style={{ color: "#1a5c38", marginRight: 6 }} />
+              Pending Business Approvals
+            </h2>
+            <span style={styles.panelHeadLink}>
+              {businessesFailed ? "⚠️ Connection error" : "Live"}
+            </span>
+          </div>
+          <BusinessApprovalPanel
+            items={pendingBusinesses}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            actioningId={actioningId}
+          />
+        </section>
 
         {/* Recent panels */}
         <div style={styles.panels}>
@@ -320,9 +506,9 @@ export default function AdminDashboard() {
                 <i className="fas fa-bullhorn" style={{ color: "#1a5c38", marginRight: 6 }} />
                 Recent Announcements
               </h2>
-              <a href="Admin-Announcements.html" style={styles.panelHeadLink}>
+              <Link href="/adminpage/AdminAnnouncements" style={styles.panelHeadLink}>
                 Manage all &rarr;
-              </a>
+              </Link>
             </div>
             <RecentList
               items={announcements}
@@ -337,9 +523,9 @@ export default function AdminDashboard() {
                 <i className="fas fa-calendar-alt" style={{ color: "#1a5c38", marginRight: 6 }} />
                 Recent Events &amp; Festivals
               </h2>
-              <a href="Admin-Events.html" style={styles.panelHeadLink}>
+              <Link href="/adminpage/AdminEvents" style={styles.panelHeadLink}>
                 Manage all &rarr;
-              </a>
+              </Link>
             </div>
             <RecentList items={events} failed={eventsFailed} emptyLabel="No events yet." />
           </section>
@@ -516,6 +702,26 @@ const styles: Record<string, React.CSSProperties> = {
   itemMeta: { fontSize: ".75rem", color: "#888", marginTop: 2 },
   tag: { display: "inline-block", padding: "3px 11px", borderRadius: 20, fontSize: ".72rem", fontWeight: 700, flexShrink: 0 },
   panelState: { textAlign: "center", padding: "30px 10px", color: "#888", fontSize: ".86rem" },
+  approveBtn: {
+    padding: "7px 16px",
+    borderRadius: 8,
+    fontSize: ".8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    border: "none",
+    background: "#1a5c38",
+    color: "#fff",
+  },
+  rejectBtn: {
+    padding: "7px 16px",
+    borderRadius: 8,
+    fontSize: ".8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    border: "1px solid #e74c3c",
+    background: "#fff",
+    color: "#e74c3c",
+  },
   modalOverlay: {
     position: "fixed",
     inset: 0,
@@ -557,6 +763,3 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
   },
 };
-
-
-

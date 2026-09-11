@@ -1,10 +1,3 @@
-// next.config.js
-module.exports = {
-  images: {
-    domains: ["storage.googleapis.com"],
-  },
-};
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -12,6 +5,10 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "storage.googleapis.com",
+      },
+      {
+        protocol: "https",
+        hostname: "firebasestorage.googleapis.com",
       },
     ],
   },

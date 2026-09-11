@@ -1,5 +1,7 @@
+"use client";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Gauge,
   Home,
   CalendarDays,
   Megaphone,
@@ -15,22 +17,27 @@ import {
   AlertCircle,
   Loader2,
   CalendarClock,
+  Layers,
 } from 'lucide-react';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { db, auth } from '@/lib/Firebase';
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Config
-   ──────────────────────────────────────────────────────────────── */
-
-/* Public GET lives at /api/events.
-   Admin create/update/delete live under /api/admin/events.
-   These mirror the Announcements routes — matching Flask routes should
-   already exist in app.py for a separate "events" collection. */
-const PUBLIC_API = 'http://localhost:5000/api/events';
-const ADMIN_API = 'http://localhost:5000/api/admin/events';
-const POLL_INTERVAL_MS = 30000;
+   ───────────────────────────────────────────────────────── */
 
 const CATEGORY_OPTIONS = ['General', 'Event', 'Program', 'Advisory', 'Festival'] as const;
-type CategoryOption = (typeof CATEGORY_OPTIONS)[number];
 
 interface EventItem {
   _id?: string;
@@ -68,15 +75,17 @@ function tagClass(category?: string) {
   return 'tag';
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Sidebar
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 const menuItems = [
-  { label: 'Home Page', href: 'HomePage.html', icon: Home },
-  { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays, active: true },
-  { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
-  { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart },
+  { label: 'Dashboard', href: '/adminpage/AdminDashboard', icon: Gauge },
+  { label: 'Home Page', href: '/', icon: Home },
+  { label: 'Events & Festivals', href: '/adminpage/AdminEvents', icon: CalendarDays, active: true },
+  { label: 'Announcements', href: '/adminpage/AdminAnnouncements', icon: Megaphone },
+  { label: 'Listings', href: '/adminpage/AdminListings', icon: Layers },
+  { label: 'Reports', href: '/adminpage/AdminReports', icon: LineChart },
 ];
 
 function Sidebar({
@@ -124,9 +133,9 @@ function Sidebar({
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Toast
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 interface ToastState {
   message: string;
@@ -142,9 +151,9 @@ function Toast({ toast }: { toast: ToastState | null }) {
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Modals
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 function DeleteModal({
   open,
@@ -204,14 +213,15 @@ function LogoutModal({
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────
    Main component
-   ──────────────────────────────────────────────────────────────── */
+   ───────────────────────────────────────────────────────── */
 
 export default function AdminEvents() {
   const [adminName, setAdminName] = useState('Admin');
   const [adminRole, setAdminRole] = useState('admin');
   const [authWarning, setAuthWarning] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,47 +239,49 @@ export default function AdminEvents() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const formOpenRef = useRef(formOpen);
-  formOpenRef.current = formOpen;
-
-  const getToken = () =>
-    window.localStorage?.getItem('mycalinan_admin_token') ||
-    window.sessionStorage?.getItem('mycalinan_admin_token') ||
-    '';
-
-  const authHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${getToken()}`,
-  });
-
   const showToast = (message: string, isError = false) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, isError });
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
-  // Read admin identity + auth token from storage on mount
+  // Firebase Auth state — matches the security rules' isAdmin() check
   useEffect(() => {
-    const readStored = (key: string) =>
-      window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key) || '';
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthWarning(!user);
 
-    const token = readStored('mycalinan_admin_token');
-    setAdminName(readStored('mycalinan_admin_username') || 'Admin');
-    setAdminRole(readStored('mycalinan_admin_role') || 'admin');
-    setAuthWarning(!token);
+      if (user) {
+        setAdminName(user.displayName || user.email || 'Admin');
+        setAdminRole('admin');
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loadEvents = useCallback(async () => {
     try {
-      const res = await fetch(PUBLIC_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
+      setLoading(true);
+      const eventsRef = collection(db, 'events');
+      const q = query(eventsRef, orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+
+      const data: EventItem[] = snapshot.docs.map((d) => ({
+        _id: d.id,
+        title: d.data().title || '',
+        date: d.data().date || '',
+        category: d.data().category || 'General',
+        image: d.data().image || '',
+        description: d.data().description || '',
+      }));
+
       setEvents(data);
       setLoadError(false);
     } catch (err) {
       console.error('Load events error:', err);
       setLoadError(true);
-      showToast('Server unreachable', true);
+      showToast('Unable to load events from Firestore.', true);
     } finally {
       setLoading(false);
     }
@@ -277,12 +289,6 @@ export default function AdminEvents() {
 
   useEffect(() => {
     loadEvents();
-    const id = setInterval(() => {
-      // Skip the periodic refresh while the form is open so it can't wipe
-      // out an in-progress create/edit.
-      if (!formOpenRef.current) loadEvents();
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
   }, [loadEvents]);
 
   const stats = (() => {
@@ -321,17 +327,8 @@ export default function AdminEvents() {
 
   const hideForm = () => setFormOpen(false);
 
-  const checkAuth = () => {
-    const token = getToken();
-    if (!token) {
-      setAuthWarning(true);
-      return false;
-    }
-    return true;
-  };
-
   const handleSave = async () => {
-    if (!checkAuth()) {
+    if (!currentUser) {
       showToast('Please log in first.', true);
       return;
     }
@@ -345,42 +342,36 @@ export default function AdminEvents() {
     }
 
     const isEdit = form.editId !== '';
-    const url = isEdit ? `${ADMIN_API}/${form.editId}` : ADMIN_API;
-    const method = isEdit ? 'PUT' : 'POST';
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: authHeaders(),
-        body: JSON.stringify({
-          title,
-          date: form.date.trim(),
-          category: form.category,
-          image: form.image.trim(),
-          description,
-        }),
-      });
+      const payload = {
+        title,
+        date: form.date.trim(),
+        category: form.category,
+        image: form.image.trim(),
+        description,
+        updatedAt: serverTimestamp(),
+      };
 
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to save event.', true);
-        return;
+      if (isEdit) {
+        await updateDoc(doc(db, 'events', form.editId), payload);
+      } else {
+        await addDoc(collection(db, 'events'), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
       }
 
       showToast(isEdit ? '✅ Event updated!' : '✅ Event created!');
       hideForm();
       loadEvents();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      if (err?.code === 'permission-denied') {
+        showToast('Permission denied. Admin access required.', true);
+      } else {
+        showToast('Failed to save event.', true);
+      }
     }
   };
 
@@ -399,51 +390,38 @@ export default function AdminEvents() {
     const id = pendingDeleteId;
     closeDeleteModal();
 
-    if (!checkAuth()) {
+    if (!currentUser) {
       showToast('Please log in first.', true);
       return;
     }
 
     try {
-      const res = await fetch(`${ADMIN_API}/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to delete event.', true);
-        return;
-      }
-
+      await deleteDoc(doc(db, 'events', id));
       showToast('🗑️ Event deleted.');
       loadEvents();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      if (err?.code === 'permission-denied') {
+        showToast('Permission denied. Admin access required.', true);
+      } else {
+        showToast('Failed to delete event.', true);
+      }
     }
   };
 
   const handleLogout = () => {
-    ['mycalinan_admin_token', 'mycalinan_admin_username', 'mycalinan_admin_role'].forEach((key) => {
+    auth.signOut();
+    ['mycalinan_uid', 'mycalinan_token', 'mycalinan_username', 'mycalinan_role'].forEach((key) => {
       window.localStorage?.removeItem(key);
       window.sessionStorage?.removeItem(key);
     });
-    window.location.href = 'Admin-login.html';
+    window.location.href = '/login';
   };
 
   return (
     <div className="admin-events-root">
       <style>{`
-        .admin-events-root, .admin-events-root *, .admin-events-root *::before, .admin-events-root *::after {
+        .admin-events-root, .admin-events-root *, .admin-events-root *::before,.admin-events-root *::after {
           box-sizing: border-box;
         }
         .admin-events-root {
@@ -456,7 +434,6 @@ export default function AdminEvents() {
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* ── Sidebar ── */
         .sidebar {
           width: 240px; background: #1a5c38; color: #fff;
           display: flex; flex-direction: column; min-height: 100vh;
@@ -480,7 +457,7 @@ export default function AdminEvents() {
         .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
 
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0; }
+        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0;}
         .sidebar .menu li a {
           display: flex; align-items: center; gap: 12px; padding: 12px 24px;
           color: rgba(255,255,255,.82); text-decoration: none; font-size: .88rem;
@@ -498,7 +475,6 @@ export default function AdminEvents() {
         }
         .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
 
-        /* ── Main content ── */
         .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
 
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
@@ -511,17 +487,15 @@ export default function AdminEvents() {
         }
         .add-btn:hover { background: #145029; }
 
-        /* ── Stats ── */
         .stats {
           display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 18px; margin-bottom: 28px;
         }
-        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px;text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
         .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
         .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
         .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
 
-        /* ── Auth warning ── */
         .auth-warning {
           background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;
           padding: 14px 20px; margin-bottom: 22px; font-size: .88rem; color: #856404;
@@ -529,7 +503,6 @@ export default function AdminEvents() {
         }
         .auth-warning a { color: #6b5200; font-weight: 600; }
 
-        /* ── Form section ── */
         .form-section, .table-section {
           background: #fff; border-radius: 12px; padding: 26px 28px;
           box-shadow: 0 2px 10px rgba(0,0,0,.07); margin-bottom: 28px;
@@ -561,7 +534,6 @@ export default function AdminEvents() {
         .save-btn.grey { background: #888; }
         .save-btn.grey:hover { background: #666; }
 
-        /* ── Toast ── */
         .toast {
           position: fixed; top: 20px; right: 24px; background: #1a5c38; color: #fff;
           padding: 12px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600;
@@ -569,10 +541,9 @@ export default function AdminEvents() {
         }
         @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-        /* ── Modals ── */
         .modal-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: none; align-items: center; justify-content: center; z-index: 8000;
+          display: none; align-items: center; justify-content: center; z-index:8000;
         }
         .modal-overlay.open { display: flex; }
         .modal-box {
@@ -591,10 +562,9 @@ export default function AdminEvents() {
         .modal-confirm { background: #e74c3c; color: #fff; }
         .modal-cancel { background: #e8f0ec; color: #333; }
 
-        /* ── Table ── */
         table { width: 100%; border-collapse: collapse; font-size: .86rem; }
         thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
+        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid#e8f0ec; vertical-align: top; }
         th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
         tbody tr:hover td { background: #f9fdfb; }
 
@@ -614,7 +584,7 @@ export default function AdminEvents() {
 
         td button {
           padding: 5px 12px; border-radius: 6px; font-size: .78rem; font-weight: 600;
-          cursor: pointer; border: none; margin-right: 5px; transition: opacity .2s;
+          cursor: pointer; border: none; margin-right: 5px; transition: opacity.2s;
           display: inline-flex; align-items: center; gap: 5px;
         }
         td button:hover { opacity: .8; }
@@ -642,7 +612,7 @@ export default function AdminEvents() {
         {authWarning && (
           <div className="auth-warning">
             <AlertTriangle size={16} />
-            You are not logged in. <a href="Admin-login.html">Click here to log in</a> — changes will not be saved until you do.
+            You are not logged in. <a href="/login">Click here to log in</a> — changes will not be saved until you do.
           </div>
         )}
 
@@ -768,7 +738,7 @@ export default function AdminEvents() {
                 </tr>
               ) : loadError ? (
                 <tr className="table-state">
-                  <td colSpan={5}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
+                  <td colSpan={5}>⚠️ Unable to load events. Check your connection and try again.</td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr className="table-state">
@@ -820,5 +790,3 @@ export default function AdminEvents() {
     </div>
   );
 }
-
-

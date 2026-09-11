@@ -1,944 +1,603 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+/* ============================================================
+   FILE: app/adminpage/AdminListings/page.tsx
+   PAGE: Business Listings — Admin Review Dashboard (ADMIN ONLY)
+   URL:  /adminpage/AdminListings
+   WHO:  Admins use this page to Approve / Reject business
+         registrations submitted via /business-registration.
+         Linked from the "Listings" item in the sidebar menu.
+   ============================================================ */
+
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
-  Home,
-  CalendarDays,
-  Megaphone,
-  LineChart,
-  Store,
-  LogOut,
-  Check,
-  X,
-  Eye,
-  Trash2,
-  AlertTriangle,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Layers,
-  Loader2,
-  Search,
-  Phone,
-  MapPin,
-  Mail,
-  User,
-} from 'lucide-react';
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/Firebase";
+import type { BusinessRegistration, DocStatus, DocumentEntry } from "@/types/business";
 
-/* ────────────────────────────────────────────────────────────────
-   Config
-   ──────────────────────────────────────────────────────────────── */
+/* Admin dashboard reads/writes a couple of fields that live outside the
+   shared BusinessRegistration shape (the overall rejection reason typed
+   by the admin, plus who/when reviewed it). Extend locally instead of
+   touching the shared type used by the registration form + profile API. */
+type AdminBusiness = BusinessRegistration & {
+  rejectionReason?: string | null;
+  reviewedBy?: string;
+};
 
-/* Public/admin GET of every submitted listing lives under /api/admin/listings
-   (admins need to see pending + denied ones too, not just approved).
-   Status changes (approve/deny) and delete live under the same resource. */
-const ADMIN_API = 'http://localhost:5000/api/admin/listings';
-const POLL_INTERVAL_MS = 30000;
+const DOC_LABELS: Record<string, string> = {
+  businessPermit: "Business Permit",
+  dti: "DTI / SEC Registration",
+  barangayClearance: "Barangay Clearance",
+  barangayCertification: "Barangay Certification",
+  cedula: "Cedula",
+};
 
-type ListingStatus = 'pending' | 'approved' | 'denied';
-
-const STATUS_FILTERS: { key: 'all' | ListingStatus; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'denied', label: 'Denied' },
-];
-
-interface Listing {
-  _id?: string;
-  businessName?: string;
-  ownerName?: string;
-  ownerEmail?: string;
-  phone?: string;
-  category?: string;
-  address?: string;
-  description?: string;
-  image?: string;
-  status?: ListingStatus;
-  submittedAt?: string;
-  denyReason?: string;
+function getStoredAdmin() {
+  const username =
+    localStorage.getItem("mycalinan_username") ||
+    sessionStorage.getItem("mycalinan_username") ||
+    "Admin";
+  const role =
+    localStorage.getItem("mycalinan_role") ||
+    sessionStorage.getItem("mycalinan_role") ||
+    "admin";
+  return { username, role };
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Helpers
-   ──────────────────────────────────────────────────────────────── */
-
-function statusMeta(status?: ListingStatus) {
-  switch (status) {
-    case 'approved':
-      return { label: 'Approved', className: 'badge approved', icon: CheckCircle2 };
-    case 'denied':
-      return { label: 'Denied', className: 'badge denied', icon: XCircle };
-    default:
-      return { label: 'Pending', className: 'badge pending', icon: Clock };
-  }
+function statusStyle(status: DocStatus): { background: string; color: string } {
+  if (status === "approved") return { background: "#d4edda", color: "#155724" };
+  if (status === "rejected") return { background: "#fdecea", color: "#c0392b" };
+  return { background: "#fff3cd", color: "#856404" };
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Sidebar
-   ──────────────────────────────────────────────────────────────── */
-
-const menuItems = [
-  { label: 'Home Page', href: 'HomePage.html', icon: Home },
-  { label: 'Events & Festivals', href: 'Admin-Events.html', icon: CalendarDays },
-  { label: 'Announcements', href: 'Admin-Announcements.html', icon: Megaphone },
-  { label: 'Business Listings', href: 'Admin-Listings.html', icon: Store, active: true },
-  { label: 'Reports', href: 'Admin-Reports.html', icon: LineChart },
-];
-
-function Sidebar({
-  adminName,
-  adminRole,
-  onLogoutClick,
-}: {
-  adminName: string;
-  adminRole: string;
-  onLogoutClick: () => void;
-}) {
-  return (
-    <aside className="sidebar">
-      <div className="logo">
-        <h2>MyCalinan</h2>
-        <p>Admin Panel</p>
-      </div>
-
-      <div className="admin-badge">
-        <div className="admin-avatar">{adminName.charAt(0).toUpperCase() || 'A'}</div>
-        <div className="admin-info">
-          <div className="name">{adminName}</div>
-          <div className="role">{adminRole}</div>
-        </div>
-      </div>
-
-      <ul className="menu">
-        {menuItems.map(({ label, href, icon: Icon, active }) => (
-          <li key={label} className={active ? 'active' : ''}>
-            <a href={href}>
-              <Icon size={16} />
-              {label}
-            </a>
-          </li>
-        ))}
-      </ul>
-
-      <div className="sidebar-footer">
-        <button className="logout-btn" onClick={onLogoutClick}>
-          <LogOut size={16} />
-          Log Out
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────
-   Toast
-   ──────────────────────────────────────────────────────────────── */
-
-interface ToastState {
-  message: string;
-  isError: boolean;
-}
-
-function Toast({ toast }: { toast: ToastState | null }) {
-  if (!toast) return null;
-  return (
-    <div className="toast" style={{ background: toast.isError ? '#c0392b' : '#1a5c38' }}>
-      {toast.message}
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────
-   Modals
-   ──────────────────────────────────────────────────────────────── */
-
-function LogoutModal({
-  open,
-  onStay,
-  onConfirm,
-}: {
-  open: boolean;
-  onStay: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div
-      className={`modal-overlay ${open ? 'open' : ''}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onStay();
-      }}
-    >
-      <div className="modal-box">
-        <LogOut size={32} color="#1a5c38" />
-        <h3>Log Out?</h3>
-        <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
-        <div className="modal-btns">
-          <button className="modal-cancel" onClick={onStay}>Stay</button>
-          <button className="modal-confirm" style={{ background: '#1a5c38' }} onClick={onConfirm}>Log Out</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DeleteModal({
+/* ── Reject reason modal ── */
+function RejectModal({
   open,
   onCancel,
   onConfirm,
 }: {
   open: boolean;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (reason: string) => void;
 }) {
-  return (
-    <div
-      className={`modal-overlay ${open ? 'open' : ''}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div className="modal-box">
-        <Trash2 size={32} color="#e74c3c" />
-        <h3>Remove Listing?</h3>
-        <p>This action cannot be undone. The business listing will be permanently removed from the database.</p>
-        <div className="modal-btns">
-          <button className="modal-cancel" onClick={onCancel}>Cancel</button>
-          <button className="modal-confirm" onClick={onConfirm}>Yes, Remove</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const [reason, setReason] = useState("");
 
-function DenyModal({
-  open,
-  reason,
-  onReasonChange,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  reason: string;
-  onReasonChange: (v: string) => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
+  useEffect(() => {
+    if (open) setReason("");
+  }, [open]);
+
+  if (!open) return null;
   return (
-    <div
-      className={`modal-overlay ${open ? 'open' : ''}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div className="modal-box">
-        <XCircle size={32} color="#c0392b" />
-        <h3>Deny Listing?</h3>
-        <p>Let the owner know why this listing isn't being approved. This note is optional but helpful.</p>
+    <div style={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div style={styles.modalBox}>
+        <i className="fas fa-times-circle" style={{ color: "#c0392b", fontSize: "2rem", marginBottom: 10 }} />
+        <h3 style={styles.modalTitle}>Reject Application?</h3>
+        <p style={styles.modalText}>Optionally, let the applicant know why.</p>
         <textarea
-          className="deny-reason"
-          rows={3}
-          placeholder="e.g. Missing valid business permit photo…"
+          style={styles.modalTextarea}
+          placeholder="Reason for rejection (optional)"
           value={reason}
-          onChange={(e) => onReasonChange(e.target.value)}
+          onChange={(e) => setReason(e.target.value)}
         />
-        <div className="modal-btns">
-          <button className="modal-cancel" onClick={onCancel}>Cancel</button>
-          <button className="modal-confirm" onClick={onConfirm}>Deny Listing</button>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
+          <button onClick={onCancel} style={styles.modalCancelBtn}>Cancel</button>
+          <button onClick={() => onConfirm(reason)} style={styles.modalRejectBtn}>Reject</button>
         </div>
       </div>
     </div>
   );
 }
 
-function ViewModal({ listing, onClose }: { listing: Listing | null; onClose: () => void }) {
-  if (!listing) return null;
-  const meta = statusMeta(listing.status);
-  const StatusIcon = meta.icon;
+/* ── Image lightbox ── */
+function ImageModal({ url, onClose }: { url: string | null; onClose: () => void }) {
+  if (!url) return null;
+  return (
+    <div style={styles.imageModalOverlay} onClick={onClose}>
+      <img src={url} alt="Preview" style={styles.imageModalImg} />
+    </div>
+  );
+}
+
+/* ── Business card ── */
+function BusinessCard({
+  biz,
+  onApprove,
+  onReject,
+  onPreview,
+}: {
+  biz: AdminBusiness;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  onPreview: (url: string) => void;
+}) {
+  const tag = statusStyle(biz.overallStatus);
+  const pictures = biz.documents?.businessPictures?.urls ?? [];
+  const docEntries = Object.entries(biz.documents ?? {}).filter(
+    ([key]) => key !== "businessPictures"
+  ) as [string, DocumentEntry][];
 
   return (
-    <div
-      className="modal-overlay open"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="modal-box view-box">
-        {listing.image && (
-          <img
-            className="view-thumb"
-            src={listing.image}
-            alt=""
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        )}
-        <div className="view-header">
-          <h3>{listing.businessName || 'Untitled Business'}</h3>
-          <span className={meta.className}>
-            <StatusIcon size={12} /> {meta.label}
-          </span>
-        </div>
-
-        {listing.category && <p className="view-category">{listing.category}</p>}
-
-        {listing.description && <p className="view-desc">{listing.description}</p>}
-
-        <div className="view-details">
-          {listing.ownerName && (
-            <div className="view-row"><User size={14} /> {listing.ownerName}</div>
-          )}
-          {listing.ownerEmail && (
-            <div className="view-row"><Mail size={14} /> {listing.ownerEmail}</div>
-          )}
-          {listing.phone && (
-            <div className="view-row"><Phone size={14} /> {listing.phone}</div>
-          )}
-          {listing.address && (
-            <div className="view-row"><MapPin size={14} /> {listing.address}</div>
-          )}
-        </div>
-
-        {listing.status === 'denied' && listing.denyReason && (
-          <div className="deny-note">
-            <b>Reason for denial:</b> {listing.denyReason}
+    <div style={styles.bizCard}>
+      <div style={styles.bizCardHead}>
+        <div>
+          <div style={styles.bizName}>{biz.businessName}</div>
+          <div style={styles.bizMeta}>
+            Owner: {biz.fullName} &middot; {biz.businessType}
           </div>
-        )}
-
-        <div className="modal-btns">
-          <button className="modal-cancel" onClick={onClose}>Close</button>
+          <div style={styles.bizMeta}>Operating since {biz.yearOperation}</div>
         </div>
+        <span style={{ ...styles.tag, background: tag.background, color: tag.color }}>
+          {biz.overallStatus}
+        </span>
       </div>
+
+      {pictures.length > 0 && (
+        <div style={styles.thumbRow}>
+          {pictures.map((pic, idx) => (
+            <img
+              key={pic.url ?? idx}
+              src={pic.url}
+              alt={pic.name}
+              style={styles.thumb}
+              onClick={() => onPreview(pic.url)}
+            />
+          ))}
+        </div>
+      )}
+
+      {docEntries.length > 0 && (
+        <div style={styles.docList}>
+          {docEntries.map(([key, entry]) => (
+            <a
+              key={key}
+              href={entry.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={styles.docLink}
+            >
+              <i className="fas fa-file-alt" /> {DOC_LABELS[key] ?? entry.name}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {biz.overallStatus === "rejected" && biz.rejectionReason && (
+        <div style={styles.rejectionNote}>
+          <i className="fas fa-info-circle" /> {biz.rejectionReason}
+        </div>
+      )}
+
+      {biz.overallStatus === "pending" && (
+        <div style={styles.bizActions}>
+          <button style={styles.approveBtn} onClick={() => onApprove(biz.id!)}>
+            <i className="fas fa-check" /> Approve
+          </button>
+          <button style={styles.rejectBtn} onClick={() => onReject(biz.id!)}>
+            <i className="fas fa-times" /> Reject
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Main component
-   ──────────────────────────────────────────────────────────────── */
-
-export default function AdminListings() {
-  const [adminName, setAdminName] = useState('Admin');
-  const [adminRole, setAdminRole] = useState('admin');
-  const [authWarning, setAuthWarning] = useState(false);
-
-  const [listings, setListings] = useState<Listing[]>([]);
+/* ── Main page ── */
+export default function AdminListingsPage() {
+  const [admin, setAdmin] = useState({ username: "Admin", role: "admin" });
+  const [businesses, setBusinesses] = useState<AdminBusiness[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('pending');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const [viewListing, setViewListing] = useState<Listing | null>(null);
-
-  const [denyModalOpen, setDenyModalOpen] = useState(false);
-  const [denyTargetId, setDenyTargetId] = useState<string | null>(null);
-  const [denyReason, setDenyReason] = useState('');
-
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
-
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const getToken = () =>
-    window.localStorage?.getItem('mycalinan_admin_token') ||
-    window.sessionStorage?.getItem('mycalinan_admin_token') ||
-    '';
-
-  const authHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${getToken()}`,
-  });
-
-  const showToast = (message: string, isError = false) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ message, isError });
-    toastTimer.current = setTimeout(() => setToast(null), 3000);
-  };
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [filter, setFilter] = useState<DocStatus | "all">("pending");
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const readStored = (key: string) =>
-      window.localStorage?.getItem(key) || window.sessionStorage?.getItem(key) || '';
-
-    const token = readStored('mycalinan_admin_token');
-    setAdminName(readStored('mycalinan_admin_username') || 'Admin');
-    setAdminRole(readStored('mycalinan_admin_role') || 'admin');
-    setAuthWarning(!token);
+    setAdmin(getStoredAdmin());
   }, []);
 
-  const checkAuth = () => {
-    const token = getToken();
-    if (!token) {
-      setAuthWarning(true);
-      return false;
-    }
-    return true;
-  };
-
-  const loadListings = useCallback(async () => {
-    if (!checkAuth()) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch(ADMIN_API, { headers: authHeaders() });
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
+  useEffect(() => {
+    const q = query(collection(db, "businesses"), orderBy("submittedAt", "desc"));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items: AdminBusiness[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<AdminBusiness, "id">),
+        }));
+        setBusinesses(items);
+        setLoading(false);
+        setLoadFailed(false);
+      },
+      (err) => {
+        console.error("Firestore listen error:", err);
+        setLoading(false);
+        setLoadFailed(true);
       }
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setListings(data);
-      setLoadError(false);
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const approve = useCallback(async (id: string) => {
+    try {
+      await updateDoc(doc(db, "businesses", id), {
+        overallStatus: "approved",
+        reviewedAt: serverTimestamp(),
+        reviewedBy: admin.username,
+      });
     } catch (err) {
-      console.error('Load listings error:', err);
-      setLoadError(true);
-      showToast('Server unreachable', true);
+      console.error("Approve error:", err);
+    }
+  }, [admin.username]);
+
+  const confirmReject = useCallback(async (reason: string) => {
+    if (!rejectTargetId) return;
+    try {
+      await updateDoc(doc(db, "businesses", rejectTargetId), {
+        overallStatus: "rejected",
+        reviewedAt: serverTimestamp(),
+        reviewedBy: admin.username,
+        rejectionReason: reason || "No reason provided.",
+      });
+    } catch (err) {
+      console.error("Reject error:", err);
     } finally {
-      setLoading(false);
+      setRejectTargetId(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rejectTargetId, admin.username]);
 
-  useEffect(() => {
-    loadListings();
-    const id = setInterval(loadListings, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [loadListings]);
-
-  const stats = useMemo(() => {
-    let pending = 0;
-    let approved = 0;
-    let denied = 0;
-    listings.forEach((item) => {
-      if (item.status === 'approved') approved++;
-      else if (item.status === 'denied') denied++;
-      else pending++;
-    });
-    return { total: listings.length, pending, approved, denied };
-  }, [listings]);
-
-  const filteredListings = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return listings.filter((item) => {
-      const status: ListingStatus = item.status || 'pending';
-      if (statusFilter !== 'all' && status !== statusFilter) return false;
-      if (!term) return true;
-      return (
-        (item.businessName || '').toLowerCase().includes(term) ||
-        (item.ownerName || '').toLowerCase().includes(term) ||
-        (item.category || '').toLowerCase().includes(term)
-      );
-    });
-  }, [listings, statusFilter, searchTerm]);
-
-  const updateStatus = async (id: string, status: ListingStatus, reason?: string) => {
-    if (!checkAuth()) {
-      showToast('Please log in first.', true);
-      return;
-    }
-    try {
-      const res = await fetch(`${ADMIN_API}/${id}/status`, {
-        method: 'PATCH',
-        headers: authHeaders(),
-        body: JSON.stringify({ status, denyReason: reason || '' }),
-      });
-
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to update listing.', true);
-        return;
-      }
-
-      showToast(
-        status === 'approved' ? '✅ Listing approved!' : status === 'denied' ? '🚫 Listing denied.' : 'Status updated.'
-      );
-      loadListings();
-    } catch (err) {
-      console.error('Status update error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
-    }
-  };
-
-  const handleApprove = (id: string) => updateStatus(id, 'approved');
-
-  const openDenyModal = (id: string) => {
-    setDenyTargetId(id);
-    setDenyReason('');
-    setDenyModalOpen(true);
-  };
-  const closeDenyModal = () => {
-    setDenyTargetId(null);
-    setDenyModalOpen(false);
-  };
-  const confirmDeny = () => {
-    if (!denyTargetId) return;
-    updateStatus(denyTargetId, 'denied', denyReason.trim());
-    closeDenyModal();
-  };
-
-  const openDeleteModal = (id: string) => {
-    setPendingDeleteId(id);
-    setDeleteModalOpen(true);
-  };
-  const closeDeleteModal = () => {
-    setPendingDeleteId(null);
-    setDeleteModalOpen(false);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!pendingDeleteId) return;
-    const id = pendingDeleteId;
-    closeDeleteModal();
-
-    if (!checkAuth()) {
-      showToast('Please log in first.', true);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${ADMIN_API}/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to remove listing.', true);
-        return;
-      }
-
-      showToast('🗑️ Listing removed.');
-      loadListings();
-    } catch (err) {
-      console.error('Delete error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
-    }
-  };
-
-  const handleLogout = () => {
-    ['mycalinan_admin_token', 'mycalinan_admin_username', 'mycalinan_admin_role'].forEach((key) => {
-      window.localStorage?.removeItem(key);
-      window.sessionStorage?.removeItem(key);
-    });
-    window.location.href = 'Admin-login.html';
-  };
+  const filtered =
+    filter === "all" ? businesses : businesses.filter((b) => b.overallStatus === filter);
+  const pendingCount = businesses.filter((b) => b.overallStatus === "pending").length;
+  const approvedCount = businesses.filter((b) => b.overallStatus === "approved").length;
+  const rejectedCount = businesses.filter((b) => b.overallStatus === "rejected").length;
 
   return (
-    <div className="admin-listings-root">
-      <style>{`
-        .admin-listings-root, .admin-listings-root *, .admin-listings-root *::before, .admin-listings-root *::after {
-          box-sizing: border-box;
-        }
-        .admin-listings-root {
-          font-family: 'Segoe UI', sans-serif;
-          background: #f0f4f8;
-          display: flex;
-          min-height: 100vh;
-          position: relative;
-        }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    <div style={styles.body}>
+      {/* ── SIDEBAR (matches AdminDashboard) ── */}
+      <aside style={styles.sidebar}>
+        <div style={styles.logoBlock}>
+          <h2 style={styles.logoH2}>MyCalinan</h2>
+          <p style={styles.logoP}>Admin Panel</p>
+        </div>
 
-        /* ── Sidebar ── */
-        .sidebar {
-          width: 240px; background: #1a5c38; color: #fff;
-          display: flex; flex-direction: column; min-height: 100vh;
-          position: fixed; top: 0; left: 0; z-index: 50;
-        }
-        .sidebar .logo { padding: 24px 24px 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
-        .sidebar .logo h2 { font-size: 1.2rem; font-weight: 700; margin: 0; }
-        .sidebar .logo p { font-size: .75rem; opacity: .65; margin-top: 2px; }
-
-        .admin-badge {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 24px; border-bottom: 1px solid rgba(255,255,255,.1);
-          background: rgba(0,0,0,.12);
-        }
-        .admin-avatar {
-          width: 34px; height: 34px; background: rgba(255,255,255,.25);
-          border-radius: 50%; display: flex; align-items: center; justify-content: center;
-          font-size: .9rem; font-weight: 700; flex-shrink: 0;
-        }
-        .admin-info { min-width: 0; }
-        .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
-
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0; }
-        .sidebar .menu li a {
-          display: flex; align-items: center; gap: 12px; padding: 12px 24px;
-          color: rgba(255,255,255,.82); text-decoration: none; font-size: .88rem;
-          transition: background .2s, color .2s;
-        }
-        .sidebar .menu li a:hover, .sidebar .menu li.active a { background: rgba(255,255,255,.15); color: #fff; }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
-        .logout-btn {
-          display: flex; align-items: center; gap: 10px; width: 100%;
-          padding: 10px 16px; background: rgba(231,76,60,.2);
-          border: 1px solid rgba(231,76,60,.35); color: #ff8f85;
-          border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer;
-          transition: background .2s, color .2s;
-        }
-        .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
-
-        /* ── Main content ── */
-        .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
-
-        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 12px; }
-        .header h1 { font-size: 1.4rem; color: #1a3d28; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; }
-        .subtitle { font-size: .85rem; color: #778; margin-bottom: 28px; }
-
-        /* ── Stats ── */
-        .stats {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 18px; margin-bottom: 28px;
-        }
-        .stat-card {
-          background: #fff; border-radius: 12px; padding: 20px 18px;
-          text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07);
-          cursor: pointer; border: 2px solid transparent; transition: border-color .15s;
-        }
-        .stat-card.active { border-color: #1a5c38; }
-        .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
-        .stat-card.pending svg { color: #b8860b; }
-        .stat-card.approved svg { color: #1f8b3f; }
-        .stat-card.denied svg { color: #c0392b; }
-        .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
-        .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
-
-        /* ── Auth warning ── */
-        .auth-warning {
-          background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;
-          padding: 14px 20px; margin-bottom: 22px; font-size: .88rem; color: #856404;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .auth-warning a { color: #6b5200; font-weight: 600; }
-
-        /* ── Toolbar ── */
-        .toolbar {
-          display: flex; align-items: center; justify-content: space-between;
-          gap: 14px; margin-bottom: 16px; flex-wrap: wrap;
-        }
-        .filter-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
-        .filter-tab {
-          padding: 8px 16px; border-radius: 20px; font-size: .82rem; font-weight: 600;
-          border: 1.5px solid #dce8e0; background: #fff; color: #4a5a52; cursor: pointer;
-          transition: background .15s, color .15s, border-color .15s;
-        }
-        .filter-tab:hover { border-color: #1a5c38; }
-        .filter-tab.active { background: #1a5c38; border-color: #1a5c38; color: #fff; }
-
-        .search-box {
-          display: flex; align-items: center; gap: 8px;
-          background: #fff; border: 1.5px solid #dce8e0; border-radius: 8px;
-          padding: 8px 14px; min-width: 220px;
-        }
-        .search-box svg { color: #94a3a8; flex-shrink: 0; }
-        .search-box input {
-          border: none; outline: none; font-size: .85rem; width: 100%;
-          font-family: inherit; color: #2c3e50;
-        }
-
-        /* ── Table ── */
-        .table-section { background: #fff; border-radius: 12px; padding: 26px 28px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
-        .table-section h2 {
-          font-size: 1rem; font-weight: 700; color: #1a3d28;
-          margin: 0 0 18px; padding-bottom: 12px; border-bottom: 2px solid #e8f5ee;
-        }
-        table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-        thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
-        th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
-        tbody tr:hover td { background: #f9fdfb; }
-
-        .title-cell { display: flex; align-items: center; gap: 10px; }
-        .title-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0; background: #e8f0ec; }
-        .title-sub { font-size: .76rem; color: #8a9a92; margin-top: 2px; }
-
-        .badge {
-          display: inline-flex; align-items: center; gap: 5px;
-          padding: 4px 11px; border-radius: 20px; font-size: .75rem; font-weight: 700;
-        }
-        .badge.pending { background: #fff3cd; color: #856404; }
-        .badge.approved { background: #d4edda; color: #155724; }
-        .badge.denied { background: #f8d7da; color: #721c24; }
-
-        td button {
-          padding: 5px 12px; border-radius: 6px; font-size: .78rem; font-weight: 600;
-          cursor: pointer; border: none; margin-right: 5px; margin-bottom: 4px; transition: opacity .2s;
-          display: inline-flex; align-items: center; gap: 5px;
-        }
-        td button:hover { opacity: .8; }
-        td button.approve { background: #d4edda; color: #155724; }
-        td button.deny { background: #fff3cd; color: #856404; }
-        td button.view { background: #e3f0ff; color: #1a56a0; }
-        td button.delete { background: #f8d7da; color: #721c24; }
-
-        .table-state td { text-align: center; padding: 40px; color: #888; }
-
-        /* ── Toast ── */
-        .toast {
-          position: fixed; top: 20px; right: 24px; background: #1a5c38; color: #fff;
-          padding: 12px 22px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          box-shadow: 0 4px 14px rgba(0,0,0,.2); z-index: 9999; animation: slideIn .25s ease;
-        }
-        @keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* ── Modals ── */
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: none; align-items: center; justify-content: center; z-index: 8000;
-          padding: 20px;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal-box {
-          background: #fff; border-radius: 14px; padding: 30px 32px;
-          max-width: 380px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,.18);
-        }
-        .modal-box svg { margin-bottom: 10px; }
-        .modal-box h3 { font-size: 1.1rem; font-weight: 700; color: #1a3d28; margin-bottom: 8px; }
-        .modal-box p { font-size: .88rem; color: #666; margin-bottom: 18px; }
-        .modal-btns { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
-        .modal-btns button {
-          padding: 9px 24px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          cursor: pointer; border: none; transition: opacity .2s;
-        }
-        .modal-btns button:hover { opacity: .85; }
-        .modal-confirm { background: #e74c3c; color: #fff; }
-        .modal-cancel { background: #e8f0ec; color: #333; }
-
-        .deny-reason {
-          width: 100%; padding: 10px 12px; border: 1.5px solid #dce8e0; border-radius: 8px;
-          font-size: .85rem; font-family: inherit; resize: vertical; margin-bottom: 18px; color: #2c3e50;
-        }
-        .deny-reason:focus { outline: none; border-color: #1a5c38; }
-
-        /* ── View modal ── */
-        .view-box { max-width: 440px; text-align: left; }
-        .view-thumb { width: 100%; height: 160px; object-fit: cover; border-radius: 10px; margin-bottom: 16px; background: #e8f0ec; }
-        .view-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-        .view-header h3 { font-size: 1.05rem; font-weight: 700; color: #1a3d28; margin: 0; }
-        .view-category { font-size: .78rem; color: #1a5c38; font-weight: 600; margin-bottom: 10px; }
-        .view-desc { font-size: .86rem; color: #555; margin-bottom: 16px; line-height: 1.5; }
-        .view-details { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-        .view-row { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: #444; }
-        .view-row svg { color: #1a5c38; flex-shrink: 0; }
-        .deny-note {
-          background: #fdecea; border: 1px solid #f5c2bc; color: #a12b1f;
-          font-size: .82rem; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px;
-        }
-
-        @media (max-width: 768px) {
-          .sidebar { width: 200px; }
-          .content { margin-left: 200px; padding: 18px; }
-        }
-        @media (max-width: 540px) {
-          .sidebar { display: none; }
-          .content { margin-left: 0; }
-        }
-      `}</style>
-
-      <Sidebar adminName={adminName} adminRole={adminRole} onLogoutClick={() => setLogoutModalOpen(true)} />
-
-      <main className="content">
-        <Toast toast={toast} />
-
-        {authWarning && (
-          <div className="auth-warning">
-            <AlertTriangle size={16} />
-            You are not logged in. <a href="Admin-login.html">Click here to log in</a> to manage business listings.
+        <div style={styles.adminBadge}>
+          <div style={styles.adminAvatar}>{admin.username.charAt(0).toUpperCase()}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={styles.adminName}>{admin.username}</div>
+            <div style={styles.adminRole}>{admin.role}</div>
           </div>
-        )}
+        </div>
 
-        <div className="header">
-          <h1>
-            <Store size={20} color="#1a5c38" />
+        <ul style={styles.menu}>
+          <li>
+            <Link href="/adminpage/AdminDashboard" style={styles.menuLink}>
+              <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
+            </Link>
+          </li>
+          <li>
+            <Link href="/" style={styles.menuLink}>
+              <i className="fas fa-home" style={styles.menuIcon} /> Home Page
+            </Link>
+          </li>
+          <li>
+            <Link href="/adminpage/AdminEvents" style={styles.menuLink}>
+              <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
+            </Link>
+          </li>
+          <li>
+            <Link href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
+              <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
+            </Link>
+          </li>
+          <li>
+            <Link href="/adminpage/AdminListings" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
+              <i className="fas fa-list" style={styles.menuIcon} /> Listings
+            </Link>
+          </li>
+          <li>
+            <Link href="/adminpage/AdminReports" style={styles.menuLink}>
+              <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
+            </Link>
+          </li>
+        </ul>
+      </aside>
+
+      {/* ── MAIN ── */}
+      <main style={styles.content}>
+        <div style={styles.header}>
+          <h1 style={styles.headerH1}>
+            <i className="fas fa-list" style={{ color: "#1a5c38", marginRight: 8 }} />
             Business Listings
           </h1>
         </div>
-        <p className="subtitle">Review and moderate shop and business posts submitted by registered users.</p>
+        <p style={styles.subtitle}>
+          Review business registration applications submitted by the community.
+        </p>
 
-        <div className="stats">
-          <div
-            className={`stat-card ${statusFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('all')}
-          >
-            <Layers size={24} />
-            <h2>{loading ? '—' : stats.total}</h2>
-            <p>Total Listings</p>
+        {/* Stats */}
+        <div style={styles.stats}>
+          <div style={styles.statCard}>
+            <i className="fas fa-hourglass-half" style={styles.statIcon} />
+            <h2 style={styles.statH2}>{pendingCount}</h2>
+            <p style={styles.statP}>Pending Review</p>
           </div>
-          <div
-            className={`stat-card pending ${statusFilter === 'pending' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('pending')}
-          >
-            <Clock size={24} />
-            <h2>{loading ? '—' : stats.pending}</h2>
-            <p>Pending Review</p>
+          <div style={styles.statCard}>
+            <i className="fas fa-check-circle" style={styles.statIcon} />
+            <h2 style={styles.statH2}>{approvedCount}</h2>
+            <p style={styles.statP}>Approved</p>
           </div>
-          <div
-            className={`stat-card approved ${statusFilter === 'approved' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('approved')}
-          >
-            <CheckCircle2 size={24} />
-            <h2>{loading ? '—' : stats.approved}</h2>
-            <p>Approved</p>
+          <div style={styles.statCard}>
+            <i className="fas fa-times-circle" style={styles.statIcon} />
+            <h2 style={styles.statH2}>{rejectedCount}</h2>
+            <p style={styles.statP}>Rejected</p>
           </div>
-          <div
-            className={`stat-card denied ${statusFilter === 'denied' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('denied')}
-          >
-            <XCircle size={24} />
-            <h2>{loading ? '—' : stats.denied}</h2>
-            <p>Denied</p>
+          <div style={styles.statCard}>
+            <i className="fas fa-store" style={styles.statIcon} />
+            <h2 style={styles.statH2}>{businesses.length}</h2>
+            <p style={styles.statP}>Total Applications</p>
           </div>
         </div>
 
-        <div className="toolbar">
-          <div className="filter-tabs">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.key}
-                className={`filter-tab ${statusFilter === f.key ? 'active' : ''}`}
-                onClick={() => setStatusFilter(f.key)}
-              >
-                {f.label}
-              </button>
+        {/* Filter chips */}
+        <div style={styles.filterRow}>
+          {(["pending", "approved", "rejected", "all"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                ...styles.filterChip,
+                ...(filter === f ? styles.filterChipActive : {}),
+              }}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        {loading && <div style={styles.panelState}>Loading applications...</div>}
+        {loadFailed && (
+          <div style={styles.panelState}>⚠️ Cannot connect to Firestore. Check your Firebase config.</div>
+        )}
+        {!loading && !loadFailed && filtered.length === 0 && (
+          <div style={styles.panelState}>No {filter !== "all" ? filter : ""} applications yet.</div>
+        )}
+        {!loading && !loadFailed && filtered.length > 0 && (
+          <div style={styles.bizGrid}>
+            {filtered.map((biz) => (
+              <BusinessCard
+                key={biz.id}
+                biz={biz}
+                onApprove={approve}
+                onReject={(id) => setRejectTargetId(id)}
+                onPreview={(url) => setPreviewUrl(url)}
+              />
             ))}
           </div>
-          <div className="search-box">
-            <Search size={15} />
-            <input
-              type="text"
-              placeholder="Search business, owner, or category…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <section className="table-section">
-          <h2>Submitted Listings</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Business</th>
-                <th>Owner</th>
-                <th>Category</th>
-                <th>Submitted</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr className="table-state">
-                  <td colSpan={6}>
-                    <Loader2 size={16} className="spin" /> Loading listings…
-                  </td>
-                </tr>
-              ) : loadError ? (
-                <tr className="table-state">
-                  <td colSpan={6}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
-                </tr>
-              ) : filteredListings.length === 0 ? (
-                <tr className="table-state">
-                  <td colSpan={6}>No listings match this view.</td>
-                </tr>
-              ) : (
-                filteredListings.map((item) => {
-                  const meta = statusMeta(item.status);
-                  const StatusIcon = meta.icon;
-                  const status: ListingStatus = item.status || 'pending';
-                  return (
-                    <tr key={item._id}>
-                      <td>
-                        <div className="title-cell">
-                          {item.image && (
-                            <img
-                              className="title-thumb"
-                              src={item.image}
-                              alt=""
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          )}
-                          <div>
-                            <b>{item.businessName || '—'}</b>
-                            {item.address && <div className="title-sub">{item.address}</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        {item.ownerName || '—'}
-                        {item.ownerEmail && <div className="title-sub">{item.ownerEmail}</div>}
-                      </td>
-                      <td>{item.category || '—'}</td>
-                      <td>{item.submittedAt || '—'}</td>
-                      <td>
-                        <span className={meta.className}>
-                          <StatusIcon size={12} /> {meta.label}
-                        </span>
-                      </td>
-                      <td>
-                        <button className="view" onClick={() => setViewListing(item)}>
-                          <Eye size={12} /> View
-                        </button>
-                        {status !== 'approved' && (
-                          <button className="approve" onClick={() => item._id && handleApprove(item._id)}>
-                            <Check size={12} /> Approve
-                          </button>
-                        )}
-                        {status !== 'denied' && (
-                          <button className="deny" onClick={() => item._id && openDenyModal(item._id)}>
-                            <X size={12} /> Deny
-                          </button>
-                        )}
-                        <button className="delete" onClick={() => item._id && openDeleteModal(item._id)}>
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </section>
+        )}
       </main>
 
-      <ViewModal listing={viewListing} onClose={() => setViewListing(null)} />
-      <DenyModal
-        open={denyModalOpen}
-        reason={denyReason}
-        onReasonChange={setDenyReason}
-        onCancel={closeDenyModal}
-        onConfirm={confirmDeny}
+      <RejectModal
+        open={!!rejectTargetId}
+        onCancel={() => setRejectTargetId(null)}
+        onConfirm={confirmReject}
       />
-      <DeleteModal open={deleteModalOpen} onCancel={closeDeleteModal} onConfirm={handleConfirmDelete} />
-      <LogoutModal open={logoutModalOpen} onStay={() => setLogoutModalOpen(false)} onConfirm={handleLogout} />
+      <ImageModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
     </div>
   );
 }
+
+/* ── Styles (mirrors AdminDashboard.tsx) ── */
+const styles: Record<string, React.CSSProperties> = {
+  body: { fontFamily: "'Segoe UI', sans-serif", background: "#f0f4f8", display: "flex", minHeight: "100vh" },
+  sidebar: {
+    width: 240,
+    background: "#1a5c38",
+    color: "#fff",
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100vh",
+    position: "fixed",
+    top: 0,
+    left: 0,
+    zIndex: 50,
+  },
+  logoBlock: { padding: "24px 24px 18px", borderBottom: "1px solid rgba(255,255,255,.15)" },
+  logoH2: { fontSize: "1.2rem", fontWeight: 700 },
+  logoP: { fontSize: ".75rem", opacity: 0.65, marginTop: 2 },
+  adminBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "14px 24px",
+    borderBottom: "1px solid rgba(255,255,255,.1)",
+    background: "rgba(0,0,0,.12)",
+  },
+  adminAvatar: {
+    width: 34,
+    height: 34,
+    background: "rgba(255,255,255,.25)",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: ".9rem",
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  adminName: { fontSize: ".82rem", fontWeight: 600, color: "#fff" },
+  adminRole: { fontSize: ".7rem", color: "rgba(255,255,255,.6)", textTransform: "capitalize" },
+  menu: { listStyle: "none", padding: "16px 0", flex: 1 },
+  menuLink: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "12px 24px",
+    color: "rgba(255,255,255,.82)",
+    textDecoration: "none",
+    fontSize: ".88rem",
+  },
+  menuLinkActive: { background: "rgba(255,255,255,.15)", color: "#fff" },
+  menuIcon: { width: 16, textAlign: "center" },
+  content: { marginLeft: 240, padding: "32px 36px", flex: 1 },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  headerH1: { fontSize: "1.4rem", color: "#1a3d28", fontWeight: 700 },
+  subtitle: { fontSize: ".85rem", color: "#778", marginBottom: 28 },
+  stats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+    gap: 18,
+    marginBottom: 24,
+  },
+  statCard: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: "20px 18px",
+    textAlign: "center",
+    boxShadow: "0 2px 10px rgba(0,0,0,.07)",
+  },
+  statIcon: { fontSize: "1.5rem", color: "#1a5c38", marginBottom: 6, display: "block" },
+  statH2: { fontSize: "1.7rem", fontWeight: 700, color: "#1a3d28" },
+  statP: { fontSize: ".78rem", color: "#777", marginTop: 2 },
+  filterRow: { display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" },
+  filterChip: {
+    padding: "8px 18px",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderStyle: "solid",
+    borderColor: "#d8e2da",
+    background: "#fff",
+    color: "#556",
+    fontSize: ".82rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  filterChipActive: { background: "#1a5c38", borderColor: "#1a5c38", color: "#fff" },
+  panelState: {
+    textAlign: "center",
+    padding: "50px 10px",
+    color: "#888",
+    fontSize: ".9rem",
+    background: "#fff",
+    borderRadius: 12,
+    boxShadow: "0 2px 10px rgba(0,0,0,.07)",
+  },
+  bizGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 },
+  bizCard: { background: "#fff", borderRadius: 12, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,.07)" },
+  bizCardHead: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 },
+  bizName: { fontSize: "1rem", fontWeight: 700, color: "#1a3d28" },
+  bizMeta: { fontSize: ".78rem", color: "#889", marginTop: 3 },
+  tag: { padding: "4px 12px", borderRadius: 20, fontSize: ".72rem", fontWeight: 700, textTransform: "capitalize", flexShrink: 0 },
+  thumbRow: { display: "flex", gap: 8, marginBottom: 12, overflowX: "auto" },
+  thumb: { width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer", flexShrink: 0, background: "#e8f0ec" },
+  docList: { display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 },
+  docLink: { fontSize: ".8rem", color: "#1a5c38", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 },
+  rejectionNote: {
+    fontSize: ".8rem",
+    color: "#c0392b",
+    background: "#fdecea",
+    borderRadius: 8,
+    padding: "8px 12px",
+    marginBottom: 8,
+  },
+  bizActions: { display: "flex", gap: 10, marginTop: 8 },
+  approveBtn: {
+    flex: 1,
+    background: "#1a5c38",
+    color: "#fff",
+    border: "none",
+    padding: "9px 12px",
+    borderRadius: 8,
+    fontSize: ".82rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  rejectBtn: {
+    flex: 1,
+    background: "#fff",
+    color: "#c0392b",
+    border: "1.5px solid #c0392b",
+    padding: "9px 12px",
+    borderRadius: 8,
+    fontSize: ".82rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 8000,
+  },
+  modalBox: {
+    background: "#fff",
+    borderRadius: 14,
+    padding: "30px 32px",
+    maxWidth: 380,
+    width: "90%",
+    textAlign: "center",
+    boxShadow: "0 8px 32px rgba(0,0,0,.18)",
+  },
+  modalTitle: { fontSize: "1.1rem", fontWeight: 700, color: "#1a3d28", marginBottom: 8 },
+  modalText: { fontSize: ".85rem", color: "#666", marginBottom: 14 },
+  modalTextarea: {
+    width: "100%",
+    minHeight: 80,
+    border: "1px solid #d8e2da",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: ".85rem",
+    resize: "vertical",
+    fontFamily: "inherit",
+  },
+  modalCancelBtn: {
+    padding: "9px 24px",
+    borderRadius: 8,
+    fontSize: ".88rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    border: "none",
+    background: "#e8f0ec",
+    color: "#333",
+  },
+  modalRejectBtn: {
+    padding: "9px 24px",
+    borderRadius: 8,
+    fontSize: ".88rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    border: "none",
+    background: "#c0392b",
+    color: "#fff",
+  },
+  imageModalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,.85)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9000,
+    cursor: "zoom-out",
+  },
+  imageModalImg: { maxWidth: "90vw", maxHeight: "85vh", borderRadius: 10 },
+};

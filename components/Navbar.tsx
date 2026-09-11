@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 const EXPLORE_LINKS = [
-  // ✅ href must be a URL path (what you'd type in the browser),
-  // NOT a file path in your project. This matches your folder at
-  // app/explore/HealthCare/page.tsx -> served at /explore/HealthCare
   { label: "Health", href: "/explore/HealthCare" },
   { label: "Education", href: "/explore/Education" },
   { label: "Transport & Utilities", href: "/explore/Transportation" },
@@ -28,15 +26,15 @@ const DOCUMENT_LINKS = [
 
 const DIRECT_LINKS = [
   { label: "Barangay Map", href: "/map" },
-  // app/others/History/page.tsx -> served at /others/History.
-  // Must start with "/" — without it, Next.js's <Link> treats the
-  // href as relative to the CURRENT page instead of the site root,
-  // so it only worked by coincidence when clicked from "/".
   { label: "History", href: "/others/History" },
   { label: "Hotlines", href: "/others/Hotlines" },
   { label: "Announcements", href: "/others/Announcements" },
   { label: "Events", href: "/others/Events" },
+  { label: "Business Registration", href: "/business-registration" },
 ];
+
+/* Which kind of account button the top-right corner should show. */
+type AuthState = "none" | "guest" | "user" | "admin";
 
 function NavDropdown({
   label,
@@ -78,8 +76,134 @@ function NavDropdown({
   );
 }
 
+/*
+  Dropdown shown for a logged-in business owner ("user" role).
+  Opens on click (not hover) and closes on click-outside.
+*/
+function AccountDropdown({
+  label,
+  onLogout,
+}: {
+  label: string;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1 rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
+      >
+        {label}
+        <span aria-hidden="true" className="text-xs">▾</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 min-w-[210px] overflow-hidden rounded-[var(--radius-stall)] border border-canopy-100 bg-white shadow-lg">
+          <Link
+            href="/profile"
+            className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
+            onClick={() => setOpen(false)}
+          >
+            Business Profile
+          </Link>
+          <Link
+            href="/business-registration"
+            className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
+            onClick={() => setOpen(false)}
+          >
+            Submit Business Form
+          </Link>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="block w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
+          >
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Navbar() {
+  const router = useRouter();
+
   const [lang, setLang] = useState<"en" | "ceb">("en");
+  const [authState, setAuthState] = useState<AuthState>("none");
+
+  /*
+    Figure out who (if anyone) is signed in.
+    - Guest: sessionStorage "mycalinan_guest" flag
+    - Admin / User: mycalinan_role from the unified /login page
+  */
+  useEffect(() => {
+    const isGuest = sessionStorage.getItem("mycalinan_guest") === "true";
+
+    const role =
+      localStorage.getItem("mycalinan_role") ||
+      sessionStorage.getItem("mycalinan_role");
+
+    if (isGuest) {
+      setAuthState("guest");
+    } else if (role === "admin") {
+      setAuthState("admin");
+    } else if (role === "user") {
+      setAuthState("user");
+    } else {
+      setAuthState("none");
+    }
+  }, []);
+
+  function handleGuestLogout() {
+    sessionStorage.removeItem("mycalinan_guest");
+    sessionStorage.removeItem("mycalinan_guest_name");
+    setAuthState("none");
+    router.push("/");
+  }
+
+  function handleUserLogout() {
+    localStorage.removeItem("mycalinan_uid");
+    localStorage.removeItem("mycalinan_token");
+    localStorage.removeItem("mycalinan_username");
+    localStorage.removeItem("mycalinan_role");
+    sessionStorage.removeItem("mycalinan_uid");
+    sessionStorage.removeItem("mycalinan_token");
+    sessionStorage.removeItem("mycalinan_username");
+    sessionStorage.removeItem("mycalinan_role");
+
+    setAuthState("none");
+    router.push("/login");
+  }
+
+  function handleAdminLogout() {
+    localStorage.removeItem("mycalinan_uid");
+    localStorage.removeItem("mycalinan_token");
+    localStorage.removeItem("mycalinan_username");
+    localStorage.removeItem("mycalinan_role");
+    sessionStorage.removeItem("mycalinan_uid");
+    sessionStorage.removeItem("mycalinan_token");
+    sessionStorage.removeItem("mycalinan_username");
+    sessionStorage.removeItem("mycalinan_role");
+
+    setAuthState("none");
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-50">
@@ -109,22 +233,44 @@ export default function Navbar() {
           </span>
         </Link>
 
+        {/*
+          Only ONE of these renders at a time, based on authState:
+          - "none"  -> plain Login link
+          - "guest" -> plain "Exit Guest Mode" button (no dropdown, no account)
+          - "user"  -> account dropdown (Business Profile / Submit Business Form / Log out)
+          - "admin" -> plain Logout button, no dropdown
+        */}
         <div className="justify-self-end">
-<<<<<<< HEAD
-<Link
-  href="/adminpage/AdminLogin"
-  className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
->
-  Login
-</Link>
-=======
-          <Link
-            href="/login"
-            className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
-          >
-            Login
-          </Link>
->>>>>>> fc572812213cb5fa762fc1924cdc9903b6b6a5e3
+          {authState === "none" && (
+            <Link
+              href="/login"
+              className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
+            >
+              Login
+            </Link>
+          )}
+
+          {authState === "guest" && (
+            <button
+              onClick={handleGuestLogout}
+              className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
+            >
+              Exit Guest Mode
+            </button>
+          )}
+
+          {authState === "user" && (
+            <AccountDropdown label="My Account" onLogout={handleUserLogout} />
+          )}
+
+          {authState === "admin" && (
+            <button
+              onClick={handleAdminLogout}
+              className="rounded-full bg-durian-500 px-4 py-1.5 text-sm font-semibold text-ink-900 transition hover:bg-durian-400"
+            >
+              Logout
+            </button>
+          )}
         </div>
       </div>
 

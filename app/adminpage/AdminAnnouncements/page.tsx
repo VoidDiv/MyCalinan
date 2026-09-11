@@ -1,6 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { db, auth } from '@/lib/Firebase';
 
 /**
  * NOTE: This component uses Font Awesome icon classes (fa-*).
@@ -28,9 +41,6 @@ interface AnnouncementFormState {
   description: string;
 }
 
-const PUBLIC_API = 'http://localhost:5000/api/announcements';
-const ADMIN_API = 'http://localhost:5000/api/admin/announcements';
-
 const EMPTY_FORM: AnnouncementFormState = {
   editId: '',
   title: '',
@@ -46,7 +56,8 @@ export default function AdminAnnouncementsPage() {
 
   const [adminName, setAdminName] = useState('Admin');
   const [adminRole, setAdminRole] = useState('admin');
-  const [isAuthed, setIsAuthed] = useState(true);
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<AnnouncementFormState>(EMPTY_FORM);
@@ -57,43 +68,20 @@ export default function AdminAnnouncementsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
-  /* ── Auth helpers ── */
-  function getToken(): string {
-    if (typeof window === 'undefined') return '';
-    return (
-      localStorage.getItem('mycalinan_admin_token') ||
-      sessionStorage.getItem('mycalinan_admin_token') ||
-      ''
-    );
-  }
+  /* ── Auth (Firebase Auth instead of localStorage JWT) ── */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setIsAuthed(!!user);
 
-  function authHeaders(): HeadersInit {
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-    };
-  }
+      if (user) {
+        setAdminName(user.displayName || user.email || 'Admin');
+        setAdminRole('admin');
+      }
+    });
 
-  function checkAuth(): boolean {
-    const token = getToken();
-    const authed = !!token;
-    setIsAuthed(authed);
-    return authed;
-  }
-
-  function loadAdminInfo() {
-    if (typeof window === 'undefined') return;
-    const username =
-      localStorage.getItem('mycalinan_admin_username') ||
-      sessionStorage.getItem('mycalinan_admin_username') ||
-      'Admin';
-    const role =
-      localStorage.getItem('mycalinan_admin_role') ||
-      sessionStorage.getItem('mycalinan_admin_role') ||
-      'admin';
-    setAdminName(username);
-    setAdminRole(role);
-  }
+    return () => unsubscribe();
+  }, []);
 
   /* ── Toast ── */
   function showToast(message: string, isError = false) {
@@ -112,27 +100,34 @@ export default function AdminAnnouncementsPage() {
     return 'tag';
   }
 
-  /* ── Load announcements ── */
+  /* ── Load announcements (Firestore) ── */
   async function loadAnnouncements() {
     try {
-      const res = await fetch(PUBLIC_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data: Announcement[] = await res.json();
+      setLoadState('loading');
+      const announcementsRef = collection(db, 'announcements');
+      const q = query(announcementsRef, orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+
+      const data: Announcement[] = snapshot.docs.map((d) => ({
+        _id: d.id,
+        title: d.data().title || '',
+        date: d.data().date || '',
+        category: d.data().category || 'General',
+        image: d.data().image || '',
+        description: d.data().description || '',
+      }));
+
       setAnnouncements(data);
       setLoadState(data.length === 0 ? 'empty' : 'ready');
     } catch (err) {
       console.error('Load announcements error:', err);
       setLoadState('error');
-      showToast('Server unreachable', true);
+      showToast('Unable to load announcements from Firestore.', true);
     }
   }
 
   useEffect(() => {
-    loadAdminInfo();
-    checkAuth();
     loadAnnouncements();
-    const interval = setInterval(loadAnnouncements, 30000);
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -158,9 +153,9 @@ export default function AdminAnnouncementsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  /* ── Save (create or update) ── */
+  /* ── Save (create or update) — Firestore ── */
   async function saveAnnouncement() {
-    if (!checkAuth()) {
+    if (!currentUser) {
       showToast('Please log in first.', true);
       return;
     }
@@ -174,42 +169,36 @@ export default function AdminAnnouncementsPage() {
     }
 
     const isEdit = form.editId !== '';
-    const url = isEdit ? `${ADMIN_API}/${form.editId}` : ADMIN_API;
-    const method = isEdit ? 'PUT' : 'POST';
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: authHeaders(),
-        body: JSON.stringify({
-          title,
-          date: form.date.trim(),
-          category: form.category,
-          image: form.image.trim(),
-          description,
-        }),
-      });
+      const payload = {
+        title,
+        date: form.date.trim(),
+        category: form.category,
+        image: form.image.trim(),
+        description,
+        updatedAt: serverTimestamp(),
+      };
 
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to save announcement.', true);
-        return;
+      if (isEdit) {
+        await updateDoc(doc(db, 'announcements', form.editId), payload);
+      } else {
+        await addDoc(collection(db, 'announcements'), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
       }
 
       showToast(isEdit ? '✅ Announcement updated!' : '✅ Announcement created!');
       hideForm();
       loadAnnouncements();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Save error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      if (err?.code === 'permission-denied') {
+        showToast('Permission denied. Admin access required.', true);
+      } else {
+        showToast('Failed to save announcement.', true);
+      }
     }
   }
 
@@ -243,36 +232,22 @@ export default function AdminAnnouncementsPage() {
     const id = deleteTargetId;
     closeModal();
 
-    if (!checkAuth()) {
+    if (!currentUser) {
       showToast('Please log in first.', true);
       return;
     }
 
     try {
-      const res = await fetch(`${ADMIN_API}/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-
-      if (res.status === 401) {
-        showToast('Session expired. Please log in again.', true);
-        setTimeout(() => {
-          window.location.href = 'Admin-login.html';
-        }, 1500);
-        return;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.error || 'Failed to delete announcement.', true);
-        return;
-      }
-
+      await deleteDoc(doc(db, 'announcements', id));
       showToast('🗑️ Announcement deleted.');
       loadAnnouncements();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Delete error:', err);
-      showToast('Cannot reach server. Check Flask is running.', true);
+      if (err?.code === 'permission-denied') {
+        showToast('Permission denied. Admin access required.', true);
+      } else {
+        showToast('Failed to delete announcement.', true);
+      }
     }
   }
 
@@ -286,13 +261,16 @@ export default function AdminAnnouncementsPage() {
   }
 
   function doLogout() {
-    localStorage.removeItem('mycalinan_admin_token');
-    localStorage.removeItem('mycalinan_admin_username');
-    localStorage.removeItem('mycalinan_admin_role');
-    sessionStorage.removeItem('mycalinan_admin_token');
-    sessionStorage.removeItem('mycalinan_admin_username');
-    sessionStorage.removeItem('mycalinan_admin_role');
-    window.location.href = 'Admin-login.html';
+    auth.signOut();
+    localStorage.removeItem('mycalinan_uid');
+    localStorage.removeItem('mycalinan_token');
+    localStorage.removeItem('mycalinan_username');
+    localStorage.removeItem('mycalinan_role');
+    sessionStorage.removeItem('mycalinan_uid');
+    sessionStorage.removeItem('mycalinan_token');
+    sessionStorage.removeItem('mycalinan_username');
+    sessionStorage.removeItem('mycalinan_role');
+    window.location.href = '/login';
   }
 
   return (
@@ -315,22 +293,32 @@ export default function AdminAnnouncementsPage() {
 
           <ul className="menu">
             <li>
-              <a href="HomePage.html">
+              <a href="/adminpage/AdminDashboard">
+                <i className="fas fa-gauge" /> Dashboard
+              </a>
+            </li>
+            <li>
+              <a href="/">
                 <i className="fas fa-home" /> Home Page
               </a>
             </li>
             <li>
-              <a href="Admin-Events.html">
+              <a href="/adminpage/AdminEvents">
                 <i className="fas fa-calendar-alt" /> Events &amp; Festivals
               </a>
             </li>
             <li className="active">
-              <a href="Admin-Announcements.html">
+              <a href="/adminpage/AdminAnnouncements">
                 <i className="fas fa-bullhorn" /> Announcements
               </a>
             </li>
             <li>
-              <a href="Admin-Reports.html">
+              <a href="/adminpage/AdminListings">
+                <i className="fas fa-list" /> Listings
+              </a>
+            </li>
+            <li>
+              <a href="/adminpage/AdminReports">
                 <i className="fas fa-chart-line" /> Reports
               </a>
             </li>
@@ -354,7 +342,7 @@ export default function AdminAnnouncementsPage() {
           {!isAuthed && (
             <div className="auth-warning" style={{ display: 'block' }}>
               <i className="fas fa-exclamation-triangle" /> You are not logged in.{' '}
-              <a href="Admin-login.html">Click here to log in</a> — changes will not be saved until you do.
+              <a href="/login">Click here to log in</a> — changes will not be saved until you do.
             </div>
           )}
 
@@ -478,7 +466,7 @@ export default function AdminAnnouncementsPage() {
 
                 {loadState === 'error' && (
                   <tr className="table-state">
-                    <td colSpan={5}>⚠️ Cannot connect to server. Make sure Flask is running on port 5000.</td>
+                    <td colSpan={5}>⚠️ Unable to load announcements. Check your connection and try again.</td>
                   </tr>
                 )}
 
@@ -580,7 +568,6 @@ export default function AdminAnnouncementsPage() {
           min-height: 100vh;
         }
 
-        /* ── Sidebar ── */
         .sidebar {
           width: 240px;
           background: #1a5c38;
@@ -702,7 +689,6 @@ export default function AdminAnnouncementsPage() {
           color: #fff;
         }
 
-        /* ── Main content ── */
         .content {
           margin-left: 240px;
           padding: 32px 36px;
@@ -741,7 +727,6 @@ export default function AdminAnnouncementsPage() {
           background: #145029;
         }
 
-        /* ── Stats ── */
         .stats {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -774,7 +759,6 @@ export default function AdminAnnouncementsPage() {
           margin-top: 2px;
         }
 
-        /* ── Auth warning ── */
         .auth-warning {
           background: #fff3cd;
           border: 1px solid #ffc107;
@@ -785,7 +769,6 @@ export default function AdminAnnouncementsPage() {
           color: #856404;
         }
 
-        /* ── Form section ── */
         .form-section,
         .table-section {
           background: #fff;
@@ -879,7 +862,6 @@ export default function AdminAnnouncementsPage() {
           background: #666;
         }
 
-        /* ── Toast ── */
         #toast {
           position: fixed;
           top: 20px;
@@ -905,7 +887,6 @@ export default function AdminAnnouncementsPage() {
           }
         }
 
-        /* ── Confirm modal ── */
         .modal-overlay {
           position: fixed;
           inset: 0;
@@ -975,7 +956,6 @@ export default function AdminAnnouncementsPage() {
           color: #333;
         }
 
-        /* ── Table ── */
         table {
           width: 100%;
           border-collapse: collapse;
@@ -1071,7 +1051,6 @@ export default function AdminAnnouncementsPage() {
           color: #888;
         }
 
-        /* ── Responsive ── */
         @media (max-width: 768px) {
           .sidebar {
             width: 200px;
