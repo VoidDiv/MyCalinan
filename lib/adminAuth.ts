@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import type { DecodedIdToken } from "firebase-admin/auth";
-import { getAdminAuth } from "./firebaseAdmin";
+import { adminAuth } from "./firebaseAdmin";
 
 export async function verifyAuth(
   request: NextRequest
@@ -18,7 +18,7 @@ export async function verifyAuth(
   }
 
   try {
-    return await getAdminAuth().verifyIdToken(token);
+    return await adminAuth.verifyIdToken(token);
   } catch (error) {
     console.error("Firebase token verification failed:", error);
     throw new Error("Invalid or expired authentication token");

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -316,8 +316,6 @@ async function buildContext(query: string): Promise<{
   context: string;
   sources: RetrievedSource[];
 }> {
-  const adminDb = getAdminDb();
-
   const relevantCollections =
     getRelevantCollections(query);
 
