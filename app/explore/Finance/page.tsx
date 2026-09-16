@@ -229,7 +229,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const FinancePage: React.FC = () => {
+ const FinancePage: React.FC = () => {
   // --- States ---
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");

@@ -435,7 +435,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const ShoppingStorePage: React.FC = () => {
+ const ShoppingStorePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<"all" | StoreCategory>("all");
   const [sortByNearest, setSortByNearest] = useState<boolean>(false);

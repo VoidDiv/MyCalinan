@@ -196,7 +196,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const EducationPage: React.FC = () => {
+ const EducationPage: React.FC = () => {
   // --- States ---
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");

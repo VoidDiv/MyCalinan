@@ -150,7 +150,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const LifestylePage: React.FC = () => {
+ const LifestylePage: React.FC = () => {
   // --- States ---
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<"all" | "Gym" | "Hotel">("all");

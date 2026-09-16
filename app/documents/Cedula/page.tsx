@@ -30,7 +30,7 @@ const STEPS_DATA: string[] = [
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const CedulaPage: React.FC = () => {
+ const CedulaPage: React.FC = () => {
   return (
     <div className="cedula-wrapper">
       {/* HEADER */}

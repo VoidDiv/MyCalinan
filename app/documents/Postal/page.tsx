@@ -32,7 +32,7 @@ const STEPS_DATA: string[] = [
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const PostalIDPage: React.FC = () => {
+ const PostalIDPage: React.FC = () => {
   return (
     <div className="postal-id-wrapper">
       {/* HEADER */}

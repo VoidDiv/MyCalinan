@@ -30,7 +30,7 @@ const STEPS_DATA: string[] = [
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const BarangayClearancePage: React.FC = () => {
+ const BarangayClearancePage: React.FC = () => {
   return (
     <div className="barangay-clearance-wrapper">
       {/* HEADER */}

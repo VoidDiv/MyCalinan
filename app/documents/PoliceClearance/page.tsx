@@ -30,7 +30,7 @@ const STEPS_DATA: string[] = [
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const PoliceClearancePage: React.FC = () => {
+ const PoliceClearancePage: React.FC = () => {
   return (
     <div className="doc-page police-clearance-wrapper">
       {/* HEADER */}

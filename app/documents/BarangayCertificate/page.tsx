@@ -38,7 +38,7 @@ const STEPS_DATA: string[] = [
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
-export const BarangayCertificationPage: React.FC = () => {
+ const BarangayCertificationPage: React.FC = () => {
   return (
     <div className="barangay-certification-wrapper">
       {/* HEADER */}
