@@ -3,24 +3,22 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { getAuth } from "firebase-admin/auth";
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+const base64ServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
 
-if (!projectId || !clientEmail || !privateKey) {
+if (!base64ServiceAccount) {
   throw new Error(
-    "Missing Firebase Admin environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY)."
+    "Missing FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable."
   );
 }
+
+const serviceAccount = JSON.parse(
+  Buffer.from(base64ServiceAccount, "base64").toString("utf-8")
+);
 
 const app = getApps().length
   ? getApp()
   : initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
+      credential: cert(serviceAccount),
       storageBucket: "mycalinan.firebasestorage.app",
     });
 
