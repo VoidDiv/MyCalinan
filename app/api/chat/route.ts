@@ -162,6 +162,23 @@ const COLLECTION_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
+/*
+ * Strips emojis (and the invisible characters that often ride along with
+ * them, like variation selectors and zero-width joiners) from a string,
+ * so only plain words are sent to the AI. This runs on the user's current
+ * message and on conversation history right before they're sent to
+ * Claude -- it does NOT touch what's stored or displayed anywhere else.
+ */
+function stripEmojis(value: string): string {
+  return value
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\uFE0F/g, "") // variation selector-16 (emoji presentation)
+    .replace(/\u200D/g, "") // zero-width joiner (used to combine emoji)
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "") // skin tone modifiers
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function normalizeText(value: string): string {
   return value
     .toLowerCase()
@@ -461,7 +478,9 @@ function buildApiMessages(
 
     messages.push({
       role: message.role,
-      content: message.text,
+      // Strip emojis from history too, so past turns don't reintroduce
+      // them into what the model reads on follow-up questions.
+      content: stripEmojis(message.text),
     });
   }
 
@@ -488,7 +507,7 @@ function buildApiMessages(
 
   messages.push({
     role: "user",
-    content: currentMessage,
+    content: stripEmojis(currentMessage),
   });
 
   return messages;
@@ -604,6 +623,8 @@ IMPORTANT RULES:
 13. If an exact establishment is requested, prioritize the matching establishment.
 
 14. If the user asks for directions or navigation, provide the available address/location information and explain that MyCalinan's map/navigation feature can be used for routing.
+
+15. Respond using plain words only -- do not include emojis in your replies.
 
 FIRESTORE DATABASE CONTEXT:
 
