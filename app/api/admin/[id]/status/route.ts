@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
@@ -27,7 +27,6 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const adminDb = getAdminDb();
 
   try {
     const { status, denyReason } = (await req.json()) as {

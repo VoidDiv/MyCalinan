@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
@@ -19,7 +19,6 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const adminDb = getAdminDb();
 
   try {
     const docRef = adminDb.collection("listings").doc(id);
