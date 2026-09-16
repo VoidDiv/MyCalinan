@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const FACT_CHIPS = [
   { label: "Fruit Basket of Davao City" },
   { label: "3rd District, Davao City" },
@@ -33,40 +35,25 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-wrap gap-4">
-          <a
+          
             href="#discover"
             className="rounded-[var(--radius-stall)] bg-canopy-700 px-6 py-3 font-semibold text-white transition hover:bg-canopy-800"
-          >
+          <a>
             Discover Calinan
           </a>
         </div>
       </div>
 
-      {/* Art panel — swap the pattern below for a real photo of Calinan
-          (e.g. the Poblacion market or Malagos Garden) when available. */}
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 bg-gradient-to-br from-canopy-100 via-canopy-400/40 to-durian-400/50 shadow-xl">
-        <svg
-          className="absolute inset-0 h-full w-full opacity-30"
-          viewBox="0 0 400 300"
-          preserveAspectRatio="xMidYMid slice"
-        >
-          <defs>
-            <pattern
-              id="weave"
-              width="40"
-              height="40"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M0 20 L20 0 L40 20 L20 40 Z"
-                fill="none"
-                stroke="var(--canopy-800)"
-                strokeWidth="1.5"
-              />
-            </pattern>
-          </defs>
-          <rect width="400" height="300" fill="url(#weave)" />
-        </svg>
+      {/* Art panel — real photo of Calinan Poblacion */}
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 shadow-xl">
+        <Image
+          src="/image/Calinan-Poblacion.png"
+          alt="Calinan Poblacion, Davao City"
+          fill
+          sizes="(min-width: 1024px) 45vw, 90vw"
+          className="object-cover"
+          priority
+        />
         <div className="absolute bottom-6 left-6 rounded-[var(--radius-stall)] bg-white/85 px-4 py-2 font-mono text-xs text-canopy-900">
           Calinan Poblacion
         </div>
