@@ -33,12 +33,12 @@ export default function Hero() {
           Businesses, Barangay services, and community news onto one
           platform — built for residents, Visitors, and officials alike.
         </p>
-
-        <div className="mt-8 flex flex-wrap gap-4">
           
+        <div className="mt-8 flex flex-wrap gap-4">
+          <a
             href="#discover"
             className="rounded-[var(--radius-stall)] bg-canopy-700 px-6 py-3 font-semibold text-white transition hover:bg-canopy-800"
-          <a>
+          >
             Discover Calinan
           </a>
         </div>
@@ -47,7 +47,7 @@ export default function Hero() {
       {/* Art panel — real photo of Calinan Poblacion */}
       <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 shadow-xl">
         <Image
-          src="/image/Calinan-Poblacion.png"
+          src="/image/Calinan-Poblacion."
           alt="Calinan Poblacion, Davao City"
           fill
           sizes="(min-width: 1024px) 45vw, 90vw"
