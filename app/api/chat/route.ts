@@ -332,6 +332,7 @@ function calculateRelevance(
 async function buildContext(query: string): Promise<{
   context: string;
   sources: RetrievedSource[];
+  matchedCollections: string[];
 }> {
   const relevantCollections =
     getRelevantCollections(query);
@@ -418,9 +419,16 @@ async function buildContext(query: string): Promise<{
     })
   );
 
+  // Which categories actually returned data, so the AI can offer these
+  // as fallback suggestions when the exact thing asked for isn't found.
+  const matchedCollections = Array.from(
+    new Set(topResults.map((result) => result.collection))
+  );
+
   return {
     context,
     sources,
+    matchedCollections,
   };
 }
 
@@ -555,7 +563,17 @@ export async function POST(
     const {
       context,
       sources,
+      matchedCollections,
     } = await buildContext(message);
+
+    const availableCategoriesHint =
+      matchedCollections.length > 0
+        ? `Categories with relevant matches for this question: ${matchedCollections.join(
+            ", "
+          )}.`
+        : `No category returned a strong match for this question. Available categories in MyCalinan are: ${SEARCHABLE_COLLECTIONS.join(
+            ", "
+          )}.`;
 
     const systemPrompt = `
 You are Calibot, the official AI assistant of MyCalinan.
@@ -602,7 +620,10 @@ IMPORTANT RULES:
    - government services
    - locations
 
-4. If the database does not contain enough information to answer a question, clearly say that the available MyCalinan information does not provide enough details.
+4. If the database does not contain enough information to fully answer, do NOT just apologize and stop there. Instead:
+   - Briefly say the exact detail isn't available in MyCalinan yet.
+   - Then offer the closest useful thing you *can* help with -- e.g. related establishments in the same category that ARE in the database, a nearby category to check instead, or a suggestion to browse a specific section of MyCalinan or verify with the establishment/barangay directly.
+   - Never end a reply with just an apology and nothing else -- always follow it with a next step, alternative, or suggestion.
 
 5. Do not pretend that information is current if the database does not establish that.
 
@@ -610,7 +631,7 @@ IMPORTANT RULES:
 
 7. Keep answers concise, useful, friendly, and easy for ordinary members of the public to understand.
 
-8. If the user asks about something unrelated to Calinan, politely explain that your main purpose is assisting with Calinan information.
+8. If the user asks about something unrelated to Calinan, politely explain that your main purpose is assisting with Calinan information, and suggest a Calinan-related topic they might ask about instead.
 
 9. Use conversation history to understand follow-up questions.
 
@@ -625,6 +646,10 @@ IMPORTANT RULES:
 14. If the user asks for directions or navigation, provide the available address/location information and explain that MyCalinan's map/navigation feature can be used for routing.
 
 15. Respond using plain words only -- do not include emojis in your replies.
+
+16. Avoid opening a reply with the word "Sorry" -- lead with what you *do* know or *can* help with, and only briefly note the gap if needed.
+
+${availableCategoriesHint}
 
 FIRESTORE DATABASE CONTEXT:
 
@@ -673,7 +698,7 @@ ${
         {
           error:
             data?.error?.message ||
-            "Failed to contact the AI service.",
+            "Calibot couldn't reach the AI service right now -- please try again in a moment, or browse MyCalinan's categories directly while you wait.",
         },
         {
           status:
@@ -708,7 +733,7 @@ ${
       return NextResponse.json(
         {
           error:
-            "The AI returned an empty response.",
+            "Calibot didn't have a clear answer for that. Try rephrasing, or ask about a specific category like healthcare, education, food, or transportation.",
         },
         { status: 500 }
       );
@@ -727,7 +752,7 @@ ${
     return NextResponse.json(
       {
         error:
-          "Sorry, Calibot encountered an unexpected error.",
+          "Calibot ran into a hiccup processing that. Please try again, or ask something else about Calinan in the meantime.",
       },
       { status: 500 }
     );
