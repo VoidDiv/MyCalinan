@@ -5,15 +5,15 @@
    applications, and ones you add yourself.
 
    In this version:
-   - Imports the single merged seed file (exploreSeed.ts, which now
-     includes food, finance, education and community as well —
-     exploreSeedMore.ts has been folded in and removed).
+   - Imports the single merged seed file (data/exploreSeed.ts).
    - Import banner is per page, and skips places that already exist
      under a different document ID (same name + same spot).
-   - "Possible duplicate" badge + filter.
-   - "Delete legacy duplicates" button. It removes every Legacy row
-     that has a Built-in twin at the same spot, in one go. It never
-     touches Built-in, Admin, or Business listings.
+   - "Possible duplicate" badge + filter, and "Delete legacy
+     duplicates" (removes Legacy rows that have a Built-in twin).
+   - NEW: Photos banner. "Check photos" loads every listing's photo
+     and flags the ones that fail. "Fix N photos" lists the real
+     files in your Firebase Storage folders and rewrites the broken
+     links by matching filenames to listing names.
    ============================================================ */
 
 "use client";
@@ -30,7 +30,13 @@ import {
   updateDoc,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "@/lib/Firebase";
+import {
+  ref as storageRef,
+  listAll,
+  getDownloadURL,
+  type StorageReference,
+} from "firebase/storage";
+import { db, storage } from "@/lib/Firebase";
 import { EXPLORE_SEED } from "@/data/exploreSeed";
 import {
   ADMIN_SOURCE,
@@ -81,6 +87,123 @@ function missingSeeds(
     .filter(
       ({ seed }) => !ids.has(seed.id) && !existing.some((r) => sameSpot(seed, r))
     );
+}
+
+/* ══════════════════════════════════════════
+   PHOTO HELPERS (check + fix from Storage)
+══════════════════════════════════════════ */
+
+/* Where each page's photos are likely stored. `keys` are matched against the
+   real top-level folder names in Storage; `guesses` are tried directly in case
+   Storage rules don't allow listing the root. */
+const PAGE_FOLDER_HINTS: Record<string, { keys: string[]; guesses: string[] }> = {
+  food: {
+    keys: ["food", "dining"],
+    guesses: ["FoodAndDining", "Food and Dining", "Food & Dining", "Food", "FoodDining", "Food_and_Dining", "Food-and-Dining"],
+  },
+  finance: { keys: ["financ"], guesses: ["Finance", "Finances", "Financial"] },
+  education: { keys: ["educ", "school"], guesses: ["Education", "Educations", "Schools"] },
+  community: { keys: ["communit"], guesses: ["Community", "Communities"] },
+  healthcare: { keys: ["health"], guesses: ["Healthcare", "Health"] },
+  shopping: { keys: ["shop"], guesses: ["Shopping", "Shopping & Store"] },
+  hotspots: { keys: ["hotspot"], guesses: ["Hotspots"] },
+  lifestyle: { keys: ["lifestyle"], guesses: ["Lifestyle"] },
+  transport: { keys: ["transport"], guesses: ["Transport", "Transport & Utilities"] },
+};
+
+const MATCH_THRESHOLD = 0.75;
+
+const normKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+function decode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+const baseName = (file: string): string => decode(file).replace(/\.[a-z0-9]{2,5}$/i, "");
+
+/* Last file name inside a Storage/Firebase URL (decoded) */
+function fileFromUrl(url: string): string {
+  const clean = url.split("?")[0];
+  const last = decode(clean.split("/").pop() ?? "");
+  return last.split("/").pop() ?? last;
+}
+
+const digitsOf = (s: string): string => (s.match(/\d+/g) ?? []).join("-");
+
+function dice(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const grams = (s: string) => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < s.length - 1; i++) {
+      const g = s.slice(i, i + 2);
+      m.set(g, (m.get(g) ?? 0) + 1);
+    }
+    return m;
+  };
+  const ga = grams(a);
+  const gb = grams(b);
+  let overlap = 0;
+  ga.forEach((n, g) => {
+    overlap += Math.min(n, gb.get(g) ?? 0);
+  });
+  return (2 * overlap) / (a.length - 1 + (b.length - 1));
+}
+
+/* How alike two names are (0–1). "Branch 1" never matches "Branch 2". */
+function similarity(want: string, have: string): number {
+  const a = normKey(want);
+  const b = normKey(have);
+  if (!a || !b) return 0;
+  const da = digitsOf(want);
+  const db_ = digitsOf(have);
+  if (da && db_ && da !== db_) return 0;
+  if (a === b) return 1;
+  if ((a.includes(b) || b.includes(a)) && Math.min(a.length, b.length) >= 5) return 0.9;
+  return dice(a, b);
+}
+
+function imageLoads(url: string, timeoutMs = 12000): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!url) return resolve(false);
+    const img = new Image();
+    const t = setTimeout(() => {
+      img.src = "";
+      resolve(false);
+    }, timeoutMs);
+    img.onload = () => {
+      clearTimeout(t);
+      resolve(true);
+    };
+    img.onerror = () => {
+      clearTimeout(t);
+      resolve(false);
+    };
+    img.src = url;
+  });
+}
+
+async function listFolderFiles(folder: string, depth = 0): Promise<StorageReference[]> {
+  const res = await listAll(storageRef(storage, folder));
+  const files = [...res.items];
+  if (depth < 1) {
+    for (const p of res.prefixes) files.push(...(await listFolderFiles(p.fullPath, depth + 1)));
+  }
+  return files;
+}
+
+function foldersForPage(page: ExplorePage, rootPrefixes: string[]): string[] {
+  const hint = PAGE_FOLDER_HINTS[page] ?? { keys: [normKey(page)], guesses: [] };
+  const out = new Set<string>(hint.guesses);
+  rootPrefixes.forEach((p) => {
+    const n = normKey(p);
+    if (hint.keys.some((k) => n.includes(k))) out.add(p);
+  });
+  return Array.from(out);
 }
 
 /* ── One row in the table, normalised from whatever is stored ── */
@@ -173,7 +296,35 @@ async function syncBusiness(businessId: string, patch: Record<string, unknown>) 
   }
 }
 
-type VisFilter = "all" | "live" | "hidden" | "dupes";
+/* File names a listing's photo is expected to have (from its seed + current link) */
+function wantedFor(row: ExploreRow): { full: string; base: string }[] {
+  const list: { full: string; base: string }[] = [];
+  const push = (url?: string) => {
+    if (!url) return;
+    const f = fileFromUrl(url);
+    if (f) list.push({ full: f, base: baseName(f) });
+  };
+  const seed = (ALL_SEED[row.page] ?? []).find((s) => s.id === row.docId);
+  push(seed?.image);
+  push(row.image);
+  return list;
+}
+
+function scoreFile(
+  row: ExploreRow,
+  wants: { full: string; base: string }[],
+  fileName: string
+): number {
+  const fb = baseName(fileName);
+  let best = 0;
+  for (const w of wants) {
+    if (w.full.toLowerCase() === fileName.toLowerCase()) best = Math.max(best, 1.1);
+    else best = Math.max(best, similarity(w.base, fb));
+  }
+  return Math.max(best, similarity(row.name, fb) * 0.95);
+}
+
+type VisFilter = "all" | "live" | "hidden" | "dupes" | "photos";
 
 export default function ExplorePanel({
   photoLookup,
@@ -199,6 +350,13 @@ export default function ExplorePanel({
   const [bulkBusy, setBulkBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Photo check / fix
+  const [brokenKeys, setBrokenKeys] = useState<Set<string>>(new Set());
+  const [scan, setScan] = useState<{ done: number; total: number } | null>(null);
+  const scanRef = useRef(false);
+  const [fixing, setFixing] = useState(false);
+  const fixRef = useRef(false);
+
   /* Live view of every Explore collection */
   useEffect(() => {
     const unsubs = PAGES.map((page) =>
@@ -223,7 +381,7 @@ export default function ExplorePanel({
 
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 7000);
+    const t = setTimeout(() => setNotice(null), 9000);
     return () => clearTimeout(t);
   }, [notice]);
 
@@ -277,6 +435,17 @@ export default function ExplorePanel({
     );
   }, [allRows]);
 
+  /* Rows whose photo is missing or was found not to load */
+  const brokenRows = useMemo(
+    () => allRows.filter((r) => !r.image || brokenKeys.has(r.key)),
+    [allRows, brokenKeys]
+  );
+  const brokenSet = useMemo(() => new Set(brokenRows.map((r) => r.key)), [brokenRows]);
+  const fixableCount = useMemo(
+    () => brokenRows.filter((r) => !r.businessId).length,
+    [brokenRows]
+  );
+
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = allRows.filter((r) => {
@@ -284,6 +453,7 @@ export default function ExplorePanel({
       if (visFilter === "live" && !r.published) return false;
       if (visFilter === "hidden" && r.published) return false;
       if (visFilter === "dupes" && !dupKeys.has(r.key)) return false;
+      if (visFilter === "photos" && !brokenSet.has(r.key)) return false;
       if (!q) return true;
       return (
         r.name.toLowerCase().includes(q) ||
@@ -293,7 +463,7 @@ export default function ExplorePanel({
       );
     });
     // Put twins next to each other so they are easy to compare
-    if (visFilter === "dupes") {
+    if (visFilter === "dupes" || visFilter === "photos") {
       list.sort(
         (a, b) =>
           PAGES.indexOf(a.page) - PAGES.indexOf(b.page) ||
@@ -301,7 +471,7 @@ export default function ExplorePanel({
       );
     }
     return list;
-  }, [allRows, pageFilter, visFilter, search, dupKeys]);
+  }, [allRows, pageFilter, visFilter, search, dupKeys, brokenSet]);
 
   /* Pages whose built-ins have never been imported (and still have something to add).
      A page drops out of this list as soon as one built-in exists on it, so anything
@@ -401,6 +571,163 @@ export default function ExplorePanel({
     } finally {
       setBulkBusy(false);
       setConfirmBulk(false);
+    }
+  }
+
+  /* Load every listing's photo and remember which ones fail. */
+  async function scanPhotos() {
+    if (scanRef.current) return;
+    scanRef.current = true;
+    const targets = [...allRows];
+    setScan({ done: 0, total: targets.length });
+    try {
+      const broken = new Set<string>();
+      let next = 0;
+      let done = 0;
+      const worker = async () => {
+        while (next < targets.length) {
+          const r = targets[next++];
+          const ok = await imageLoads(r.image);
+          if (!ok) broken.add(r.key);
+          done++;
+          if (done % 8 === 0 || done === targets.length) {
+            setScan({ done, total: targets.length });
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: 8 }, worker));
+      setBrokenKeys(broken);
+      setNotice(
+        broken.size === 0
+          ? { ok: true, text: `Checked ${targets.length} listings. Every photo loads. 🎉` }
+          : {
+              ok: false,
+              text: `Checked ${targets.length} listings. ${broken.size} photos don't load. Click “Fix” to repair them from Storage.`,
+            }
+      );
+    } finally {
+      scanRef.current = false;
+      setScan(null);
+    }
+  }
+
+  /* Find the real files in Storage and rewrite the broken photo links. */
+  async function fixBrokenPhotos() {
+    if (fixRef.current) return;
+    const targets = brokenRows.filter((r) => !r.businessId);
+    if (targets.length === 0) return;
+
+    fixRef.current = true;
+    setFixing(true);
+    setNotice(null);
+    try {
+      // Real top-level folders (may be blocked by Storage rules; guesses cover that)
+      let rootPrefixes: string[] = [];
+      try {
+        rootPrefixes = (await listAll(storageRef(storage))).prefixes.map((p) => p.name);
+      } catch (e) {
+        console.warn("Could not list the Storage root:", e);
+      }
+
+      type Pair = { row: ExploreRow; file: StorageReference; score: number };
+      const assignments: Pair[] = [];
+      const missing: string[] = [];
+      let listedAny = false;
+
+      const pages = Array.from(new Set(targets.map((t) => t.page)));
+      for (const page of pages) {
+        const found = new Map<string, StorageReference>();
+        for (const folder of foldersForPage(page, rootPrefixes)) {
+          try {
+            const got = await listFolderFiles(folder);
+            got.forEach((f) => found.set(f.fullPath, f));
+          } catch (e) {
+            console.warn(`Could not list "${folder}":`, e);
+          }
+        }
+        const files = Array.from(found.values());
+        if (files.length > 0) listedAny = true;
+
+        const rowsHere = targets.filter((t) => t.page === page);
+        const pairs: Pair[] = [];
+        for (const row of rowsHere) {
+          const wants = wantedFor(row);
+          for (const file of files) {
+            const score = scoreFile(row, wants, file.name);
+            if (score >= MATCH_THRESHOLD) pairs.push({ row, file, score });
+          }
+        }
+        // Best matches first; every row and every file is used at most once
+        pairs.sort((a, b) => b.score - a.score);
+        const usedRows = new Set<string>();
+        const usedFiles = new Set<string>();
+        for (const p of pairs) {
+          if (usedRows.has(p.row.key) || usedFiles.has(p.file.fullPath)) continue;
+          usedRows.add(p.row.key);
+          usedFiles.add(p.file.fullPath);
+          assignments.push(p);
+        }
+        rowsHere.filter((r) => !usedRows.has(r.key)).forEach((r) => missing.push(r.name));
+      }
+
+      if (!listedAny) {
+        setNotice({
+          ok: false,
+          text:
+            "Couldn't find any photo files in Storage. Either Storage rules don't allow listing files, or the folders have different names than expected. Open Firebase Console → Storage and check the folder names.",
+        });
+        return;
+      }
+
+      let fixed = 0;
+      const fixedKeys = new Set<string>();
+      let batch = writeBatch(db);
+      let ops = 0;
+      for (const a of assignments) {
+        try {
+          const url = await getDownloadURL(a.file);
+          batch.update(doc(db, PAGE_COLLECTION[a.row.page], a.row.docId), {
+            image: url,
+            updatedAt: serverTimestamp(),
+          });
+          fixedKeys.add(a.row.key);
+          fixed++;
+          if (++ops === 400) {
+            await batch.commit();
+            batch = writeBatch(db);
+            ops = 0;
+          }
+        } catch (e) {
+          console.warn(`Could not get a URL for ${a.file.fullPath}:`, e);
+          missing.push(a.row.name);
+        }
+      }
+      if (ops > 0) await batch.commit();
+
+      setBrokenKeys((prev) => {
+        const next = new Set(prev);
+        fixedKeys.forEach((k) => next.delete(k));
+        return next;
+      });
+
+      const rest = missing.length
+        ? ` No matching file found for ${missing.length}: ${missing.slice(0, 6).join(", ")}${
+            missing.length > 6 ? "…" : ""
+          }. Use Edit on those to upload or paste a photo.`
+        : "";
+      setNotice({
+        ok: fixed > 0,
+        text: `Fixed ${fixed} photo${fixed === 1 ? "" : "s"}.${rest}`,
+      });
+    } catch (e) {
+      console.error(e);
+      setNotice({
+        ok: false,
+        text: "Could not fix the photos. Check your admin sign-in and that Storage and Firestore rules allow reading and writing.",
+      });
+    } finally {
+      fixRef.current = false;
+      setFixing(false);
     }
   }
 
@@ -526,6 +853,34 @@ export default function ExplorePanel({
         </div>
       )}
 
+      {allLoaded && allRows.length > 0 && (
+        <div style={styles.importBanner}>
+          <div>
+            <strong>Photos</strong>
+            <br />
+            {scan
+              ? `Checking photos… ${scan.done} / ${scan.total}`
+              : brokenRows.length > 0
+              ? `${brokenRows.length} listings have a photo that is missing or doesn't load. “Fix” looks up the real files in your Firebase Storage folders and repairs the links.`
+              : "Check that every listing's photo actually loads."}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={styles.smallBtn} onClick={scanPhotos} disabled={!!scan || fixing}>
+              🔍 Check photos
+            </button>
+            {fixableCount > 0 && (
+              <button
+                style={styles.approveBtnSolid}
+                onClick={fixBrokenPhotos}
+                disabled={!!scan || fixing}
+              >
+                {fixing ? "Fixing…" : `Fix ${fixableCount} photos`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Page chips */}
       <div style={styles.filterRow}>
         {(["all", ...PAGES] as const).map((p) => (
@@ -556,6 +911,7 @@ export default function ExplorePanel({
           <option value="live">Live only</option>
           <option value="hidden">Hidden only</option>
           <option value="dupes">Possible duplicates ({dupKeys.size})</option>
+          <option value="photos">Photo problems ({brokenRows.length})</option>
         </select>
         <button style={styles.approveBtnSolid} onClick={() => setEditing("new")}>
           <i className="fas fa-plus" /> Add listing
@@ -570,6 +926,8 @@ export default function ExplorePanel({
             ? "Nothing on Explore yet. Import the built-in listings above, or add one."
             : visFilter === "dupes"
             ? "No possible duplicates found. 🎉"
+            : visFilter === "photos"
+            ? "No photo problems found. 🎉"
             : "No listings match your filters."}
         </div>
       )}
@@ -591,9 +949,18 @@ export default function ExplorePanel({
               {visibleRows.map((row) => (
                 <tr key={row.key}>
                   <td style={styles.td}>
-                    {row.image ? (
+                    {row.image && !brokenSet.has(row.key) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={row.image} alt={row.name} style={styles.rowThumb} />
+                      <img
+                        src={row.image}
+                        alt={row.name}
+                        style={styles.rowThumb}
+                        onError={() =>
+                          setBrokenKeys((prev) =>
+                            prev.has(row.key) ? prev : new Set(prev).add(row.key)
+                          )
+                        }
+                      />
                     ) : (
                       <div style={styles.rowThumbEmpty}>{row.pin || "📍"}</div>
                     )}
@@ -612,6 +979,19 @@ export default function ExplorePanel({
                           }}
                         >
                           ⚠️ Possible duplicate
+                        </span>
+                      )}
+                      {brokenSet.has(row.key) && (
+                        <span
+                          title="This listing's photo is missing or doesn't load"
+                          style={{
+                            ...styles.srcBadge,
+                            marginLeft: 8,
+                            background: "#fdecea",
+                            color: "#c0392b",
+                          }}
+                        >
+                          🖼️ Photo not loading
                         </span>
                       )}
                     </div>
