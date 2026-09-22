@@ -1,3 +1,8 @@
+/* ============================================================
+   HEALTHCARE PAGE
+   Replace the page.tsx inside your Healthcare folder.
+   ============================================================ */
+
 "use client";
 
 import {
@@ -10,6 +15,7 @@ import {
 } from "react";
 import mapboxgl from "mapbox-gl";
 import Link from "next/link";
+import { useExploreListings } from "@/hooks/useLiveListings";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -22,13 +28,8 @@ const ROUTE_LAYER_ID = "healthcare-route-line";
   TYPES
 ══════════════════════════════════════════ */
 
-type Category =
-  | "Hospital"
-  | "Clinic"
-  | "Dental"
-  | "Optical"
-  | "Maternity"
-  | "Veterinary";
+// Plain string so admin-added categories (e.g. "Pharmacy") work without code changes
+type Category = string;
 
 type FilterValue = "all" | Category;
 
@@ -63,267 +64,8 @@ interface RouteInfo {
   DATA
 ══════════════════════════════════════════ */
 
-const STORAGE_BASE =
-  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Healthcare";
-
-const CLINICS: Clinic[] = [
-  {
-    id: "isaac-robillo-memorial-hospital",
-    name: "Isaac T. Robillo Memorial Hospital",
-    category: "Hospital",
-    lat: 7.1862,
-    lng: 125.4512,
-    tag: "Level 1 General Hospital",
-    mapsQuery: "Isaac+T.+Robillo+Memorial+Hospital+Davao+City",
-    image: `${STORAGE_BASE}/Hospital1.png`,
-    description:
-      "Km. 26 Davao–Bukidnon Highway, Calinan — A healthcare institution providing essential medical services to the local community through quality, patient-centered care.",
-  },
-  {
-    id: "clinica-isaguirre",
-    name: "Clinica Isaguirre",
-    category: "Clinic",
-    lat: 7.188,
-    lng: 125.4558,
-    tag: "Primary Care Infirmary Clinic",
-    mapsQuery: "Clinica+Isaguirre+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Hospital2.png`,
-    description:
-      "Villafuerte St., Calinan — Accessible healthcare including medical consultations, laboratory tests, X-ray services, and minor procedures for the local community.",
-  },
-  {
-    id: "buhangin-medical-clinic",
-    name: "Buhangin Medical Clinic & Diagnostic Center",
-    category: "Clinic",
-    lat: 7.189,
-    lng: 125.4565,
-    tag: "Medical Clinic & Diagnostic Center",
-    mapsQuery: "Buhangin+Medical+Clinic+%26+Diagnostic+Center+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic4.jpg`,
-    description:
-      "Calinan District, Davao City — Reliable diagnostic and laboratory services, accurate testing and expert consultations to help you monitor your health with ease.",
-  },
-  {
-    id: "calinan-adult-child-medical-clinic",
-    name: "Calinan Adult and Child Medical Clinic",
-    category: "Clinic",
-    lat: 7.1885,
-    lng: 125.4555,
-    tag: "General Healthcare Clinic (Adults & Children)",
-    mapsQuery: "Calinan+Adult+and+Child+Medical+Clinic+Davao+City",
-    image: `${STORAGE_BASE}/Clinic3.jpg`,
-    description:
-      "Calinan Proper, Davao City — Trusted general healthcare for adults and children with consultations, basic treatments, and medical advice for families.",
-  },
-  {
-    id: "mainstreet-pt-clinic",
-    name: "A Mainstreet PT Clinic",
-    category: "Clinic",
-    lat: 7.1895,
-    lng: 125.454,
-    tag: "Physical Therapy & Rehabilitation Clinic",
-    mapsQuery: "A+Mainstreet+PT+Clinic+Davao+City",
-    image: `${STORAGE_BASE}/Clinic2.jpg`,
-    description:
-      "McArthur Highway, Calinan, Davao City — Expert physical therapy and rehabilitation services, helping patients recover from injuries, manage pain, and restore mobility.",
-  },
-  {
-    id: "fernandez-medical-clinic",
-    name: "Fernandez Medical Clinic",
-    category: "Clinic",
-    lat: 7.1878,
-    lng: 125.456,
-    tag: "Comprehensive Diagnostic & Consultation Clinic",
-    mapsQuery: "Fernandez+Medical+Clinic+Davao+City",
-    image: `${STORAGE_BASE}/Clinic.jpg`,
-    description:
-      "Villafuerte Street, Calinan — Comprehensive diagnostic and consultation services including laboratory tests, ultrasound, X-ray, and general check-ups for all ages.",
-  },
-  {
-    id: "dentopro-dental-clinic",
-    name: "DENTOpro Dental Clinic",
-    category: "Dental",
-    lat: 7.19,
-    lng: 125.455,
-    tag: "Dental Clinic",
-    mapsQuery: "DENTOpro+Dental+Clinic+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic1.png`,
-    description:
-      "Purok 12, Calinan, Davao City — Modern dental care with cleaning, fillings, and consultations in a clean, comfortable environment you can trust.",
-  },
-  {
-    id: "smile-corner-dental-clinic",
-    name: "Smile Corner Dental Clinic",
-    category: "Dental",
-    lat: 7.1875,
-    lng: 125.4545,
-    tag: "Dental Clinic",
-    mapsQuery: "Smile+Corner+Dental+Clinic+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic8.png`,
-    description:
-      "AJK Building, National Highway, Calinan — Orthodontic and cosmetic dental services including braces and smile enhancement treatments for confident smiles.",
-  },
-  {
-    id: "smart-dental-clinic",
-    name: "Smart Dental Clinic",
-    category: "Dental",
-    lat: 7.1882,
-    lng: 125.4562,
-    tag: "Dental Clinic",
-    mapsQuery: "Smart+Dental+Clinic+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic9.png`,
-    description:
-      "Villafuerte Street, Calinan — Affordable and reliable dental care including tooth extraction, cleaning, and routine check-ups for everyday oral health needs.",
-  },
-  {
-    id: "cunanan-dental-clinic",
-    name: "Cunanan Dental Clinic",
-    category: "Dental",
-    lat: 7.187,
-    lng: 125.453,
-    tag: "Dental Clinic",
-    mapsQuery: "Cunanan+Dental+Clinic+Durian+Village+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic5.png`,
-    description:
-      "Durian Village, Calinan — Trusted, long-standing dental clinic offering cleaning, fillings, and extractions with quality care for the community.",
-  },
-  {
-    id: "pilapil-enriquez-optical-center",
-    name: "Pilapil-Enriquez Optical Center",
-    category: "Optical",
-    lat: 7.1888,
-    lng: 125.4555,
-    tag: "Optical Clinic",
-    mapsQuery: "Pilapil-Enriquez+Optical+Center+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic7.png`,
-    description:
-      "Near Calinan Post Office — Professional eye care including eye examinations and prescription eyeglasses, providing convenient vision solutions for the community.",
-  },
-  {
-    id: "potestas-optical-clinic",
-    name: "Potestas Optical Clinic",
-    category: "Optical",
-    lat: 7.1892,
-    lng: 125.4548,
-    tag: "Optical Clinic",
-    mapsQuery: "Potestas+Optical+Clinic+Roman+Diaz+Street+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic6.jpg`,
-    description:
-      "Roman Diaz Street, Calinan — Affordable eye care including eye exams, prescription eyeglasses, and stylish frame selections for students, workers, and families.",
-  },
-  {
-    id: "bics-eye-care-clinic",
-    name: "BICS Eye Care Clinic",
-    category: "Optical",
-    lat: 7.1883,
-    lng: 125.4552,
-    tag: "Optical Clinic",
-    mapsQuery: "BICS+Eye+Care+Clinic+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic10.png`,
-    description:
-      "Calinan District — Complete and affordable eye care including comprehensive examinations and eyeglasses fitting, with budget-friendly packages and promos.",
-  },
-  {
-    id: "senense-lozada-optical-clinic",
-    name: "Senense–Lozada Optical Clinic",
-    category: "Optical",
-    lat: 7.1886,
-    lng: 125.4557,
-    tag: "Optical Clinic",
-    mapsQuery:
-      "Senense-Lozada+Optical+Clinic+R.+Magsaysay+Street+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic12.jpg`,
-    description:
-      "R. Magsaysay Street, Calinan Poblacion — Accessible vision care including eye examinations, prescription eyeglasses, and frame selection for walk-in patients.",
-  },
-  {
-    id: "ayuban-membrado-maternity-clinic",
-    name: "Ayuban–Membrado Maternity Clinic",
-    category: "Maternity",
-    lat: 7.191,
-    lng: 125.4535,
-    tag: "Maternity Clinic",
-    mapsQuery:
-      "Ayuban-Membrado+Maternity+Clinic+Teachers+Village+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic11.png`,
-    description:
-      "Teachers Village, Purok 25A, Calinan — Trusted and affordable maternal care including prenatal check-ups, ultrasound, family planning, and delivery support.",
-  },
-  {
-    id: "well-family-midwife-clinic",
-    name: "Well Family Midwife Clinic",
-    category: "Maternity",
-    lat: 7.1897,
-    lng: 125.4542,
-    tag: "Maternity Clinic",
-    mapsQuery:
-      "Well+Family+Midwife+Clinic+McArthur+Highway+Calinan+Poblacion+Davao+City",
-    image: `${STORAGE_BASE}/Clinic13.png`,
-    description:
-      "McArthur Highway, Calinan Poblacion — DOH-licensed and PhilHealth-accredited maternity clinic offering prenatal check-ups, normal delivery, postnatal care, and family planning.",
-  },
-  {
-    id: "jambo-maternity-clinic",
-    name: "Jambo Maternity Clinic",
-    category: "Maternity",
-    lat: 7.1905,
-    lng: 125.4538,
-    tag: "Maternity Clinic",
-    mapsQuery: "Jambo+Maternity+Clinic+Datu+Abing+Street+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic14.jpg`,
-    description:
-      "Purok 26, Datu Abing Street, Calinan — Safe and affordable maternal care offering prenatal consultations, normal delivery assistance, and postnatal care.",
-  },
-  {
-    id: "mother-and-child-clinic",
-    name: "Mother and Child Clinic",
-    category: "Maternity",
-    lat: 7.1887,
-    lng: 125.4556,
-    tag: "Maternity Clinic",
-    mapsQuery:
-      "Mother+and+Child+Clinic+R.+Magsaysay+Street+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Clinic15.png`,
-    description:
-      "R. Magsaysay Street, Calinan Poblacion — Accessible healthcare for women, mothers, and children including prenatal check-ups, maternal consultations, and pediatric care.",
-  },
-  {
-    id: "calinan-veterinary-clinic",
-    name: "Calinan Veterinary Clinic",
-    category: "Veterinary",
-    lat: 7.1865,
-    lng: 125.4515,
-    tag: "Veterinary Clinic",
-    mapsQuery:
-      "Calinan+Veterinary+Clinic+Davao-Bukidnon+Highway+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Vet1.png`,
-    description:
-      "Davao–Bukidnon Highway, Calinan — Trusted veterinary care including pet consultations, vaccinations, illness treatment, and minor procedures for routine animal healthcare.",
-  },
-  {
-    id: "furry-paws-veterinary-clinic",
-    name: "Furry Paws Veterinary Clinic and Pet Supplies",
-    category: "Veterinary",
-    lat: 7.1893,
-    lng: 125.456,
-    tag: "Veterinary Clinic",
-    mapsQuery:
-      "Furry+Paws+Veterinary+Clinic+and+Pet+Supplies+Peñano+Street+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Vet2.jpg`,
-    description:
-      "Peñano Street, Calinan Poblacion — One-stop pet care with consultations, vaccinations, grooming, and quality pet supplies for all your animal care needs.",
-  },
-];
-
-const FILTERS: { label: string; value: FilterValue }[] = [
-  { label: "All", value: "all" },
-  { label: "Hospital", value: "Hospital" },
-  { label: "Clinic", value: "Clinic" },
-  { label: "Dental", value: "Dental" },
-  { label: "Optical", value: "Optical" },
-  { label: "Maternity", value: "Maternity" },
-  { label: "Veterinary", value: "Veterinary" },
-];
+// The listings for this page now come from Firestore.
+// Manage them in Admin > Listings > Explore.
 
 /* ══════════════════════════════════════════
   HELPERS
@@ -390,6 +132,44 @@ export default function HealthcarePage() {
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const clinicMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
+  /* ── LIVE LISTINGS FROM ADMIN ── */
+  const { listings: live, loading } = useExploreListings("healthcare");
+  const allClinics = useMemo<Clinic[]>(
+    () => [
+      ...live.map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category as Category,
+        lat: l.lat,
+        lng: l.lng,
+        tag: l.tag,
+        mapsQuery: l.mapsQueryEncoded,
+        image: l.image,
+        description: l.description,
+      })),
+    ],
+    [live]
+  );
+
+  /* ── FILTER CHIPS (built from the categories that exist, incl. admin-added ones) ── */
+  const filters = useMemo<{ label: string; value: FilterValue }[]>(() => {
+    const categories = Array.from(new Set(allClinics.map((c) => c.category)));
+    return [
+      { label: "All", value: "all" },
+      ...categories.map((c) => ({ label: c, value: c })),
+    ];
+  }, [allClinics]);
+
+  // If the active category disappears (e.g. admin deleted its last listing), fall back to "all"
+  useEffect(() => {
+    if (
+      activeFilter !== "all" &&
+      !allClinics.some((c) => c.category === activeFilter)
+    ) {
+      setActiveFilter("all");
+    }
+  }, [allClinics, activeFilter]);
+
   /* ── TOAST ── */
   const showToast = useCallback((message: string, duration = 3000) => {
     setToast(message);
@@ -441,13 +221,13 @@ export default function HealthcarePage() {
 
   /* ── DERIVED DATA ── */
   const clinicsWithDistance: ClinicWithDistance[] = useMemo(() => {
-    return CLINICS.map((clinic) => ({
+    return allClinics.map((clinic) => ({
       ...clinic,
       distKm: userLocation
         ? haversineKm(userLocation.lat, userLocation.lng, clinic.lat, clinic.lng)
         : null,
     }));
-  }, [userLocation]);
+  }, [userLocation, allClinics]);
 
   const visibleClinics = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -739,7 +519,7 @@ export default function HealthcarePage() {
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.value}
             className={`filter-chip${activeFilter === f.value ? " active" : ""}`}
@@ -760,8 +540,10 @@ export default function HealthcarePage() {
         </button>
       </div>
       <div id="result-count">
-        {visibleClinics.length > 0
-          ? `Showing ${visibleClinics.length} of ${CLINICS.length} facilities`
+        {loading
+          ? "Loading…"
+          : visibleClinics.length > 0
+          ? `Showing ${visibleClinics.length} of ${allClinics.length} facilities`
           : ""}
       </div>
 
@@ -818,7 +600,7 @@ export default function HealthcarePage() {
           </div>
         ))}
 
-        {visibleClinics.length === 0 && (
+        {!loading && visibleClinics.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
             <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth={1.5}>
               <path

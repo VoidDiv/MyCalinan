@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: app/business-registration/page.tsx
+   FILE: app/business-registration/page.tsx   (REPLACE whole file)
    PAGE: Business Registration Form (LOGGED-IN BUSINESS OWNERS)
    URL:  /business-registration
    ============================================================ */
@@ -13,7 +13,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { storage, db, auth } from "@/lib/Firebase";
-import { BUSINESS_TYPES, CURRENT_YEAR, MAX_BUSINESS_PICTURES } from "@/types/business";
+import { CURRENT_YEAR, MAX_BUSINESS_PICTURES } from "@/types/business";
+import { REGISTRATION_GROUPS, encodeChoice, decodeChoice } from "@/types/listing";
 
 /* ── Local form state ── */
 interface FormState {
@@ -21,7 +22,7 @@ interface FormState {
   email: string;
   phoneNumber: string;
   businessName: string;
-  businessType: string;
+  businessChoice: string; // "page::category" — see types/listing.ts
   yearOperation: string;
 }
 
@@ -30,7 +31,7 @@ const initialForm: FormState = {
   email: "",
   phoneNumber: "",
   businessName: "",
-  businessType: "",
+  businessChoice: "",
   yearOperation: String(CURRENT_YEAR),
 };
 
@@ -152,7 +153,7 @@ export default function BusinessRegistrationPage() {
   /* ── Step 2 validation ── */
   function validateStep2(): string {
     if (!form.businessName.trim()) return "Business name is required.";
-    if (!form.businessType) return "Please select a business type.";
+    if (!decodeChoice(form.businessChoice)) return "Please select a business type.";
     if (!form.yearOperation.trim()) return "Year of operation is required.";
     if (!businessPermit) return "Please upload your Business Permit.";
     if (!dti) return "Please upload your DTI/SEC Registration.";
@@ -175,6 +176,12 @@ export default function BusinessRegistrationPage() {
     const validationError = validateStep2();
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    const choice = decodeChoice(form.businessChoice);
+    if (!choice) {
+      setError("Please select a business type.");
       return;
     }
 
@@ -221,7 +228,9 @@ export default function BusinessRegistrationPage() {
         phoneNumber: form.phoneNumber.trim(),
 
         businessName: form.businessName.trim(),
-        businessType: form.businessType,
+        businessType: choice.category,
+        explorePage: choice.page,
+        exploreCategory: choice.category,
         yearOperation: form.yearOperation.trim(),
 
         documents: {
@@ -299,6 +308,25 @@ export default function BusinessRegistrationPage() {
           </p>
         </div>
 
+        {step === 1 && (
+          <div
+            style={{
+              background: "#eef6f0",
+              border: "1px solid #cfe3d6",
+              color: "#1a5c38",
+              borderRadius: 8,
+              padding: "10px 12px",
+              fontSize: ".82rem",
+              marginBottom: 16,
+              lineHeight: 1.45,
+            }}
+          >
+            <i className="fas fa-info-circle" /> Explore lists established places people
+            look for — restaurants, shops, clinics, gyms, banks and similar. Very small
+            home-based stores, such as sari-sari stores, aren&apos;t listed.
+          </div>
+        )}
+
         {error && <div className="business-reg-error">{error}</div>}
 
         {step === 1 && (
@@ -356,17 +384,24 @@ export default function BusinessRegistrationPage() {
               <div className="business-reg-input-group">
                 <label>Business Type</label>
                 <select
-                  value={form.businessType}
-                  onChange={(e) => updateField("businessType", e.target.value)}
+                  value={form.businessChoice}
+                  onChange={(e) => updateField("businessChoice", e.target.value)}
                   disabled={submitting}
                 >
                   <option value="">Select type</option>
-                  {BUSINESS_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+                  {REGISTRATION_GROUPS.map((group) => (
+                    <optgroup key={group.page} label={group.label}>
+                      {group.categories.map((category) => (
+                        <option key={category} value={encodeChoice(group.page, category)}>
+                          {category}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
+                <span className="business-reg-hint">
+                  Pick the closest match — this is where your business will appear on Explore.
+                </span>
               </div>
 
               <div className="business-reg-input-group">

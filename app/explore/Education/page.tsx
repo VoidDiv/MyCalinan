@@ -1,26 +1,42 @@
+/* ============================================================
+   EDUCATION PAGE
+   EXPLORE SECTION : "education"
+   ADMIN LOCATION  : Admin > Listings > Explore > Education
+   Replace the page.tsx inside your Education folder.
+   ============================================================ */
+
 "use client";
 
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, LineString } from "geojson";
-import React, {
-  useState,
-  useEffect,
-  useRef,
+import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
   type ChangeEvent,
 } from "react";
 import Link from "next/link";
+import { useExploreListings } from "@/hooks/useLiveListings";
 
-const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore) ── */
+const EXPLORE_SECTION = "education";
 
-mapboxgl.accessToken = token!;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
-// ----------------------------------------------------------------------
-// Types & Interfaces
-// ----------------------------------------------------------------------
-type Tag = "Elementary" | "High School" | "College" | "Public" | "Private";
+const ROUTE_SOURCE_ID = "education-route";
+const ROUTE_LAYER_ID = "education-route-line";
+const PIN_COLOR = "#2e8b57";
+
+/* ══════════════════════════════════════════
+  TYPES
+══════════════════════════════════════════ */
+
+// Plain string so admin-added tags work without code changes
+type Tag = string;
 type FilterValue = "all" | Tag;
 
 export interface School {
@@ -35,6 +51,10 @@ export interface School {
   description: string;
 }
 
+interface SchoolWithDistance extends School {
+  distKm: number | null;
+}
+
 interface UserLocation {
   lat: number;
   lng: number;
@@ -42,129 +62,26 @@ interface UserLocation {
 }
 
 interface RouteInfo {
-  distKm: string;
-  timeStr: string;
+  distanceKm: number;
+  minutes: number;
 }
 
-// ----------------------------------------------------------------------
-// Static Data
-// ----------------------------------------------------------------------
-const STORAGE_BASE =
-  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Education";
+/* ══════════════════════════════════════════
+  DATA
+══════════════════════════════════════════ */
 
-const SCHOOLS: School[] = [
-  {
-    id: "calinan-central-elementary",
-    name: "Calinan Central Elementary School",
-    tags: ["Elementary", "Public"],
-    lat: 7.1895,
-    lng: 125.4565,
-    displayTag: "Public Elementary School",
-    mapsQuery: "Calinan+Central+Elementary+School+Davao+City",
-    image: `${STORAGE_BASE}/Calinan%20Central%20Elementary%20School.png`,
-    description:
-      "Purok 5, Barangay Calinan, Davao City — One of the main public basic education institutions in the Calinan District, catering to learners from surrounding barangays.",
-  },
-  {
-    id: "villafuerte-elementary",
-    name: "Lt. C. Villafuerte Sr. Elementary School",
-    tags: ["Elementary", "Public"],
-    lat: 7.1888,
-    lng: 125.457,
-    displayTag: "Public Elementary School",
-    mapsQuery: "Lt.+C.+Villafuerte+Sr.+Elementary+School+Davao+City",
-    image: `${STORAGE_BASE}/Lt.%20C.%20Villafuerte%20Sr.%20Elementary%20School.png`,
-    description:
-      "Duyac St., Calinan District, Davao City — Provides accessible quality basic education for learners from Kindergarten to Grade 6 with active community programs.",
-  },
-  {
-    id: "calinan-national-high-school",
-    name: "Calinan National High School",
-    tags: ["High School", "Public"],
-    lat: 7.1875,
-    lng: 125.4575,
-    displayTag: "Public High School",
-    mapsQuery: "Calinan+National+High+School+Davao+City",
-    image: `${STORAGE_BASE}/Calinan%20National%20High%20School.jpg`,
-    description:
-      "Duyac St., Calinan District, Davao City — A major public secondary school under DepEd Davao City Division, offering junior and senior high school programs.",
-  },
-  {
-    id: "amigo-school",
-    name: "Amigo School of Calinan",
-    tags: ["Elementary", "High School", "Private"],
-    lat: 7.186,
-    lng: 125.452,
-    displayTag: "Private Elementary & High School",
-    mapsQuery: "Amigo+School+of+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Amigo%20School%20of%20Calinan.png`,
-    description:
-      "De Lara St., Calinan District, Davao City — Private basic education school serving learners from surrounding barangays and upland communities with co-curricular programs.",
-  },
-  {
-    id: "st-francis-college",
-    name: "St. Francis College of Davao Calinan",
-    tags: ["High School", "Private"],
-    lat: 7.184,
-    lng: 125.459,
-    displayTag: "Private High School",
-    mapsQuery: "St.+Francis+College+of+Davao+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/St.%20Francis%20College%20of%20Davao%20Calinan.jpg`,
-    description:
-      "Sunrise Village, Penano Street, Calinan — Catholic secondary school recognized by DepEd as a Senior High School provider offering ABM, HUMSS, GAS, and TVL strands.",
-  },
-  {
-    id: "nikkei-jin-kai",
-    name: "Philippine Nikkei Jin Kai School of Calinan",
-    tags: ["Elementary", "High School", "Private"],
-    lat: 7.175,
-    lng: 125.448,
-    displayTag: "Private Elementary & High School",
-    mapsQuery:
-      "Philippine+Nikkei+Jin+Kai+International+School+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Philippine%20Nikkei%20Jin%20Kai%20School%20of%20Calinan.jpg`,
-    description:
-      "Durian Village, Calinan District — Japanese-Filipino cultural and language education campus under the Philippine Nikkei Jin Kai international network.",
-  },
-  {
-    id: "pct-calinan",
-    name: "Philippine College of Technology Calinan Branch",
-    tags: ["College", "High School", "Private"],
-    lat: 7.182,
-    lng: 125.449,
-    displayTag: "Private College & High School",
-    mapsQuery: "Philippine+College+of+Technology+Calinan+Branch+Davao+City",
-    image: `${STORAGE_BASE}/Philippine%20College%20of%20Technology%20Calinan%20Branch.jpg`,
-    description:
-      "Bayanihan, Calinan-Wangan Road — Technical-vocational and higher education campus offering skills-based programs designed for industry readiness.",
-  },
-  {
-    id: "holy-cross-college",
-    name: "Holy Cross College of Calinan",
-    tags: ["College", "High School", "Elementary", "Private"],
-    lat: 7.19,
-    lng: 125.4548,
-    displayTag: "Private College, High School & Elementary",
-    mapsQuery: "Holy+Cross+College+of+Calinan+Davao+City",
-    image: `${STORAGE_BASE}/Holy%20Cross%20College%20of%20Calinan%2C%20Inc..png`,
-    description:
-      "McArthur Highway, Datu Abing St., Calinan — Catholic institution under the Archdiocese of Davao offering basic, tertiary, and graduate education with Christian values.",
-  },
-];
+// The listings for this page now come from Firestore.
+// Manage them in Admin > Listings > Explore > Education.
 
-const FILTERS: { label: string; value: FilterValue }[] = [
-  { label: "All", value: "all" },
-  { label: "Elementary", value: "Elementary" },
-  { label: "High School", value: "High School" },
-  { label: "College", value: "College" },
-  { label: "Public", value: "Public" },
-  { label: "Private", value: "Private" },
-];
+// Optional: controls the order of the filter chips. Unknown (admin-added)
+// tags are appended after these, alphabetically.
+const PREFERRED_ORDER = ["Elementary", "High School", "College", "Public", "Private"];
 
-// ----------------------------------------------------------------------
-// Utility Functions
-// ----------------------------------------------------------------------
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+/* ══════════════════════════════════════════
+  HELPERS
+══════════════════════════════════════════ */
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -177,13 +94,34 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 function formatDist(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m away`;
-  return `${km.toFixed(1)} km away`;
+  return km < 1 ? `${Math.round(km * 1000)} m away` : `${km.toFixed(1)} km away`;
 }
 
-function googleMapsSearchUrl(query: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+function formatDuration(mins: number): string {
+  return mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
+
+// mapsQuery from Firestore is already URL-encoded (mapsQueryEncoded)
+function googleMapsSearchUrl(encodedQuery: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodedQuery}`;
+}
+
+function sortTags(tags: string[]): string[] {
+  return [...tags].sort((a, b) => {
+    const ia = PREFERRED_ORDER.indexOf(a);
+    const ib = PREFERRED_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b);
+  });
+}
+
+const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
+  1: "Location access denied. Please allow it in your browser settings.",
+  2: "Location unavailable. Check your GPS or network.",
+  3: "Location request timed out. Try again.",
+};
 
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   type: "Feature",
@@ -191,69 +129,101 @@ const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   geometry: { type: "LineString", coordinates: [] },
 };
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+/* ══════════════════════════════════════════
+  COMPONENT
+══════════════════════════════════════════ */
 
-// ----------------------------------------------------------------------
-// Main Component
-// ----------------------------------------------------------------------
- const EducationPage: React.FC = () => {
-  // --- States ---
-  const [searchQuery, setSearchQuery] = useState<string>("");
+export default function EducationPage() {
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
-  const [sortByNearest, setSortByNearest] = useState<boolean>(false);
+  const [sortByNearest, setSortByNearest] = useState(false);
 
-  // User location
-  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
-  const [isLocating, setIsLocating] = useState<boolean>(false);
-  const [locStatusText, setLocStatusText] = useState<string>("Detecting your location…");
-  const [isLocError, setIsLocError] = useState<boolean>(false);
-  const [hasLocationActive, setHasLocationActive] = useState<boolean>(false);
-
-  // Modal state
-  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
-
-  // Toast state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Map & active item panel
-  const [isMapPanelOpen, setIsMapPanelOpen] = useState<boolean>(false);
+  const [mapPanelOpen, setMapPanelOpen] = useState(false);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [isRoutingLoading, setIsRoutingLoading] = useState<string | null>(null);
+  const [routingId, setRoutingId] = useState<string | null>(null);
 
-  // --- Refs for Mapbox objects ---
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const mapLoadedRef = useRef<boolean>(false);
+  const [modalImage, setModalImage] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // --- Toast Trigger ---
-  const showToast = useCallback((msg: string, duration = 3000) => {
-    setToastMessage(msg);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapLoadedRef = useRef(false);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const schoolMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  /* ── LIVE LISTINGS FROM ADMIN (Explore > "education") ── */
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
+  const allSchools = useMemo<School[]>(
+    () =>
+      live.map((l) => ({
+        id: l.id,
+        name: l.name,
+        // Education listings can carry several tags (e.g. "High School" + "Private")
+        tags: (l.tags && l.tags.length ? l.tags : [l.category]) as Tag[],
+        lat: l.lat,
+        lng: l.lng,
+        displayTag: l.tag,
+        mapsQuery: l.mapsQueryEncoded,
+        image: l.image,
+        description: l.description,
+      })),
+    [live]
+  );
+
+  /* ── FILTER CHIPS (built from every tag that exists, incl. admin-added ones) ── */
+  const filters = useMemo<{ label: string; value: FilterValue }[]>(() => {
+    const tags = sortTags(Array.from(new Set(allSchools.flatMap((s) => s.tags))));
+    return [{ label: "All", value: "all" }, ...tags.map((t) => ({ label: t, value: t }))];
+  }, [allSchools]);
+
+  // If the active tag disappears (e.g. admin deleted its last listing), fall back to "all"
+  useEffect(() => {
+    if (activeFilter !== "all" && !allSchools.some((s) => s.tags.includes(activeFilter))) {
+      setActiveFilter("all");
+    }
+  }, [allSchools, activeFilter]);
+
+  /* ── TOAST ── */
+  const showToast = useCallback((message: string, duration = 3000) => {
+    setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, duration);
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
   }, []);
 
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
     };
   }, []);
 
-  // --- Geolocation ---
-  const startLocating = () => {
-    if (!navigator.geolocation) {
+  /* ── ESC closes image modal ── */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  /* ── GEOLOCATION ── */
+  const startLocating = useCallback(() => {
+    if (!("geolocation" in navigator)) {
       showToast("⚠️ Geolocation is not supported by your browser.");
       return;
     }
-
-    setIsLocating(true);
-    setHasLocationActive(true);
-    setLocStatusText("Detecting your location…");
+    setLocating(true);
+    setLocationError(null);
 
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -261,267 +231,240 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        setUserLoc({ lat: latitude, lng: longitude, accuracy });
-        setIsLocating(false);
-        setIsLocError(false);
-        setLocStatusText(`Location active · ±${Math.round(accuracy)} m accuracy`);
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+        setLocating(false);
       },
       (err) => {
-        setIsLocating(false);
-        setIsLocError(true);
-        const msgs: Record<number, string> = {
-          1: "Location access denied. Please allow it in your browser settings.",
-          2: "Location unavailable. Check your GPS or network.",
-          3: "Location request timed out. Try again.",
-        };
-        const errorMsg = msgs[err.code] || "Could not get location.";
-        setLocStatusText(errorMsg);
-        showToast("⚠️ " + errorMsg);
+        setLocating(false);
+        const message = GEOLOCATION_ERROR_MESSAGES[err.code] ?? "Could not get location.";
+        setLocationError(message);
+        showToast(`⚠️ ${message}`);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
-  };
+  }, [showToast]);
 
-  // Cleanup geolocation watch on unmount
+  /* ── DERIVED DATA ── */
+  const schoolsWithDistance: SchoolWithDistance[] = useMemo(() => {
+    return allSchools.map((school) => ({
+      ...school,
+      distKm: userLocation
+        ? haversineKm(userLocation.lat, userLocation.lng, school.lat, school.lng)
+        : null,
+    }));
+  }, [userLocation, allSchools]);
+
+  const visibleSchools = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+
+    let list = schoolsWithDistance.filter((school) => {
+      const matchesSearch =
+        !query ||
+        school.name.toLowerCase().includes(query) ||
+        school.displayTag.toLowerCase().includes(query) ||
+        school.tags.some((t) => t.toLowerCase().includes(query));
+      const matchesFilter = activeFilter === "all" || school.tags.includes(activeFilter);
+      return matchesSearch && matchesFilter;
+    });
+
+    if (sortByNearest && userLocation) {
+      list = [...list].sort((a, b) => (a.distKm ?? Infinity) - (b.distKm ?? Infinity));
+    }
+
+    return list;
+  }, [schoolsWithDistance, searchQuery, activeFilter, sortByNearest, userLocation]);
+
+  /* ── MAP: init once the panel is opened ── */
   useEffect(() => {
+    if (!mapPanelOpen || mapRef.current || !mapContainerRef.current) return;
+
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [125.4558, 7.1885],
+      zoom: 14,
+    });
+
+    map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      mapLoadedRef.current = true;
+      map.addSource(ROUTE_SOURCE_ID, { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
+      map.addLayer({
+        id: ROUTE_LAYER_ID,
+        type: "line",
+        source: ROUTE_SOURCE_ID,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": PIN_COLOR, "line-width": 5, "line-opacity": 0.85 },
+      });
+      setTimeout(() => map.resize(), 50);
+    });
+
+    mapRef.current = map;
+
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-    };
-  }, []);
-
-  // --- Map Initialization & Lifetime ---
-  useEffect(() => {
-    if (!isMapPanelOpen) return;
-
-    if (!mapboxgl.accessToken) {
-      showToast("Mapbox token is missing — check NEXT_PUBLIC_MAPBOX_TOKEN.");
-      return;
-    }
-
-    if (!mapRef.current) {
-      const map = new mapboxgl.Map({
-        container: "edu-map",
-        style: "mapbox://styles/mapbox/streets-v12",
-        center: [125.4558, 7.1885],
-        zoom: 14,
-      });
-      map.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-      map.on("load", () => {
-        map.addSource("route", { type: "geojson", data: EMPTY_ROUTE_GEOJSON });
-        map.addLayer({
-          id: "route",
-          type: "line",
-          source: "route",
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#2e8b57", "line-width": 5, "line-opacity": 0.85 },
-        });
-        mapLoadedRef.current = true;
-      });
-
-      mapRef.current = map;
-    } else {
-      setTimeout(() => mapRef.current?.resize(), 100);
-    }
-  }, [isMapPanelOpen, showToast]);
-
-  // Tear down map when panel closes
-  useEffect(() => {
-    if (!isMapPanelOpen && mapRef.current) {
-      mapRef.current.remove();
+      map.remove();
       mapRef.current = null;
       mapLoadedRef.current = false;
       userMarkerRef.current = null;
-      activeMarkerRef.current = null;
-    }
-  }, [isMapPanelOpen]);
+      schoolMarkerRef.current = null;
+    };
+  }, [mapPanelOpen]);
 
-  // Update user marker on map
+  /* ── MAP: keep the user marker in sync ── */
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !userLoc) return;
+    if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) {
-      userMarkerRef.current.remove();
-    }
+    if (userMarkerRef.current) userMarkerRef.current.remove();
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
     el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
 
-    userMarkerRef.current = new mapboxgl.Marker({ element: el })
-      .setLngLat([userLoc.lng, userLoc.lat])
-      .setPopup(
-        new mapboxgl.Popup({ offset: 16 }).setHTML(
-          '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
-        )
-      )
+    const popup = new mapboxgl.Popup({ offset: 14 }).setHTML(
+      '<div class="user-popup"><h4>📍 Your Location</h4><p>You are here</p></div>'
+    );
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "center" })
+      .setLngLat([userLocation.lng, userLocation.lat])
+      .setPopup(popup)
       .addTo(map);
-  }, [userLoc, isMapPanelOpen]);
+  }, [userLocation, mapPanelOpen]);
 
-  // --- Map Actions ---
-  const handleShowOnMap = (item: School) => {
-    setSelectedSchool(item);
-    setIsMapPanelOpen(true);
-    setRouteInfo(null);
-
-    setTimeout(() => {
-      const map = mapRef.current;
-      if (!map) return;
-
-      if (activeMarkerRef.current) activeMarkerRef.current.remove();
-
-      const clearRoute = () => {
-        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
-        source?.setData(EMPTY_ROUTE_GEOJSON);
-      };
-      if (mapLoadedRef.current) {
-        clearRoute();
-      } else {
-        map.once("load", clearRoute);
-      }
-
-      const el = document.createElement("div");
-      el.style.cssText =
-        "background:#2e8b57;color:white;font-size:16px;width:36px;height:36px;" +
-        "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
-        "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
-        "border:2px solid white;";
-      el.innerHTML = `<span style="transform:rotate(45deg)">🎓</span>`;
-
-      const distText = userLoc
-        ? `<br><strong>${formatDist(
-            haversine(userLoc.lat, userLoc.lng, item.lat, item.lng)
-          )}</strong> straight-line from you`
-        : "";
-
-      const popupHtml = `
-        <div class="place-popup">
-          <h4>${item.name}</h4>
-          <div class="popup-tag">${item.displayTag}</div>
-          <p>${distText}</p>
-          <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-        </div>`;
-
-      activeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([item.lng, item.lat])
-        .setPopup(new mapboxgl.Popup({ offset: 24, maxWidth: "250px" }).setHTML(popupHtml))
-        .addTo(map);
-      activeMarkerRef.current.togglePopup();
-
-      map.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
-      map.resize();
-    }, 100);
-  };
-
-  const handleGetDirections = async (item: School) => {
-    if (!userLoc) {
-      showToast("📍 Enable location first to get directions.");
-      return;
-    }
-
-    setIsRoutingLoading(item.id);
-    handleShowOnMap(item);
-
-    const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${item.lng},${item.lat}?overview=full&geometries=geojson`;
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (!data.routes || data.routes.length === 0) {
-        throw new Error("No route found");
-      }
-
-      const route = data.routes[0];
-      const coordinates: [number, number][] = route.geometry.coordinates;
-      const distKm = (route.distance / 1000).toFixed(1);
-      const mins = Math.round(route.duration / 60);
-      const timeStr = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
-
-      const drawRoute = () => {
-        const map = mapRef.current;
-        if (!map) return;
-        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
-        const geojson: Feature<LineString> = {
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates },
-        };
-        source?.setData(geojson);
-
-        const bounds = coordinates.reduce(
-          (b, c) => b.extend(c as [number, number]),
-          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
-        );
-        map.fitBounds(bounds, { padding: 40 });
-      };
-
-      if (mapLoadedRef.current) {
-        drawRoute();
-      } else {
-        mapRef.current?.once("load", drawRoute);
-      }
-
-      setRouteInfo({ distKm, timeStr });
-      showToast(`🧭 Route to ${item.name}: ${distKm} km · ${timeStr}`);
-    } catch {
-      showToast("⚠️ Could not load route. Check your internet connection.");
-    } finally {
-      setIsRoutingLoading(null);
-    }
-  };
-
-  const handleCloseMap = () => {
-    setIsMapPanelOpen(false);
-    setRouteInfo(null);
-    setSelectedSchool(null);
-  };
-
-  // --- Filtering & Sorting Data ---
-  const processedSchools = useMemo(() => {
-    return SCHOOLS.map((item) => {
-      const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
-      return { ...item, distance };
-    })
-      .filter((item) => {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          !q ||
-          item.name.toLowerCase().includes(q) ||
-          item.displayTag.toLowerCase().includes(q) ||
-          item.tags.some((t) => t.toLowerCase().includes(q));
-
-        const matchesFilter = activeFilter === "all" || item.tags.includes(activeFilter);
-
-        return matchesSearch && matchesFilter;
-      })
-      .sort((a, b) => {
-        if (sortByNearest && userLoc && a.distance !== null && b.distance !== null) {
-          return a.distance - b.distance;
-        }
-        return 0;
-      });
-  }, [searchQuery, activeFilter, sortByNearest, userLoc]);
-
-  // Handle ESC key for modal
+  /* ── MAP: place/refresh the school marker and fly to it ── */
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setModalImageSrc(null);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const map = mapRef.current;
+    if (!map || !selectedSchool) return;
+
+    if (schoolMarkerRef.current) schoolMarkerRef.current.remove();
+
+    const el = document.createElement("div");
+    el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">🎓</span></div>`;
+
+    const distText = userLocation
+      ? `<br><strong>${formatDist(
+          haversineKm(userLocation.lat, userLocation.lng, selectedSchool.lat, selectedSchool.lng)
+        )}</strong> straight-line from you`
+      : "";
+
+    const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
+      `<div class="place-popup">
+        <h4>${selectedSchool.name}</h4>
+        <div class="popup-tag">${selectedSchool.displayTag}</div>
+        <p>${distText}</p>
+        <a href="${googleMapsSearchUrl(selectedSchool.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+      </div>`
+    );
+
+    schoolMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat([selectedSchool.lng, selectedSchool.lat])
+      .setPopup(popup)
+      .addTo(map)
+      .togglePopup();
+
+    map.flyTo({ center: [selectedSchool.lng, selectedSchool.lat], zoom: 17, duration: 1000 });
+    setTimeout(() => map.resize(), 320);
+  }, [selectedSchool, userLocation, mapPanelOpen]);
+
+  /* ── ACTIONS ── */
+
+  const clearRouteLayer = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    source?.setData(EMPTY_ROUTE_GEOJSON);
   }, []);
+
+  const showOnMap = useCallback(
+    (school: School) => {
+      setSelectedSchool(school);
+      setRouteInfo(null);
+      clearRouteLayer();
+      setMapPanelOpen(true);
+    },
+    [clearRouteLayer]
+  );
+
+  const closeMap = useCallback(() => {
+    setMapPanelOpen(false);
+    setSelectedSchool(null);
+    setRouteInfo(null);
+  }, []);
+
+  const getRoute = useCallback(
+    async (school: School) => {
+      if (!userLocation) {
+        showToast("📍 Enable location first to get directions.");
+        return;
+      }
+      if (!MAPBOX_TOKEN) {
+        showToast("⚠️ Missing Mapbox access token.");
+        return;
+      }
+
+      showOnMap(school);
+      setRoutingId(school.id);
+
+      try {
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${userLocation.lng},${userLocation.lat};${school.lng},${school.lat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.routes?.length) throw new Error("No route found");
+
+        const route = data.routes[0];
+        const distanceKm = route.distance / 1000;
+        const minutes = Math.round(route.duration / 60);
+
+        const map = mapRef.current;
+        if (map) {
+          const applyRoute = () => {
+            const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+            source?.setData({ type: "Feature", properties: {}, geometry: route.geometry });
+            const coords: [number, number][] = route.geometry.coordinates;
+            const bounds = coords.reduce(
+              (b, c) => b.extend(c as [number, number]),
+              new mapboxgl.LngLatBounds(coords[0], coords[0])
+            );
+            map.fitBounds(bounds, { padding: 40 });
+          };
+          if (mapLoadedRef.current) applyRoute();
+          else map.once("load", applyRoute);
+        }
+
+        setRouteInfo({ distanceKm: Math.round(distanceKm * 10) / 10, minutes });
+        showToast(`🧭 Route to ${school.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`);
+      } catch {
+        showToast("⚠️ Could not load route. Check your internet connection.");
+      } finally {
+        setRoutingId(null);
+      }
+    },
+    [userLocation, showOnMap, showToast]
+  );
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
+  const toggleSortByNearest = () => {
+    if (!userLocation) return;
+    setSortByNearest((prev) => !prev);
+  };
+
+  /* ══════════════════════════════════════════
+    RENDER
+  ══════════════════════════════════════════ */
+
   return (
-    <div>
+    <>
       {/* HEADER */}
       <header className="header">
         <div className="header-left">
@@ -545,13 +488,13 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
           <button
             id="locate-btn"
             title="Find my location"
+            className={locating ? "loading" : ""}
+            disabled={locating}
             onClick={startLocating}
-            disabled={isLocating}
-            className={isLocating ? "loading" : ""}
           >
-            <div className="spinner"></div>
+            <div className="spinner" />
             <span className="btn-label">
-              {isLocating ? "Locating..." : userLoc ? "📍 Tracking" : "📍 Locate Me"}
+              {userLocation ? "📍 Tracking" : "📍 Locate Me"}
             </span>
           </button>
         </div>
@@ -559,108 +502,126 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
       {/* IMAGE MODAL */}
       <div
-        className={`image-modal ${modalImageSrc ? "active" : ""}`}
+        className={`image-modal${modalImage ? " active" : ""}`}
         id="imageModal"
         onClick={(e) => {
-          if ((e.target as HTMLElement).tagName !== "IMG") setModalImageSrc(null);
+          if ((e.target as HTMLElement).tagName !== "IMG") setModalImage(null);
         }}
       >
-        <span className="close" onClick={() => setModalImageSrc(null)}>
-          ×
+        <span className="close" onClick={() => setModalImage(null)}>
+          &times;
         </span>
-        {modalImageSrc && <img id="modalImg" className="modal-content" src={modalImageSrc} alt="Preview" />}
+        {modalImage && <img id="modalImg" className="modal-content" alt="School photo" src={modalImage} />}
       </div>
 
       {/* HERO */}
       <section className="hero">
         <h2>Shaping Futures Through Education in Calinan</h2>
         <p>
-          Find schools, colleges, and institutions near you. Enable location to see distances and get directions.
+          Find schools, colleges, and institutions near you. Enable location to see distances and
+          get directions.
         </p>
-        <div id="location-status" className={hasLocationActive ? "visible" : ""}>
-          <div className={`loc-dot ${isLocError ? "loc-err" : ""}`} id="loc-dot"></div>
-          <span id="loc-text">{locStatusText}</span>
+        <div
+          id="location-status"
+          className={userLocation || locating || locationError ? "visible" : ""}
+        >
+          <div className={`loc-dot${locationError ? " loc-err" : ""}`} id="loc-dot" />
+          <span id="loc-text">
+            {locationError
+              ? locationError
+              : userLocation
+              ? `Location active · ±${Math.round(userLocation.accuracy)} m accuracy`
+              : "Detecting your location…"}
+          </span>
         </div>
       </section>
 
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.value}
-            className={`filter-chip ${activeFilter === f.value ? "active" : ""}`}
+            className={`filter-chip${activeFilter === f.value ? " active" : ""}`}
+            data-filter={f.value}
             onClick={() => setActiveFilter(f.value)}
           >
             {f.label}
           </button>
         ))}
-
         <button
-          className={`sort-btn ${sortByNearest ? "active" : ""}`}
+          className={`sort-btn${sortByNearest ? " active" : ""}`}
           id="sort-btn"
-          disabled={!userLoc}
-          title={!userLoc ? "Enable location first" : ""}
-          onClick={() => setSortByNearest(!sortByNearest)}
+          disabled={!userLocation}
+          title={!userLocation ? "Enable location first" : undefined}
+          onClick={toggleSortByNearest}
         >
           {sortByNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
-
-      {/* RESULT COUNT */}
       <div id="result-count">
-        {processedSchools.length > 0
-          ? `Showing ${processedSchools.length} of ${SCHOOLS.length} institutions`
+        {loading
+          ? "Loading…"
+          : visibleSchools.length > 0
+          ? `Showing ${visibleSchools.length} of ${allSchools.length} institutions`
           : ""}
       </div>
 
- {/* CARDS CONTAINER */}
+      {/* CARDS */}
       <section className="container" id="cards-container">
-        {processedSchools.map((school) => (
-          <div key={school.id} className="card">
-            <div className="card-image" onClick={() => setModalImageSrc(school.image)}>
+        {visibleSchools.map((school) => (
+          <div
+            key={school.id}
+            className="card"
+            data-name={school.name}
+            data-tags={school.tags.join(",")}
+            data-lat={school.lat}
+            data-lng={school.lng}
+            data-tag={school.displayTag}
+            data-maps-query={school.mapsQuery}
+          >
+            <div className="card-image" onClick={() => setModalImage(school.image)}>
               <img src={school.image} alt={school.name} />
             </div>
             <div className="card-content">
               <h3>
-                <a
-                  href={googleMapsSearchUrl(school.mapsQuery)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-               >
+                <a href={googleMapsSearchUrl(school.mapsQuery)} target="_blank" rel="noreferrer">
                   {school.name}
                 </a>
               </h3>
               <p>{school.description}</p>
               <span className="tag">{school.displayTag}</span>
-
-              <div className={`dist-badge ${school.distance !== null ? "visible" : ""}`}>
-                <div className="dot"></div>
-                <span className="dist-text">{school.distance !== null ? formatDist(school.distance) : ""}</span>
+              <div className={`dist-badge${school.distKm !== null ? " visible" : ""}`}>
+                <div className="dot" />
+                <span className="dist-text">
+                  {school.distKm !== null ? formatDist(school.distKm) : ""}
+                </span>
               </div>
-
               <div className="card-actions">
-                <button className="view-map-btn" onClick={() => handleShowOnMap(school)}>
+                <button className="view-map-btn" onClick={() => showOnMap(school)}>
                   📍 View on Map
                 </button>
                 <button
-                  className={`route-btn ${userLoc ? "visible" : ""} ${
-                    isRoutingLoading === school.id ? "loading" : ""
+                  className={`route-btn${userLocation ? " visible" : ""}${
+                    routingId === school.id ? " loading" : ""
                   }`}
-                  onClick={() => handleGetDirections(school)}
+                  onClick={() => getRoute(school)}
                 >
-                  {isRoutingLoading === school.id ? "⏳ Loading route…" : "🧭 Get Directions"}
+                  {routingId === school.id ? "⏳ Loading route…" : "🧭 Get Directions"}
                 </button>
               </div>
             </div>
           </div>
         ))}
 
-        {/* Empty state */}
-        {processedSchools.length === 0 && (
+        {!loading && visibleSchools.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
             <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2e8b57" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+              />
             </svg>
             <h3>No results found</h3>
             <p>Try a different search term or filter.</p>
@@ -669,14 +630,14 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       </section>
 
       {/* SPACER */}
-      <div id="map-panel-spacer" className={isMapPanelOpen ? "active" : ""}></div>
+      <div id="map-panel-spacer" className={mapPanelOpen ? "active" : ""} />
 
       {/* MAP PANEL */}
-      <div id="map-panel" className={isMapPanelOpen ? "active" : ""}>
+      <div id="map-panel" className={mapPanelOpen ? "active" : ""}>
         <div id="map-panel-header">
           <div>
             <div id="map-panel-title">📍 {selectedSchool ? selectedSchool.name : "Map"}</div>
-            <div id="map-panel-subtitle">{selectedSchool?.displayTag || ""}</div>
+            <div id="map-panel-subtitle">{selectedSchool?.displayTag ?? ""}</div>
           </div>
           <div id="map-panel-actions">
             {selectedSchool && (
@@ -685,35 +646,35 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
                 className="visible"
                 href={googleMapsSearchUrl(selectedSchool.mapsQuery)}
                 target="_blank"
-                rel="noopener noreferrer"
-            >
+                rel="noreferrer"
+              >
                 🧭 Open in Google Maps
               </a>
             )}
-            <button id="map-panel-close" onClick={handleCloseMap} title="Close map">
+            <button id="map-panel-close" onClick={closeMap} title="Close map">
               ✕
             </button>
           </div>
         </div>
-
-        <div id="edu-map"></div>
-
+        <div id="edu-map" ref={mapContainerRef} />
         <div id="route-info" className={routeInfo ? "visible" : ""}>
           <span>
-            🛣️ Road distance: <strong id="route-dist">{routeInfo?.distKm || "–"} km</strong>
+            🛣️ Road distance:{" "}
+            <strong id="route-dist">{routeInfo ? `${routeInfo.distanceKm} km` : "–"}</strong>
           </span>
           <span>
-            ⏱️ Estimated time: <strong id="route-time">{routeInfo?.timeStr || "–"}</strong>
+            ⏱️ Estimated time:{" "}
+            <strong id="route-time">
+              {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
+            </strong>
           </span>
         </div>
       </div>
 
       {/* TOAST */}
-      <div id="toast" className={toastMessage ? "show" : ""}>
-        {toastMessage}
+      <div id="toast" className={toast ? "show" : ""}>
+        {toast}
       </div>
-    </div>
+    </>
   );
-};
-
-export default EducationPage;
+}

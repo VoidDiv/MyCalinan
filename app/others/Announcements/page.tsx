@@ -2,171 +2,206 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
 
 interface AnnouncementItem {
-  _id?: string;
+  id?: string | number;
+  name?: string;
   title?: string;
-  date?: string;
-  category?: string;
   image?: string;
+  category?: string;
+  date?: string | Timestamp;
+  location?: string;
   description?: string;
 }
 
-export default function AnnouncementPage() {
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+function getCategoryClass(category?: string): string {
+  const c = (category || "").toLowerCase();
 
-  useEffect(() => {
-    loadAnnouncements();
-  }, []);
+  if (c.includes("event")) return "event";
+  if (c.includes("festival")) return "festival";
+  if (c.includes("program")) return "program";
+  if (c.includes("advisory")) return "advisory";
 
-  async function loadAnnouncements(): Promise<void> {
-    try {
-      setLoading(true);
-      setError("");
+  return "general";
+}
 
-      const announcementsRef = collection(db, "announcements");
-      const q = query(announcementsRef, orderBy("date", "desc"));
-      const snapshot = await getDocs(q);
-
-      const data: AnnouncementItem[] = snapshot.docs.map((doc) => ({
-        _id: doc.id,
-        ...doc.data(),
-      }));
-
-      setAnnouncements(data);
-    } catch (err) {
-      console.error("Failed to load announcements:", err);
-
-      setError(
-        "Unable to load announcements. Please try again later."
-      );
-    } finally {
-      setLoading(false);
-    }
+function formatDate(date?: string | Timestamp): string {
+  if (!date) {
+    return "No date";
   }
 
-  function getCategoryClass(category?: string): string {
-    const value = (category || "").toLowerCase();
-
-    if (value.includes("event")) return "event";
-    if (value.includes("advisory")) return "advisory";
-    if (value.includes("program")) return "program";
-    if (value.includes("festival")) return "festival";
-
-    return "general";
-  }
-
-  function formatDate(date?: string): string {
-    if (!date) {
-      return "No date provided";
-    }
-
-    const parsedDate = new Date(date);
-
-    if (isNaN(parsedDate.getTime())) {
-      return date;
-    }
-
-    return parsedDate.toLocaleDateString("en-US", {
+  if (date instanceof Timestamp) {
+    return date.toDate().toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
   }
 
-  function handleImageError(
-    event: React.SyntheticEvent<HTMLImageElement>
-  ): void {
-    event.currentTarget.style.display = "none";
+  const parsedDate = new Date(date);
+
+  if (isNaN(parsedDate.getTime())) {
+    return date;
   }
 
+  return parsedDate.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export default function AnnouncementPage() {
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<boolean>(false);
+
+  const loadAnnouncements = async (): Promise<void> => {
+    try {
+      setError(false);
+
+      const announcementsRef = collection(db, "announcements");
+      const q = query(announcementsRef, orderBy("date", "desc"));
+      const snapshot = await getDocs(q);
+
+      const data: AnnouncementItem[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAnnouncements(data);
+    } catch (err) {
+      console.error("Failed to load announcements:", err);
+      setError(true);
+      setAnnouncements([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
+
+  const eventCount = announcements.filter((item) =>
+    (item.category || "").toLowerCase().includes("event")
+  ).length;
+
+  const festivalCount = announcements.filter((item) =>
+    (item.category || "").toLowerCase().includes("festival")
+  ).length;
+
+  const advisoryCount = announcements.filter((item) =>
+    (item.category || "").toLowerCase().includes("advisory")
+  ).length;
+
   return (
-    <div className="announcement-page">
-      <header className="announcement-header">
-        <Link href="/" className="announcement-back-btn">
-          ← Back
+    <div className="events-page">
+      <header className="events-header">
+        <Link href="/" className="events-back-btn">
+          <i className="fas fa-arrow-left"></i>
+          Back to Home
         </Link>
-        <h1>Community Announcements</h1>
+
+        <h1>
+          <i className="fas fa-bullhorn"></i>
+          Community Announcements
+        </h1>
       </header>
 
-      <main className="announcement-main">
-        {loading && (
-          <div className="announcement-state loading">
-            <p>Loading announcements...</p>
+      <div className="events-container">
+        <div className="events-stats">
+          <div className="events-stat-card">
+            <i className="fas fa-bullhorn"></i>
+            <h2>{announcements.length}</h2>
+            <p>Total Listings</p>
           </div>
-        )}
 
-        {!loading && error && (
-          <div className="announcement-state error">
-            <div className="state-icon">⚠️</div>
-            <h2>Unable to Load Announcements</h2>
-            <p>{error}</p>
-            <button
-              type="button"
-              className="retry-button"
-              onClick={loadAnnouncements}
-            >
-              Try Again
-            </button>
+          <div className="events-stat-card">
+            <i className="fas fa-calendar-day"></i>
+            <h2>{eventCount}</h2>
+            <p>Events</p>
           </div>
-        )}
 
-        {!loading && !error && announcements.length === 0 && (
-          <div className="announcement-state empty">
-            <div className="state-icon">📢</div>
-            <h2>No Announcements Yet</h2>
-            <p>There are currently no community announcements available.</p>
+          <div className="events-stat-card">
+            <i className="fas fa-mask"></i>
+            <h2>{festivalCount}</h2>
+            <p>Festivals</p>
           </div>
-        )}
 
-        {!loading && !error && announcements.length > 0 && (
-          <div className="announcement-grid">
-            {announcements.map((announcement, index) => (
-              <article
-                className="announcement-card"
-                key={announcement._id || `announcement-${index}`}
-              >
-                {announcement.image ? (
-                  <img
-                    src={announcement.image}
-                    alt={announcement.title || "Community announcement"}
-                    className="announcement-image"
-                    onError={handleImageError}
-                  />
-                ) : (
-                  <div className="announcement-image-placeholder">📢</div>
-                )}
-
-                <div className="announcement-card-content">
-                  <span
-                    className={`announcement-category ${getCategoryClass(
-                      announcement.category
-                    )}`}
-                  >
-                    {announcement.category || "General"}
-                  </span>
-
-                  <h2 className="announcement-title">
-                    {announcement.title || "Untitled Announcement"}
-                  </h2>
-
-                  <p className="announcement-date">
-                    📅 {formatDate(announcement.date)}
-                  </p>
-
-                  <p className="announcement-description">
-                    {announcement.description || "No description available."}
-                  </p>
-                </div>
-              </article>
-            ))}
+          <div className="events-stat-card">
+            <i className="fas fa-exclamation-circle"></i>
+            <h2>{advisoryCount}</h2>
+            <p>Advisories</p>
           </div>
-        )}
-      </main>
+        </div>
+
+        <div id="eventsContainer">
+          {loading ? (
+            <div className="events-loading">
+              <i className="fas fa-spinner fa-spin"></i>
+              Loading announcements...
+            </div>
+          ) : error ? (
+            <div className="events-empty">
+              ⚠️ Unable to load announcements. Please try again later.
+            </div>
+          ) : announcements.length === 0 ? (
+            <div className="events-empty">No announcements available.</div>
+          ) : (
+            <div className="events-grid">
+              {announcements.map((item, index) => {
+                const category = item.category || "General";
+
+                return (
+                  <div className="events-card" key={item.id ?? index}>
+                    {item.image && (
+                      <img
+                        src={item.image}
+                        alt={item.name || item.title || "Announcement"}
+                      />
+                    )}
+
+                    <div className="events-card-body">
+                      <span
+                        className={`events-badge ${getCategoryClass(category)}`}
+                      >
+                        {category}
+                      </span>
+
+                      <div className="events-title">
+                        {item.name || item.title || "Untitled Announcement"}
+                      </div>
+
+                      <div className="events-meta">
+                        <p>
+                          <i className="fas fa-calendar"></i>
+                          {formatDate(item.date)}
+                        </p>
+                      </div>
+
+                      {item.location && (
+                        <div className="events-meta">
+                          <p>
+                            <i className="fas fa-map-marker-alt"></i>
+                            {item.location}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="events-description">
+                        {item.description || ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,3 +1,8 @@
+/* ============================================================
+   HOTSPOTS PAGE
+   Replace the page.tsx inside your Hotspots folder.
+   ============================================================ */
+
 "use client";
 
 import mapboxgl from "mapbox-gl";
@@ -12,6 +17,7 @@ import React, {
   type ChangeEvent,
 } from "react";
 import Link from "next/link";
+import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -46,131 +52,11 @@ interface RouteInfo {
   time: string;
 }
 
-const STORAGE_BASE =
-  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Hotspots";
+// The listings for this page now come from Firestore.
+// Manage them in Admin > Listings > Explore.
 
-const hotspots: Hotspot[] = [
-  {
-    id: "bamboo-sanctuary",
-    name: "Bamboo Sanctuary",
-    category: "Nature Spot",
-    tag: "Nature Spot",
-    image: `${STORAGE_BASE}/bamboo-sanctuary-and-ecological-park.webp`,
-    description:
-      "A peaceful eco-tourism spot in Calinan, Davao City, known for its relaxing bamboo scenery, fresh air, and calm natural surroundings. Popular for nature walks, scenic photos, and quiet relaxation away from the busy city.",
-    location:
-      "Sitio Sto. Niño, Barangay Tamayong, Calinan District, Davao City",
-    mapsQuery: "Bamboo+Sanctuary+Tamayong+Davao+City",
-    lat: 7.1673,
-    lng: 125.4483,
-  },
-  {
-    id: "philippine-eagle-center",
-    name: "Philippine Eagle Center (PEC)",
-    category: "Wildlife & Conservation",
-    tag: "Wildlife & Conservation",
-    image: `${STORAGE_BASE}/Philippine Eagle Center (PEC).png`,
-    description:
-      "A conservation and education facility in Malagos, Davao City, dedicated to protecting the critically endangered Philippine Eagle. Home to the country's national bird and other wildlife — great for families, nature lovers, and visitors.",
-    location: "Purok 5, Malagos-Baguio District, Davao City",
-    mapsQuery: "Philippine+Eagle+Center+Malagos+Davao+City",
-    lat: 7.2242,
-    lng: 125.4159,
-  },
-  {
-    id: "malagos-garden-resort",
-    name: "Malagos Garden Resort",
-    category: "Eco Tourism",
-    tag: "Eco Tourism",
-    image: `${STORAGE_BASE}/Malagos%20Garden%20Resort.jpg`,
-    description:
-      "A 12-hectare eco-tourism destination in Malagos, Davao City, known for its lush gardens, nature attractions, and award-winning Malagos Chocolate. Offers a relaxing and educational experience promoting sustainable tourism.",
-    location: "Malagos-Baguio District, Davao City",
-    mapsQuery: "Malagos+Garden+Resort+Davao+City",
-    lat: 7.2255,
-    lng: 125.417,
-  },
-  {
-    id: "malagos-chocolate-museum",
-    name: "Malagos Chocolate Museum",
-    category: "Cultural Attraction",
-    tag: "Cultural Attraction",
-    image: `${STORAGE_BASE}/Malagos%20Chocolate%20Museum.jpg`,
-    description:
-      "The first chocolate museum in the Philippines, inside Malagos Garden Resort in Davao City. An interactive attraction showcasing the country's growing cacao industry and the award-winning chocolates of Malagos.",
-    location: "Malagos-Baguio District, Davao City",
-    mapsQuery: "Malagos+Chocolate+Museum+Davao+City",
-    lat: 7.2257,
-    lng: 125.4173,
-  },
-  {
-    id: "tamayong-prayer-mountain",
-    name: "Tamayong Prayer Mountain",
-    category: "Spiritual Retreat",
-    tag: "Spiritual Retreat",
-    image: `${STORAGE_BASE}/Tamayong%20Prayer%20Mountain.jpg`,
-    description:
-      "Also known as the Garden of Eden Restored, this private spiritual retreat in Tamayong, Calinan serves as a place for prayer, meditation, worship, and spiritual reflection in a serene highland setting.",
-    location: "Tamayong, Calinan District, Davao City",
-    mapsQuery: "Tamayong+Prayer+Mountain+Calinan+Davao+City",
-    lat: 7.169,
-    lng: 125.451,
-  },
-  {
-    id: "lantaw-bukid-resort",
-    name: "Lantaw Bukid Resort",
-    category: "Resort / Leisure",
-    tag: "Resort / Leisure",
-    image: `${STORAGE_BASE}/Lantaw%20Bukid%20Resort.jpg`,
-    description:
-      "A family-friendly inland resort known for its peaceful countryside atmosphere, open green spaces, pools, cottages, and relaxing nature views. A popular budget-friendly getaway for outings, reunions, and weekend swimming.",
-    location:
-      "Campo Cienco Road, Barangay Los Amigos, Tugbok District, Davao City",
-    mapsQuery: "Lantaw+Bukid+Resort+Davao+City",
-    lat: 7.1419,
-    lng: 125.4844,
-  },
-  {
-    id: "calinan-public-market",
-    name: "Calinan Public Market",
-    category: "Local Market",
-    tag: "Local Market",
-    image: `${STORAGE_BASE}/Calinan%20Public%20Market.jpg`,
-    description:
-      "The main marketplace in Calinan where locals and farmers trade fresh produce and daily goods. Known for experiencing local life and buying fresh fruits, vegetables, durian, souvenirs, and local snacks.",
-    location: "Calinan District, Davao City",
-    mapsQuery: "Calinan+Public+Market+Calinan+Davao+City",
-    lat: 7.1875,
-    lng: 125.4562,
-  },
-  {
-    id: "calinan-park",
-    name: "Calinan Park",
-    category: "Community Park",
-    tag: "Community Park",
-    image: `${STORAGE_BASE}/Calinan%20Park.png`,
-    description:
-      "A small community park in the heart of Calinan offering a quiet green space where locals can relax, socialize, or take a break. A common meeting spot for commuters, students, and families in the poblacion area.",
-    location: "H Quiambao St, Calinan District, Davao City",
-    mapsQuery: "Calinan+Park+Calinan+Davao+City",
-    lat: 7.1878,
-    lng: 125.4558,
-  },
-  {
-    id: "calinan-commercial-center",
-    name: "Calinan Commercial Center",
-    category: "Commercial Hub",
-    tag: "Commercial Hub",
-    image: `${STORAGE_BASE}/Brows1.png`,
-    description:
-      "A local hub in Calinan where people gather for daily needs, small businesses, and community activities. Reflects the active local life in the district and serves nearby residents and visitors passing through the area.",
-    location: "H Quiambao St, Calinan District, Davao City",
-    mapsQuery: "Calinan+Commercial+Center+Calinan+Davao+City",
-    lat: 7.1876,
-    lng: 125.456,
-  },
-];
-
+// Base filter chips (always shown). Any category that only exists in an
+// admin-added listing gets its own chip automatically.
 const filters = [
   { label: "All", value: "all" },
   { label: "Nature", value: "Nature Spot" },
@@ -225,6 +111,16 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+// Listings from Firestore are admin-entered text — escape before injecting into popup HTML
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   type: "Feature",
   properties: {},
@@ -265,6 +161,43 @@ export default function HotspotPage() {
   const mapLoadedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ---------- live listings from admin (Firestore) ---------- */
+
+  const { listings: live, loading } = useExploreListings("hotspots");
+  const allHotspots = useMemo<Hotspot[]>(
+    () => [
+      ...live.map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category,
+        tag: l.tag,
+        image: l.image,
+        description: l.description,
+        location: l.address,
+        mapsQuery: l.mapsQueryEncoded,
+        lat: l.lat,
+        lng: l.lng,
+      })),
+    ],
+    [live]
+  );
+
+  // Fixed chips above + a chip for any extra category that only exists in admin listings
+  const filterOptions = useMemo(() => {
+    const known = new Set(filters.map((f) => f.value));
+    const extras = Array.from(new Set(allHotspots.map((h) => h.category)))
+      .filter((c) => !known.has(c))
+      .map((c) => ({ label: c, value: c }));
+    return [...filters, ...extras];
+  }, [allHotspots]);
+
+  // If the active category disappears (e.g. admin deleted its last listing), fall back to "all"
+  useEffect(() => {
+    if (!filterOptions.some((f) => f.value === activeFilter)) {
+      setActiveFilter("all");
+    }
+  }, [filterOptions, activeFilter]);
 
   /* ---------- toast ---------- */
 
@@ -357,7 +290,7 @@ export default function HotspotPage() {
   const filteredHotspots = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
 
-    let list = hotspots.filter((hotspot) => {
+    let list = allHotspots.filter((hotspot) => {
       const matchSearch =
         !query ||
         hotspot.name.toLowerCase().includes(query) ||
@@ -383,7 +316,7 @@ export default function HotspotPage() {
     }
 
     return list;
-  }, [searchQuery, activeFilter, sortNearest, userLoc]);
+  }, [allHotspots, searchQuery, activeFilter, sortNearest, userLoc]);
 
   /* ---------- map init & lifetime (route source added on load, like Education/Shopping/Transport) ---------- */
 
@@ -479,9 +412,9 @@ export default function HotspotPage() {
 
       const popupHtml = `
         <div class="place-popup">
-          <span class="popup-tag">${hotspot.tag}</span>
-          <h4>${hotspot.name}</h4>
-          <p>${hotspot.description}</p>
+          <span class="popup-tag">${escapeHtml(hotspot.tag)}</span>
+          <h4>${escapeHtml(hotspot.name)}</h4>
+          <p>${escapeHtml(hotspot.description)}</p>
           <a href="${googleMapsSearchUrl(hotspot.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
         </div>
       `;
@@ -650,7 +583,7 @@ export default function HotspotPage() {
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
 
-        {filters.map((filter) => (
+        {filterOptions.map((filter) => (
           <button
             key={filter.value}
             type="button"
@@ -675,8 +608,10 @@ export default function HotspotPage() {
 
       {/* RESULT COUNT */}
       <div id="result-count">
-        {filteredHotspots.length > 0
-          ? `Showing ${filteredHotspots.length} of ${hotspots.length} hotspots`
+        {loading
+          ? "Loading…"
+          : filteredHotspots.length > 0
+          ? `Showing ${filteredHotspots.length} of ${allHotspots.length} hotspots`
           : ""}
       </div>
 
@@ -710,9 +645,13 @@ export default function HotspotPage() {
 
                 <p>
                   {hotspot.description}
-                  <br />
-                  <br />
-                  📍 {hotspot.location}
+                  {hotspot.location && (
+                    <>
+                      <br />
+                      <br />
+                      📍 {hotspot.location}
+                    </>
+                  )}
                 </p>
 
                 <span className="tag">{hotspot.tag}</span>
@@ -744,7 +683,7 @@ export default function HotspotPage() {
         })}
 
         {/* EMPTY STATE */}
-        {filteredHotspots.length === 0 && (
+        {!loading && filteredHotspots.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
             <svg
               width="56"

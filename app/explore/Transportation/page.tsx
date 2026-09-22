@@ -1,3 +1,8 @@
+/* ============================================================
+   TRANSPORT & UTILITIES PAGE
+   Replace the page.tsx inside your Transport folder.
+   ============================================================ */
+
 "use client";
 
 import mapboxgl from "mapbox-gl";
@@ -12,6 +17,7 @@ import React, {
   type ChangeEvent,
 } from "react";
 import Link from "next/link";
+import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -22,12 +28,14 @@ mapboxgl.accessToken = token!;
    Converted 1:1 from the Transport & Utilities static cards.
    ============================================================ */
 
+// Categories the built-in places below use. Admin-added listings may use
+// others, which is why TransportPlace.category is a plain string.
 type Category = "Gas Station" | "Transport Terminal";
 
 interface TransportPlace {
   id: string;
   name: string;
-  category: Category;
+  category: string;
   lat: number;
   lng: number;
   tag: string;
@@ -48,187 +56,11 @@ interface RouteInfo {
   time: string;
 }
 
-const STORAGE_BASE =
-  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Transport";
+// The listings for this page now come from Firestore.
+// Manage them in Admin > Listings > Explore.
 
-const PLACES: TransportPlace[] = [
-  {
-    id: "petron-1",
-    name: "Petron",
-    category: "Gas Station",
-    lat: 7.1855,
-    lng: 125.45,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Petron1.png`,
-    description:
-      "Davao–Buda National Highway, Calinan District — Full-service fuel station in Petron's nationwide network providing fuel, lubricants, and related vehicle services.",
-    mapsQuery: "Petron+Davao+Buda+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "petron-2",
-    name: "Petron",
-    category: "Gas Station",
-    lat: 7.1885,
-    lng: 125.4562,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Petron2.png`,
-    description:
-      "Villafuerte St., Calinan District — Part of Petron Corporation's nationwide network providing fuel, lubricants, and vehicle services for motorists in the Calinan area.",
-    mapsQuery: "Petron+Villafuerte+Street+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "shell-1",
-    name: "Shell",
-    category: "Gas Station",
-    lat: 7.1845,
-    lng: 125.4495,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Shell.png`,
-    description:
-      "Davao–Buda National Highway, Purok 16, Calinan — Shell service station offering fuel, car care, and vehicle maintenance as part of Shell's nationwide retail network.",
-    mapsQuery: "Shell+Davao+Buda+National+Highway+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "caltex-1",
-    name: "Caltex",
-    category: "Gas Station",
-    lat: 7.1905,
-    lng: 125.4545,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Caltex1.jpg`,
-    description:
-      "Datu Abing St., Calinan — Convenient fueling point strategically placed along key transport routes toward downtown Davao and nearby municipalities.",
-    mapsQuery: "Caltex+Datu+Abing+Street+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "caltex-2",
-    name: "Caltex",
-    category: "Gas Station",
-    lat: 7.187,
-    lng: 125.451,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Caltex2.jpg`,
-    description:
-      "Davao–Bukidnon Road, Corner Aurora, Calinan — Fueling point connecting major transport routes for residents and travelers within western Davao City.",
-    mapsQuery:
-      "Caltex+Davao-Bukidnon+Road+Corner+Aurora+Calinan+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "seaoil-1",
-    name: "SEAOIL",
-    category: "Gas Station",
-    lat: 7.186,
-    lng: 125.4575,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/SEAOIL.jpg`,
-    description:
-      "Fausta St., Calinan District — Fuel service station under SEAOIL Philippines Inc., known for locally refined and imported petroleum products across a nationwide chain.",
-    mapsQuery: "SEAOIL+Fausta+St+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "mygas-1",
-    name: "MyGas",
-    category: "Gas Station",
-    lat: 7.1875,
-    lng: 125.4515,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/MyGas.jpg`,
-    description:
-      "Aurora St., Calinan District — Part of My Gas Petroleum Corporation's growing regional network of service stations across Southern Mindanao.",
-    mapsQuery: "MyGas+Aurora+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "gazz-1",
-    name: "Gazz",
-    category: "Gas Station",
-    lat: 7.1862,
-    lng: 125.4522,
-    tag: "Gas Station",
-    pin: "⛽",
-    image: `${STORAGE_BASE}/Gazz.png`,
-    description:
-      "De Lara St., Calinan — Compact roadside station ideal for motorcycles, tricycles, and private vehicles along the busy Davao–Bukidnon Road.",
-    mapsQuery: "Gazz+De+Lara+St+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "calmalba-toda",
-    name: "CALMALBA TODA",
-    category: "Transport Terminal",
-    lat: 7.1887,
-    lng: 125.4556,
-    tag: "Transport Terminal",
-    pin: "🚐",
-    image: `${STORAGE_BASE}/CALMALBA%20TODA.jpg`,
-    description:
-      "R. Magsaysay St., Calinan — Also known as Malagos Terminal, a key transport hub connecting Malagos and neighboring barangays to the wider Davao metropolitan area.",
-    mapsQuery:
-      "CALMALBA+TODA+R.+Magsaysay+St+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "caltransco-caloda",
-    name: "CALTRANSCO (CALODA)",
-    category: "Transport Terminal",
-    lat: 7.189,
-    lng: 125.4558,
-    tag: "Transport Terminal",
-    pin: "🚐",
-    image: `${STORAGE_BASE}/CALTRANSCO%20(CALODA).jpg`,
-    description:
-      "R. Magsaysay St., Calinan — Member-driven transport service cooperative providing organized public transportation within and around Davao del Sur.",
-    mapsQuery:
-      "CALTRANSCO+CALODA+R.+Magsaysay+St+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "third-district-transport-coop",
-    name: "Third District Transport Cooperative",
-    category: "Transport Terminal",
-    lat: 7.1892,
-    lng: 125.456,
-    tag: "Transport Terminal",
-    pin: "🚐",
-    image: `${STORAGE_BASE}/Third%20District%20Transport%20Cooperative.png`,
-    description:
-      "R. Magsaysay St., Calinan — CDA-recognized transport cooperative serving the Davao Region's third district with organized public transport services.",
-    mapsQuery:
-      "Third+District+Transport+Cooperative+R.+Magsaysay+St+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "jeepney-terminal-mintal-davao",
-    name: "Jeepney Terminal Mintal & Davao",
-    category: "Transport Terminal",
-    lat: 7.1858,
-    lng: 125.4578,
-    tag: "Transport Terminal",
-    pin: "🚐",
-    image: `${STORAGE_BASE}/Jeepney%20Terminal%20Mintal%20%26%20Davao.png`,
-    description:
-      "Fausta, Calinan District — Central loading and unloading point for jeepneys connecting Mintal, Calinan, and surrounding barangays to the city proper.",
-    mapsQuery:
-      "Jeepney+Terminal+Mintal+and+Davao+Fausta+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-  {
-    id: "anatolio-taxi-terminal",
-    name: "Anatolio Taxi Terminal",
-    category: "Transport Terminal",
-    lat: 7.188,
-    lng: 125.455,
-    tag: "Transport Terminal",
-    pin: "🚐",
-    image: `${STORAGE_BASE}/Anatolio%20Taxi%20Terminal.png`,
-    description:
-      "Calinan Poblacion — Local taxi terminal offering faster point-to-point travel for residents, shoppers, workers, and visitors heading to and from Davao City.",
-    mapsQuery:
-      "Anatolio+Taxi+Terminal+Calinan+Poblacion+Calinan+District+Davao+City+Davao+del+Sur",
-  },
-];
-
+// Base filter chips (always shown). Any category that only exists in an
+// admin-added listing gets its own chip automatically.
 const FILTERS: Array<{ label: string; value: Category | "all" }> = [
   { label: "All", value: "all" },
   { label: "Gas Stations", value: "Gas Station" },
@@ -276,6 +108,16 @@ function googleMapsDirectionsUrl(
   return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest}`;
 }
 
+// Listings from Firestore are admin-entered text — escape before injecting into popup HTML
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   type: "Feature",
   properties: {},
@@ -290,7 +132,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
 export default function TransportUtilitiesPage() {
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState<Category | "all">("all");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
   const [sortNearest, setSortNearest] = useState(false);
 
   // User location states (mirrors Education/Shopping: live tracking, not one-shot)
@@ -316,6 +158,43 @@ export default function TransportUtilitiesPage() {
   const mapLoadedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ---------- live listings from admin (Firestore) ---------- */
+
+  const { listings: live, loading } = useExploreListings("transport");
+  const allPlaces = useMemo<TransportPlace[]>(
+    () => [
+      ...live.map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category,
+        lat: l.lat,
+        lng: l.lng,
+        tag: l.tag,
+        pin: l.pin || "🚐",
+        image: l.image,
+        description: l.description,
+        mapsQuery: l.mapsQueryEncoded,
+      })),
+    ],
+    [live]
+  );
+
+  // Fixed chips above + a chip for any extra category that only exists in admin listings
+  const filterOptions = useMemo<Array<{ label: string; value: string }>>(() => {
+    const known = new Set<string>(FILTERS.map((f) => f.value));
+    const extras = Array.from(new Set(allPlaces.map((p) => p.category)))
+      .filter((c) => !known.has(c))
+      .map((c) => ({ label: c, value: c }));
+    return [...FILTERS, ...extras];
+  }, [allPlaces]);
+
+  // If the active category disappears (e.g. admin deleted its last listing), fall back to "all"
+  useEffect(() => {
+    if (!filterOptions.some((f) => f.value === activeFilter)) {
+      setActiveFilter("all");
+    }
+  }, [filterOptions, activeFilter]);
 
   /* ---------- toast ---------- */
 
@@ -383,7 +262,7 @@ export default function TransportUtilitiesPage() {
 
   const visiblePlaces = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = PLACES.filter((p) => {
+    let list = allPlaces.filter((p) => {
       const matchesFilter = activeFilter === "all" || p.category === activeFilter;
       const matchesSearch =
         !q ||
@@ -402,7 +281,7 @@ export default function TransportUtilitiesPage() {
     }
 
     return list;
-  }, [search, activeFilter, sortNearest, userLoc]);
+  }, [allPlaces, search, activeFilter, sortNearest, userLoc]);
 
   /* ---------- map init & lifetime (route source added on load, like Education/Shopping) ---------- */
 
@@ -498,9 +377,9 @@ export default function TransportUtilitiesPage() {
 
       const popupHtml = `
         <div class="place-popup">
-          <span class="popup-tag">${place.tag}</span>
-          <h4>${place.pin} ${place.name}</h4>
-          <p>${place.description}</p>
+          <span class="popup-tag">${escapeHtml(place.tag)}</span>
+          <h4>${escapeHtml(place.pin)} ${escapeHtml(place.name)}</h4>
+          <p>${escapeHtml(place.description)}</p>
           <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
         </div>
       `;
@@ -669,7 +548,7 @@ export default function TransportUtilitiesPage() {
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        {FILTERS.map((f) => (
+        {filterOptions.map((f) => (
           <button
             key={f.value}
             className={`filter-chip ${activeFilter === f.value ? "active" : ""}`}
@@ -687,7 +566,7 @@ export default function TransportUtilitiesPage() {
           {sortNearest ? "✅ Sorted by nearest" : "📶 Sort by nearest"}
         </button>
       </div>
-      <div id="result-count">{resultCountLabel}</div>
+      <div id="result-count">{loading ? "Loading…" : resultCountLabel}</div>
 
       {/* CARDS */}
       <section className="container">
@@ -736,7 +615,7 @@ export default function TransportUtilitiesPage() {
           );
         })}
 
-        {visiblePlaces.length === 0 && (
+        {!loading && visiblePlaces.length === 0 && (
           <div id="empty-state" className="visible" style={{ display: "flex" }}>
             <svg
               width="56"

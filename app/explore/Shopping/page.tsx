@@ -1,3 +1,8 @@
+/* ============================================================
+   SHOPPING & STORE PAGE
+   Replace the page.tsx inside your Shopping folder.
+   ============================================================ */
+
 "use client";
 
 import mapboxgl from "mapbox-gl";
@@ -12,6 +17,7 @@ import React, {
   type ChangeEvent,
 } from "react";
 import Link from "next/link";
+import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -19,6 +25,9 @@ mapboxgl.accessToken = token!;
 // ----------------------------------------------------------------------
 // Types & Interfaces
 // ----------------------------------------------------------------------
+
+// The categories the built-in stores below use. Admin-added listings may use
+// others (e.g. "Agri & Farm Supply"), which is why StoreItem.category is a string.
 export type StoreCategory =
   | "Mall & Grocery"
   | "General Merchandise"
@@ -31,7 +40,7 @@ export type StoreCategory =
 export interface StoreItem {
   id: string;
   name: string;
-  category: StoreCategory;
+  category: string;
   lat: number;
   lng: number;
   tag: string;
@@ -56,339 +65,11 @@ interface RouteInfo {
 // ----------------------------------------------------------------------
 // Store Data
 // ----------------------------------------------------------------------
-const STORAGE_BASE =
-  "https://storage.googleapis.com/mycalinan.firebasestorage.app/Shopping";
+// The listings for this page now come from Firestore.
+// Manage them in Admin > Listings > Explore.
 
-const STORES_DATA: StoreItem[] = [
-  {
-    id: "gaisano-grand",
-    name: "Gaisano Grand Calinan",
-    category: "Mall & Grocery",
-    lat: 7.1905,
-    lng: 125.4558,
-    tag: "Mall",
-    pin: "🛍️",
-    mapsQuery: "Gaisano+Grand+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Gaisano%20Grand%20Calinan.jpg`,
-    address: "Davao–Bukidnon Highway, Calinan Poblacion, Davao City",
-    description:
-      "Main shopping mall in Calinan District featuring a supermarket, department store, food stalls, and retail services.",
-  },
-  {
-    id: "nccc-calinan",
-    name: "NCCC Calinan",
-    category: "Mall & Grocery",
-    lat: 7.1897,
-    lng: 125.4548,
-    tag: "Department Store",
-    pin: "🏬",
-    mapsQuery: "NCCC+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/NCCC%20Calinan.jpg`,
-    address: "Davao–Bukidnon Highway, Calinan Poblacion, Davao City",
-    description: "Small community shopping center providing basic shopping, groceries, and everyday services.",
-  },
-  {
-    id: "lots-for-less",
-    name: "Lots For Less",
-    category: "Mall & Grocery",
-    lat: 7.189,
-    lng: 125.453,
-    tag: "Supermarket",
-    pin: "🛒",
-    mapsQuery: "Lots+For+Less+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Lots%20For%20Less.jpg`,
-    address: "De Lara St, Calinan District, Davao City",
-    description: "Budget-friendly grocery store known for affordable products, discounted prices, and value-for-money essentials.",
-  },
-  {
-    id: "felcris-supermarket",
-    name: "Felcris Supermarket Inc.",
-    category: "Mall & Grocery",
-    lat: 7.1885,
-    lng: 125.4525,
-    tag: "Supermarket",
-    pin: "🛒",
-    mapsQuery: "Felcris+Supermarket+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Felcris%20Supermarket%20Inc..jpg`,
-    address: "De Lara St, Calinan District, Davao City",
-    description: "Offers groceries, snacks, household items, and clothing at organized, budget-friendly prices.",
-  },
-  {
-    id: "multiple-eight",
-    name: "Multiple-Eight Merchandise",
-    category: "General Merchandise",
-    lat: 7.191,
-    lng: 125.456,
-    tag: "General Merchandise",
-    pin: "🏪",
-    mapsQuery: "Multiple+Eight+Merchandise+Davao-Bukidnon+Hwy+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Multiple-Eight%20Merchandise.png`,
-    address: "Bukidnon Hwy, Calinan Poblacion, Davao City",
-    description: "Budget-friendly general grocery store selling low-priced food items, snacks, and household goods.",
-  },
-  {
-    id: "four-star",
-    name: "Four Star Merchandise",
-    category: "General Merchandise",
-    lat: 7.1902,
-    lng: 125.4542,
-    tag: "General Merchandise",
-    pin: "🏪",
-    mapsQuery: "Four+Star+Merchandise+Purok+30+Calinan+Poblacion+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Four%20Star%20Merchandise.png`,
-    address: "Purok 30, Calinan Poblacion, Davao City",
-    description: "General merchandise and school supply store offering retail goods and everyday essentials.",
-  },
-  {
-    id: "rillan-trading",
-    name: "Rillan Trading",
-    category: "General Merchandise",
-    lat: 7.1895,
-    lng: 125.4535,
-    tag: "Trading Store",
-    pin: "🏪",
-    mapsQuery: "Rillan+Trading+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Rillan%20Trading.png`,
-    address: "Villafuerte Street, Calinan Poblacion, Davao City",
-    description: "Local trading store selling school supplies, general merchandise, and small business items.",
-  },
-  {
-    id: "ploya-marketing",
-    name: "Ploya Marketing",
-    category: "General Merchandise",
-    lat: 7.1893,
-    lng: 125.4533,
-    tag: "School & Office Supplies",
-    pin: "📚",
-    mapsQuery: "Ploya+Marketing+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Ploya%20Marketing.png`,
-    address: "Villafuerte Street, Calinan Poblacion, Davao City",
-    description: "Specializes in school supplies, office materials, and general retail goods.",
-  },
-  {
-    id: "ksc-calinan",
-    name: "KSC Calinan",
-    category: "Mall & Grocery",
-    lat: 7.1891,
-    lng: 125.4531,
-    tag: "Department Store",
-    pin: "🏬",
-    mapsQuery: "KSC+Calinan+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/KSC%20Calinan.jpg`,
-    address: "Villafuerte Street, Calinan Poblacion, Davao City",
-    description: "Department-style store offering clothing, footwear, school supplies, and household goods.",
-  },
-  {
-    id: "bcg-trading",
-    name: "BCG Trading",
-    category: "General Merchandise",
-    lat: 7.1912,
-    lng: 125.4562,
-    tag: "Utility Supply Store",
-    pin: "📦",
-    mapsQuery: "BCG+Trading+Purok+13+Davao-Bukidnon+Road+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/BCG%20Trading.jpg`,
-    address: "Purok 13, Davao–Bukidnon Road, Calinan, Davao City",
-    description: "Focuses on store equipment, containers, ice chests, fish boxes, and utility hardware.",
-  },
-  {
-    id: "dd-plasticware",
-    name: "D & D Calinan Plasticware",
-    category: "General Merchandise",
-    lat: 7.1913,
-    lng: 125.4563,
-    tag: "Plasticware Store",
-    pin: "🧴",
-    mapsQuery: "D+%26+D+Calinan+Plasticware+Purok+13+Davao-Bukidnon+Road+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/D%20%26%20D%20Calinan%20Plasticware.png`,
-    address: "Purok 13, Davao–Bukidnon Road, Calinan, Davao City",
-    description: "Specializes in household plasticware, kitchen containers, and storage supplies.",
-  },
-  {
-    id: "al-trading",
-    name: "A.L. Calinan Trading",
-    category: "Mall & Grocery",
-    lat: 7.1894,
-    lng: 125.4534,
-    tag: "Department Store",
-    pin: "🏬",
-    mapsQuery: "A.L.+Calinan+Trading+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/A.L.%20Calinan%20Trading.jpg`,
-    address: "Villafuerte Street, Calinan Poblacion, Davao City",
-    description: "Popular general merchandise store for toys, party decorations, and back-to-school items.",
-  },
-  {
-    id: "jw-kimhim",
-    name: "JW KIMHIM Trading",
-    category: "General Merchandise",
-    lat: 7.1915,
-    lng: 125.4565,
-    tag: "Wholesale Trading",
-    pin: "📦",
-    mapsQuery: "JW+KIMHIM+Trading+Davao-Bukidnon+Hwy+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/JW%20KIMHIM%20Trading.png`,
-    address: "Davao - Bukidnon Hwy, Calinan District, Davao City",
-    description: "Wholesale distributor of plastic containers, storage products, and retail merchandise.",
-  },
-  {
-    id: "skylight-hardware",
-    name: "Calinan Skylight Hardware",
-    category: "Hardware & Construction",
-    lat: 7.1888,
-    lng: 125.4528,
-    tag: "Hardware Store",
-    pin: "🔧",
-    mapsQuery: "Calinan+Skylight+Hardware+R.+Magsaysay+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Calinan%20Skylight%20Hardware.jpg`,
-    address: "R. Magsaysay St, Calinan District, Davao City",
-    description: "Provides comprehensive construction, electrical, and plumbing supplies.",
-  },
-  {
-    id: "blue-star-hardware",
-    name: "Calinan Blue Star Hardware",
-    category: "Hardware & Construction",
-    lat: 7.1886,
-    lng: 125.4526,
-    tag: "Hardware Store",
-    pin: "🔧",
-    mapsQuery: "Calinan+Blue+Star+Hardware+R.+Magsaysay+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Calinan%20Blue%20Star%20Hardware.jpg`,
-    address: "R. Magsaysay St, Calinan District, Davao City",
-    description: "Supplies construction and maintenance materials for contractors and households.",
-  },
-  {
-    id: "edaka-hardware",
-    name: "Edaka Hardware",
-    category: "Hardware & Construction",
-    lat: 7.1892,
-    lng: 125.4532,
-    tag: "Hardware Store",
-    pin: "🔧",
-    mapsQuery: "Edaka+Hardware+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Edaka%20Hardware.jpg`,
-    address: "Villafuerte St, Calinan District, Davao City",
-    description: "Neighborhood hardware store supplying wholesale and retail building materials and tools.",
-  },
-  {
-    id: "polycrop-marketing",
-    name: "Polycrop Marketing",
-    category: "Hardware & Construction",
-    lat: 7.189,
-    lng: 125.453,
-    tag: "Hardware Store",
-    pin: "🔧",
-    mapsQuery: "Polycrop+Marketing+Villafuerte+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/POLYCROP%20MARKETING.jpg`,
-    address: "Villafuerte St, Calinan District, Davao City",
-    description: "Key supplier of construction tools and building supplies for local development.",
-  },
-  {
-    id: "kct-motor-parts",
-    name: "KCT Motor Vehicle Parts & Accessories",
-    category: "Motor Parts",
-    lat: 7.1878,
-    lng: 125.4518,
-    tag: "Motorshop",
-    pin: "🏍️",
-    mapsQuery: "KCT+Motor+Vehicle+Parts+%26+Accessories+Shop+Roman+Diaz+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/KCT%20Motor%20Vehicle%20Parts%20%26%20Accessories%20Shop.jpg`,
-    address: "Roman Diaz St, Calinan District, Davao City",
-    description: "Motorcycle parts retailer and repair shop offering spare parts and basic servicing.",
-  },
-  {
-    id: "lyr-motorparts",
-    name: "LYR Motorparts Calinan",
-    category: "Motor Parts",
-    lat: 7.188,
-    lng: 125.452,
-    tag: "Motorshop",
-    pin: "🏍️",
-    mapsQuery: "LYR+Motorparts+Calinan+32+Malanos+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/LYR%20Motorparts%20Calinan.jpg`,
-    address: "32 Malanos St, Calinan District, Davao City",
-    description: "Authorized motorparts retailer and distributor of motorcycle accessories.",
-  },
-  {
-    id: "motohub-davao",
-    name: "Motohub Davao Calinan Branch",
-    category: "Motor Parts",
-    lat: 7.1908,
-    lng: 125.4555,
-    tag: "Motorshop",
-    pin: "🏍️",
-    mapsQuery: "Motohub+Davao+Calinan+Branch+Davao-Bukidnon+Rd+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Motohub%20Davao%20Calinan%20Branch.png`,
-    address: "Davao-Bukidnon Rd, Calinan District, Davao City",
-    description: "Offers motorcycle riding gear, protective equipment, and custom parts.",
-  },
-  {
-    id: "roan-parts-branch",
-    name: "Roan Parts And Accessories (Branch)",
-    category: "Motor Parts",
-    lat: 7.1876,
-    lng: 125.4516,
-    tag: "Motorshop Branch",
-    pin: "🏍️",
-    mapsQuery: "Roan+Parts+And+Accessories+Purok+32+Roman+Diaz+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Roan%20Parts%20And%20Accessories.png`,
-    address: "Purok 32, Roman Diaz St, Calinan, Davao City",
-    description: "Motorcycle parts branch supplying maintenance supplies and aftermarket accessories.",
-  },
-  {
-    id: "roan-parts-main",
-    name: "Roan Parts And Accessories (Main)",
-    category: "Motor Parts",
-    lat: 7.1874,
-    lng: 125.4514,
-    tag: "Motorshop Main Branch",
-    pin: "🏍️",
-    mapsQuery: "Roan+Parts+And+Accessories+H.+Quiambao+St+Roman+Diaz+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Roan%20Parts%20And%20Accessories.jpg`,
-    address: "H. Quiambao St cor. Roman Diaz St, Calinan, Davao City",
-    description: "Main motorcycle parts store stocking replacement components and maintenance items.",
-  },
-  {
-    id: "pagaran-motor-parts",
-    name: "Pagaran Motor Parts",
-    category: "Motor Parts",
-    lat: 7.1872,
-    lng: 125.4512,
-    tag: "Motorshop",
-    pin: "🏍️",
-    mapsQuery: "Pagaran+Motor+Parts+Datu+Abing+St+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/Pagaran%20Motor%20Parts.jpg`,
-    address: "Datu Abing St, Calinan District, Davao City",
-    description: "Automotive and motorcycle spare parts retailer serving mechanics and vehicle owners.",
-  },
-  {
-    id: "oem-auto-parts",
-    name: "OEM Auto Parts Supply",
-    category: "Motor Parts",
-    lat: 7.1906,
-    lng: 125.4553,
-    tag: "Motorshop",
-    pin: "🔩",
-    mapsQuery: "OEM+AUTO+PARTS+SUPPLY+Davao-Bukidnon+Rd+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/OEM%20AUTO%20PARTS%20SUPPLY.jpg`,
-    address: "Davao-Bukidnon Rd, Calinan District, Davao City",
-    description: "Automotive replacement parts supply offering car and motorcycle maintenance goods.",
-  },
-  {
-    id: "lsac-enterprises",
-    name: "LSAC Enterprises",
-    category: "General Merchandise",
-    lat: 7.1898,
-    lng: 125.454,
-    tag: "General Store",
-    pin: "🏪",
-    mapsQuery: "LSAC+Enterprises+Calinan+Davao+City",
-    imageSrc: `${STORAGE_BASE}/LSAC%20ENTERPRISES.png`,
-    address: "Calinan Poblacion, Davao City",
-    description: "Local retail store providing general household products, goods, and daily essentials.",
-  },
-];
-
-// Filter options list
+// Base filter chips (always shown). Categories that only exist in admin-added
+// listings (e.g. "Agri & Farm Supply") get their own chip automatically.
 const FILTER_OPTIONS: Array<"all" | StoreCategory> = [
   "all",
   "Mall & Grocery",
@@ -424,6 +105,16 @@ function googleMapsSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
+// Listings from Firestore are admin-entered text — escape before injecting into popup HTML
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   type: "Feature",
   properties: {},
@@ -437,7 +128,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
  const ShoppingStorePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [activeFilter, setActiveFilter] = useState<"all" | StoreCategory>("all");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
   const [sortByNearest, setSortByNearest] = useState<boolean>(false);
 
   // User location states
@@ -464,6 +155,41 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
   const mapLoadedRef = useRef<boolean>(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* ── LIVE LISTINGS FROM ADMIN (Firestore) ── */
+  const { listings: live, loading } = useExploreListings("shopping");
+  const allStores = useMemo<StoreItem[]>(
+    () => [
+      ...live.map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category,
+        lat: l.lat,
+        lng: l.lng,
+        tag: l.tag,
+        pin: l.pin || "🛍️",
+        mapsQuery: l.mapsQueryEncoded,
+        imageSrc: l.image,
+        address: l.address,
+        description: l.description,
+      })),
+    ],
+    [live]
+  );
+
+  /* ── FILTER CHIPS: the fixed set above + any extra categories from admin listings ── */
+  const filterOptions = useMemo<string[]>(() => {
+    const base = FILTER_OPTIONS as string[];
+    const extras = Array.from(new Set(allStores.map((s) => s.category))).filter(
+      (c) => !base.includes(c)
+    );
+    return [...base, ...extras];
+  }, [allStores]);
+
+  // If the active category disappears (e.g. admin deleted its last listing), fall back to "all"
+  useEffect(() => {
+    if (!filterOptions.includes(activeFilter)) setActiveFilter("all");
+  }, [filterOptions, activeFilter]);
 
   const showToast = useCallback((msg: string, duration = 3000) => {
     setToastMessage(msg);
@@ -624,7 +350,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
         "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
         "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
         "border:2px solid white;";
-      el.innerHTML = `<span style="transform:rotate(45deg)">${item.pin}</span>`;
+      el.innerHTML = `<span style="transform:rotate(45deg)">${escapeHtml(item.pin)}</span>`;
 
       const distText = userLoc
         ? `<br><strong>${formatDist(
@@ -634,8 +360,8 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
       const popupHtml = `
         <div class="place-popup">
-          <h4>${item.name}</h4>
-          <div class="popup-tag">${item.tag}</div>
+          <h4>${escapeHtml(item.name)}</h4>
+          <div class="popup-tag">${escapeHtml(item.tag)}</div>
           <p>${distText}</p>
           <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
         </div>`;
@@ -718,7 +444,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
   // Filter & Sort Logic
   const processedStores = useMemo(() => {
-    return STORES_DATA.map((item) => {
+    return allStores.map((item) => {
       const distance = userLoc ? haversine(userLoc.lat, userLoc.lng, item.lat, item.lng) : null;
       return { ...item, distance };
     })
@@ -741,7 +467,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
         }
         return 0;
       });
-  }, [searchQuery, activeFilter, sortByNearest, userLoc]);
+  }, [allStores, searchQuery, activeFilter, sortByNearest, userLoc]);
 
   // ESC Key listener
   useEffect(() => {
@@ -823,7 +549,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       {/* TOOLBAR */}
       <div className="toolbar">
         <span className="toolbar-label">Filter:</span>
-        {FILTER_OPTIONS.map((filter) => (
+        {filterOptions.map((filter) => (
           <button
             key={filter}
             className={`filter-chip ${activeFilter === filter ? "active" : ""}`}
@@ -846,8 +572,10 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
       {/* RESULT COUNT */}
       <div id="result-count">
-        {processedStores.length > 0
-          ? `Showing ${processedStores.length} of ${STORES_DATA.length} stores`
+        {loading
+          ? "Loading…"
+          : processedStores.length > 0
+          ? `Showing ${processedStores.length} of ${allStores.length} stores`
           : ""}
       </div>
 
@@ -870,9 +598,13 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
               </h3>
               <p>
                 {item.description}
-                <br />
-                <br />
-                Location: {item.address}
+                {item.address && (
+                  <>
+                    <br />
+                    <br />
+                    Location: {item.address}
+                  </>
+                )}
               </p>
               <span className="tag">{item.tag}</span>
 
@@ -899,7 +631,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
         ))}
 
         {/* Empty state */}
-        {processedStores.length === 0 && (
+        {!loading && processedStores.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
             <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2e8b57" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
