@@ -1,8 +1,10 @@
 "use client";
 
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+
 
 const EXPLORE_LINKS = [
   { label: "Health", href: "/explore/HealthCare" },
@@ -16,6 +18,7 @@ const EXPLORE_LINKS = [
   { label: "Hotspots", href: "/explore/Hotspots" },
 ];
 
+
 const DOCUMENT_LINKS = [
   { label: "Police Clearance", href: "/documents/PoliceClearance" },
   { label: "Barangay Clearance", href: "/documents/BarangayClearance" },
@@ -23,6 +26,7 @@ const DOCUMENT_LINKS = [
   { label: "Cedula", href: "/documents/Cedula" },
   { label: "Get Postal ID", href: "/documents/Postal" },
 ];
+
 
 const DIRECT_LINKS = [
   { label: "Barangay Map", href: "/map" },
@@ -33,8 +37,10 @@ const DIRECT_LINKS = [
   { label: "Business Registration", href: "/business-registration" },
 ];
 
+
 /* Which kind of account button the top-right corner should show. */
 type AuthState = "none" | "guest" | "user" | "admin";
+
 
 function NavDropdown({
   label,
@@ -45,6 +51,7 @@ function NavDropdown({
 }) {
   const [open, setOpen] = useState(false);
 
+
   return (
     <div
       className="relative"
@@ -54,13 +61,13 @@ function NavDropdown({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex items-center gap-1 py-2 font-semibold text-ink-900 transition hover:text-canopy-700"
+        className="flex items-center gap-1 py-1 font-semibold text-ink-900 transition hover:text-canopy-700"
       >
         {label}
         <span aria-hidden="true" className="text-xs">▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full min-w-[190px] overflow-hidden rounded-[var(--radius-stall)] border border-canopy-100 bg-white shadow-lg">
+        <div className="absolute left-1/2 top-full z-10 min-w-[190px] -translate-x-1/2 overflow-hidden rounded-[var(--radius-stall)] border border-canopy-100 bg-white shadow-lg sm:left-0 sm:translate-x-0">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -76,6 +83,7 @@ function NavDropdown({
   );
 }
 
+
 /*
   Dropdown shown for a logged-in business owner ("user" role).
   Opens on click (not hover) and closes on click-outside.
@@ -90,6 +98,7 @@ function AccountDropdown({
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -99,6 +108,7 @@ function AccountDropdown({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -141,11 +151,14 @@ function AccountDropdown({
   );
 }
 
+
 export default function Navbar() {
   const router = useRouter();
 
+
   const [lang, setLang] = useState<"en" | "ceb">("en");
   const [authState, setAuthState] = useState<AuthState>("none");
+
 
   /*
     Figure out who (if anyone) is signed in.
@@ -155,9 +168,11 @@ export default function Navbar() {
   useEffect(() => {
     const isGuest = sessionStorage.getItem("mycalinan_guest") === "true";
 
+
     const role =
       localStorage.getItem("mycalinan_role") ||
       sessionStorage.getItem("mycalinan_role");
+
 
     if (isGuest) {
       setAuthState("guest");
@@ -170,12 +185,14 @@ export default function Navbar() {
     }
   }, []);
 
+
   function handleGuestLogout() {
     sessionStorage.removeItem("mycalinan_guest");
     sessionStorage.removeItem("mycalinan_guest_name");
     setAuthState("none");
     router.push("/");
   }
+
 
   function handleUserLogout() {
     localStorage.removeItem("mycalinan_uid");
@@ -187,9 +204,11 @@ export default function Navbar() {
     sessionStorage.removeItem("mycalinan_username");
     sessionStorage.removeItem("mycalinan_role");
 
+
     setAuthState("none");
     router.push("/login");
   }
+
 
   function handleAdminLogout() {
     localStorage.removeItem("mycalinan_uid");
@@ -201,9 +220,11 @@ export default function Navbar() {
     sessionStorage.removeItem("mycalinan_username");
     sessionStorage.removeItem("mycalinan_role");
 
+
     setAuthState("none");
     router.push("/login");
   }
+
 
   return (
     <header className="sticky top-0 z-50">
@@ -224,6 +245,7 @@ export default function Navbar() {
           </select>
         </div>
 
+
         <Link href="/" className="justify-self-center flex items-center gap-3">
           <span
             className="font-display text-2xl font-semibold tracking-wide text-white sm:text-3xl"
@@ -233,13 +255,7 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/*
-          Only ONE of these renders at a time, based on authState:
-          - "none"  -> plain Login link
-          - "guest" -> plain "Exit Guest Mode" button (no dropdown, no account)
-          - "user"  -> account dropdown (Business Profile / Submit Business Form / Log out)
-          - "admin" -> plain Logout button, no dropdown
-        */}
+
         <div className="justify-self-end">
           {authState === "none" && (
             <Link
@@ -250,6 +266,7 @@ export default function Navbar() {
             </Link>
           )}
 
+
           {authState === "guest" && (
             <button
               onClick={handleGuestLogout}
@@ -259,9 +276,11 @@ export default function Navbar() {
             </button>
           )}
 
+
           {authState === "user" && (
             <AccountDropdown label="My Account" onLogout={handleUserLogout} />
           )}
+
 
           {authState === "admin" && (
             <button
@@ -274,9 +293,10 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Menu bar */}
-      <nav className="border-b-2 border-canopy-600 bg-canopy-100 px-6 py-3 sm:px-10">
-        <ul className="flex flex-wrap items-center justify-center gap-x-10 gap-y-2 text-[15px]">
+
+      {/* Menu bar — always visible, wraps neatly into centered rows on any screen size */}
+      <nav className="border-b-2 border-canopy-600 bg-canopy-100 px-4 py-3 sm:px-10">
+        <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-center text-[14px] sm:gap-x-10 sm:text-[15px]">
           <li>
             <NavDropdown label="Explore" links={EXPLORE_LINKS} />
           </li>
@@ -287,7 +307,7 @@ export default function Navbar() {
             <li key={link.href}>
               <Link
                 href={link.href}
-                className="py-2 font-semibold text-ink-900 transition hover:text-canopy-700"
+                className="inline-block py-1 font-semibold text-ink-900 transition hover:text-canopy-700"
               >
                 {link.label}
               </Link>
@@ -298,3 +318,5 @@ export default function Navbar() {
     </header>
   );
 }
+
+  

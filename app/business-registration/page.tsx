@@ -2,6 +2,18 @@
    FILE: app/business-registration/page.tsx   (REPLACE whole file)
    PAGE: Business Registration Form (LOGGED-IN BUSINESS OWNERS)
    URL:  /business-registration
+
+   FIXES IN THIS VERSION:
+   - The Step 1 "Email" field is now actually saved (as `email`)
+     alongside the Firebase Auth account email (`ownerEmail`).
+     Before, it was required by validation but silently dropped
+     at submit time.
+   - Business picture previews no longer leak object URLs. Each
+     File is now paired with its preview URL once, and every URL
+     is revoked when the picture is removed or the page unmounts.
+   - Added a "Back to Home" link at the top of the form so people
+     aren't stuck mid-form with no way out (the success screen
+     already had one).
    ============================================================ */
 
 "use client";
@@ -34,6 +46,12 @@ const initialForm: FormState = {
   businessChoice: "",
   yearOperation: String(CURRENT_YEAR),
 };
+
+/* A selected business picture, paired with its (revocable) preview URL. */
+interface PictureEntry {
+  file: File;
+  previewUrl: string;
+}
 
 async function uploadSingleFile(file: File, path: string): Promise<{ name: string; url: string }> {
   const safeName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
@@ -90,8 +108,8 @@ export default function BusinessRegistrationPage() {
   const [barangayCertification, setBarangayCertification] = useState<File | null>(null);
   const [cedula, setCedula] = useState<File | null>(null);
 
-  // Business pictures (up to 5)
-  const [businessPictures, setBusinessPictures] = useState<File[]>([]);
+  // Business pictures (up to 5) — each paired with its own preview URL
+  const [businessPictures, setBusinessPictures] = useState<PictureEntry[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [progressLabel, setProgressLabel] = useState("");
@@ -100,17 +118,34 @@ export default function BusinessRegistrationPage() {
 
   const picInputRef = useRef<HTMLInputElement>(null);
 
+  /* Revoke every remaining preview URL when the page unmounts, so a
+     back-navigation or route change doesn't leak blob URLs. */
+  const picturesRef = useRef<PictureEntry[]>([]);
+  useEffect(() => {
+    picturesRef.current = businessPictures;
+  }, [businessPictures]);
+  useEffect(() => {
+    return () => {
+      picturesRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+  }, []);
+
   function updateField(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function handlePicFiles(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) return;
-    const incoming = Array.from(e.target.files);
+    const incoming: PictureEntry[] = Array.from(e.target.files).map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
 
     setBusinessPictures((prev) => {
       const combined = [...prev, ...incoming];
       if (combined.length > MAX_BUSINESS_PICTURES) {
+        // Revoke the ones we're about to drop so they don't leak.
+        combined.slice(MAX_BUSINESS_PICTURES).forEach((p) => URL.revokeObjectURL(p.previewUrl));
         setError(`You can only upload up to ${MAX_BUSINESS_PICTURES} business pictures.`);
         return combined.slice(0, MAX_BUSINESS_PICTURES);
       }
@@ -123,7 +158,11 @@ export default function BusinessRegistrationPage() {
   }
 
   function removePic(idx: number) {
-    setBusinessPictures((prev) => prev.filter((_, i) => i !== idx));
+    setBusinessPictures((prev) => {
+      const target = prev[idx];
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
   }
 
   /* ── Step 1 validation ── */
@@ -215,7 +254,7 @@ export default function BusinessRegistrationPage() {
 
       setProgressLabel("Uploading business pictures...");
       const picturesUploaded = await uploadMultipleFiles(
-        businessPictures,
+        businessPictures.map((p) => p.file),
         `${uploadFolder}/pictures`
       );
 
@@ -225,6 +264,7 @@ export default function BusinessRegistrationPage() {
         ownerEmail: userEmail,
 
         fullName: form.fullName.trim(),
+        email: form.email.trim(),
         phoneNumber: form.phoneNumber.trim(),
 
         businessName: form.businessName.trim(),
@@ -246,6 +286,8 @@ export default function BusinessRegistrationPage() {
         submittedAt: serverTimestamp(),
       });
 
+      // Submission succeeded — revoke previews now, we don't need them anymore.
+      businessPictures.forEach((p) => URL.revokeObjectURL(p.previewUrl));
       setSuccess(true);
     } catch (err) {
       console.error("Business registration submit error:", err);
@@ -296,6 +338,12 @@ export default function BusinessRegistrationPage() {
   return (
     <div className="business-reg-page">
       <div className="business-reg-card">
+        <div style={{ marginBottom: 10 }}>
+          <Link href="/" className="business-reg-home-link">
+            <i className="fas fa-home" /> Back to Home
+          </Link>
+        </div>
+
         <div className="business-reg-header">
           <h1>
             <i className="fas fa-store" style={{ color: "var(--canopy-800)", marginRight: 8 }} />
@@ -498,11 +546,12 @@ export default function BusinessRegistrationPage() {
               />
               {businessPictures.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
-                  {businessPictures.map((f, idx) => (
-                    <div key={idx} style={{ position: "relative", width: 90 }}>
+                  {businessPictures.map((p, idx) => (
+                    <div key={p.previewUrl} style={{ position: "relative", width: 90 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={URL.createObjectURL(f)}
-                        alt={f.name}
+                        src={p.previewUrl}
+                        alt={p.file.name}
                         style={{
                           width: 90,
                           height: 90,

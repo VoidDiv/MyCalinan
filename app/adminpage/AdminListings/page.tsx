@@ -4,6 +4,15 @@
    URL:  /adminpage/AdminListings
    TABS: Applications     -> review business applications, approve & publish
          Explore Listings -> manage EVERYTHING shown on the Explore pages
+
+   CHANGE IN THIS VERSION:
+   - Documents (Business Permit, DTI, Barangay Clearance, Barangay
+     Certification, Cedula) now open in an in-app PreviewModal
+     instead of a new browser tab. Images render directly; PDFs
+     render via an <iframe> using the browser's built-in viewer.
+     An "Open in new tab" link stays inside the modal so nothing
+     is lost — it still relies on your Storage rules allowing the
+     signed-in admin to read those files.
    ============================================================ */
 
 "use client";
@@ -41,6 +50,9 @@ type AdminBusiness = BusinessRegistration & {
   description?: string;
   listing?: ListingData; // what was published to Explore
 };
+
+/** A file the admin can preview: a document, or a business picture. */
+type PreviewFile = { url: string; name?: string };
 
 const DOC_LABELS: Record<string, string> = {
   businessPermit: "Business Permit",
@@ -180,13 +192,83 @@ function DeleteModal({
   );
 }
 
-/* ── Image lightbox ── */
-function ImageModal({ url, onClose }: { url: string | null; onClose: () => void }) {
-  if (!url) return null;
+/* ── Document / image preview modal ──
+   Images render directly. PDFs render via an <iframe> using the
+   browser's built-in PDF viewer. "Open in new tab" is always
+   available as a fallback (e.g. if the iframe is blocked). */
+function isPdfFile(url: string, name?: string): boolean {
+  const target = (name || url).split("?")[0].toLowerCase();
+  return target.endsWith(".pdf");
+}
+
+function PreviewModal({
+  file,
+  onClose,
+}: {
+  file: PreviewFile | null;
+  onClose: () => void;
+}) {
+  if (!file) return null;
+  const pdf = isPdfFile(file.url, file.name);
+
   return (
     <div style={styles.imageModalOverlay} onClick={onClose}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="Preview" style={styles.imageModalImg} />
+      <div
+        style={{
+          ...styles.imageModalImg,
+          background: "#fff",
+          display: "flex",
+          flexDirection: "column",
+          padding: 0,
+          overflow: "hidden",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "10px 14px",
+            borderBottom: "1px solid #eee",
+            fontSize: ".85rem",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {file.name || "Preview"}
+          </span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0, marginLeft: 12 }}>
+            <a href={file.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: ".8rem" }}>
+              <i className="fas fa-up-right-from-square" /> Open in new tab
+            </a>
+            <button
+              onClick={onClose}
+              style={{ border: "none", background: "none", cursor: "pointer", fontSize: "1.1rem" }}
+              aria-label="Close"
+            >
+              <i className="fas fa-times" />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0 }}>
+          {pdf ? (
+            <iframe
+              src={file.url}
+              title={file.name || "Document preview"}
+              style={{ width: "100%", height: "100%", border: "none" }}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={file.url}
+              alt={file.name || "Preview"}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -205,7 +287,7 @@ function BusinessCard({
   onReject: (id: string) => void;
   onEdit: (b: AdminBusiness) => void;
   onDelete: (b: AdminBusiness) => void;
-  onPreview: (url: string) => void;
+  onPreview: (file: PreviewFile) => void;
 }) {
   const tag = statusStyle(biz.overallStatus);
   const pictures = biz.documents?.businessPictures?.urls ?? [];
@@ -237,7 +319,7 @@ function BusinessCard({
               src={pic.url}
               alt={pic.name}
               style={styles.thumb}
-              onClick={() => onPreview(pic.url)}
+              onClick={() => onPreview({ url: pic.url, name: pic.name })}
             />
           ))}
         </div>
@@ -246,9 +328,22 @@ function BusinessCard({
       {docEntries.length > 0 && (
         <div style={styles.docList}>
           {docEntries.map(([key, entry]) => (
-            <a key={key} href={entry.url} target="_blank" rel="noopener noreferrer" style={styles.docLink}>
+            <button
+              key={key}
+              type="button"
+              onClick={() => onPreview({ url: entry.url, name: entry.name })}
+              style={{
+                ...styles.docLink,
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                padding: 0,
+                font: "inherit",
+              }}
+            >
               <i className="fas fa-file-alt" /> {DOC_LABELS[key] ?? entry.name}
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -307,7 +402,7 @@ export default function AdminListingsPage() {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [publishTarget, setPublishTarget] = useState<AdminBusiness | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminBusiness | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewFile | null>(null);
 
   /* Admin-only guard (same check as the dashboard) */
   useEffect(() => {
@@ -590,7 +685,7 @@ export default function AdminListingsPage() {
                     onEdit={setPublishTarget}
                     onReject={(id) => setRejectTargetId(id)}
                     onDelete={setDeleteTarget}
-                    onPreview={setPreviewUrl}
+                    onPreview={setPreview}
                   />
                 ))}
               </div>
@@ -617,7 +712,7 @@ export default function AdminListingsPage() {
       )}
       <RejectModal open={!!rejectTargetId} onCancel={() => setRejectTargetId(null)} onConfirm={confirmReject} />
       <DeleteModal biz={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
-      <ImageModal url={previewUrl} onClose={() => setPreviewUrl(null)} />
+      <PreviewModal file={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

@@ -8,11 +8,11 @@ export default function Footer() {
         &amp; Developed by Caldi, Saludo and Palermo
       </p>
       <p className="mt-2 text-sm">
-        <Link href="/terms" className="underline">
+        <Link href="/others/terms" className="underline">
           Terms and conditions
         </Link>{" "}
         &middot;{" "}
-        <Link href="/privacy" className="underline">
+        <Link href="/others/privacy" className="underline">
           Privacy notice
         </Link>
       </p>

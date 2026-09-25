@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -38,25 +39,36 @@ const STATUS_STYLES: Record<
 };
 
 export default function ProfilePage() {
+  const router = useRouter();
+
+  // Session / auth
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [uid, setUid] = useState<string | null>(null);
+
+  // Businesses list — loading and error are scoped to THIS section only,
+  // so a failed fetch never hides the profile picture header above it.
   const [businesses, setBusinesses] = useState<BusinessSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [businessesLoading, setBusinessesLoading] = useState(true);
+  const [businessesError, setBusinessesError] = useState("");
 
   // Personal profile picture — separate from any business's photos.
   // Stored at users/{uid}.profilePictureUrl, read/written directly with
   // the client Firestore SDK (same pattern as business-registration.tsx).
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [picError, setPicError] = useState("");
   const picInputRef = useRef<HTMLInputElement>(null);
 
+  /* ── Auth guard — same pattern as business-registration.tsx.
+     Doesn't touch businessesLoading; that's owned by the fetch below. */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        setLoading(false);
+        router.push("/login");
         return;
       }
       setUid(user.uid);
+      setCheckingAuth(false);
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
@@ -67,10 +79,13 @@ export default function ProfilePage() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
+  /* ── Business applications list — independent of the auth effect above ── */
   useEffect(() => {
     async function fetchBusinesses() {
+      setBusinessesLoading(true);
+      setBusinessesError("");
       try {
         const token =
           localStorage.getItem("mycalinan_token") ||
@@ -82,6 +97,7 @@ export default function ProfilePage() {
 
         if (!response.ok) {
           setBusinesses([]);
+          setBusinessesError("Could not load your businesses right now.");
           return;
         }
 
@@ -89,9 +105,9 @@ export default function ProfilePage() {
         setBusinesses(data.businesses ?? []);
       } catch (err) {
         console.error("Failed to load business profile:", err);
-        setError("Cannot connect to the server.");
+        setBusinessesError("Cannot connect to the server.");
       } finally {
-        setLoading(false);
+        setBusinessesLoading(false);
       }
     }
 
@@ -102,6 +118,7 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !uid) return;
 
+    setPicError("");
     setUploadingPic(true);
     try {
       const safeName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
@@ -113,27 +130,33 @@ export default function ProfilePage() {
       setProfilePictureUrl(url);
     } catch (err) {
       console.error("Profile picture upload failed:", err);
-      setError("Could not upload your profile picture. Please try again.");
+      setPicError("Could not upload your profile picture. Please try again.");
     } finally {
       setUploadingPic(false);
       if (picInputRef.current) picInputRef.current.value = "";
     }
   }
 
-  if (loading) {
+  if (checkingAuth) {
     return (
       <div className="px-6 py-16 text-center text-sm text-ink-700">
-        Loading your profile...
+        Checking your session...
       </div>
     );
   }
 
-  if (error) {
-    return <div className="px-6 py-16 text-center text-sm text-red-600">{error}</div>;
-  }
-
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
+      {/* ── Home button ── */}
+      <div className="mb-4">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-full border border-canopy-100 bg-white px-4 py-2 text-xs font-semibold text-ink-900 shadow-sm hover:bg-canopy-50"
+        >
+          <i className="fas fa-home" /> Home
+        </Link>
+      </div>
+
       {/* ── Personal profile header ── */}
       <div className="mb-8 flex items-center gap-5 rounded-[var(--radius-stall)] border border-canopy-100 bg-white p-6 shadow-sm">
         <div className="relative shrink-0">
@@ -174,6 +197,7 @@ export default function ProfilePage() {
           <p className="text-sm text-ink-700">
             {uploadingPic ? "Uploading photo..." : "Tap the camera icon to update your photo."}
           </p>
+          {picError && <p className="mt-1 text-xs text-red-600">{picError}</p>}
         </div>
       </div>
 
@@ -188,7 +212,19 @@ export default function ProfilePage() {
         </Link>
       </div>
 
-      {businesses.length === 0 && (
+      {businessesLoading && (
+        <div className="rounded-[var(--radius-stall)] border border-canopy-100 bg-white px-6 py-10 text-center text-sm text-ink-700">
+          Loading your businesses...
+        </div>
+      )}
+
+      {!businessesLoading && businessesError && (
+        <div className="rounded-[var(--radius-stall)] border border-red-100 bg-red-50 px-6 py-10 text-center text-sm text-red-700">
+          <i className="fas fa-triangle-exclamation" /> {businessesError}
+        </div>
+      )}
+
+      {!businessesLoading && !businessesError && businesses.length === 0 && (
         <div className="rounded-[var(--radius-stall)] border border-dashed border-canopy-200 bg-canopy-50/40 px-6 py-14 text-center">
           <h3 className="text-base font-semibold text-ink-900">
             No business profile submitted yet.
@@ -205,11 +241,13 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="space-y-5">
-        {businesses.map((biz) => (
-          <BusinessCard key={biz.id} biz={biz} />
-        ))}
-      </div>
+      {!businessesLoading && !businessesError && businesses.length > 0 && (
+        <div className="space-y-5">
+          {businesses.map((biz) => (
+            <BusinessCard key={biz.id} biz={biz} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
