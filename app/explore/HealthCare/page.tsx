@@ -1,6 +1,9 @@
 /* ============================================================
    HEALTHCARE PAGE
    Replace the page.tsx inside your Healthcare folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -16,6 +19,9 @@ import {
 import mapboxgl from "mapbox-gl";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -23,6 +29,9 @@ mapboxgl.accessToken = token!;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";
+
+/* This page's Firestore collection name (also passed to useExploreListings below). */
+const EXPLORE_SECTION = "healthcare";
 
 /* ══════════════════════════════════════════
   TYPES
@@ -43,6 +52,8 @@ interface Clinic {
   mapsQuery: string;
   image: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface ClinicWithDistance extends Clinic {
@@ -123,6 +134,8 @@ export default function HealthcarePage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -133,20 +146,25 @@ export default function HealthcarePage() {
   const clinicMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   /* ── LIVE LISTINGS FROM ADMIN ── */
-  const { listings: live, loading } = useExploreListings("healthcare");
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allClinics = useMemo<Clinic[]>(
     () => [
-      ...live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category as Category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        mapsQuery: l.mapsQueryEncoded,
-        image: l.image,
-        description: l.description,
-      })),
+      ...live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category as Category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          mapsQuery: l.mapsQueryEncoded,
+          image: l.image,
+          description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     ],
     [live]
   );
@@ -581,6 +599,32 @@ export default function HealthcarePage() {
                   {clinic.distKm !== null ? formatDist(clinic.distKm) : ""}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: clinic.id, name: clinic.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#2b6b45",
+                }}
+              >
+                <StarRating value={clinic.ratingAvg} size={14} />
+                <span>
+                  {clinic.ratingCount > 0
+                    ? `${clinic.ratingAvg.toFixed(1)} (${clinic.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => showOnMap(clinic)}>
                   📍 View on Map
@@ -653,6 +697,9 @@ export default function HealthcarePage() {
               {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
             </strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong id="route-fare">{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -660,6 +707,15 @@ export default function HealthcarePage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </>
   );
 }

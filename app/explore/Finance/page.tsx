@@ -3,6 +3,9 @@
    EXPLORE SECTION : "finance"
    ADMIN LOCATION  : Admin > Listings > Explore > Finance
    Replace the page.tsx inside your Finance folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -20,8 +23,12 @@ import {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
-/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore) ── */
+/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore,
+   and the Firestore collection name for this page) ── */
 const EXPLORE_SECTION = "finance";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -50,6 +57,8 @@ export interface FinanceLocation {
   mapsQuery: string;
   image: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface FinanceLocationWithDistance extends FinanceLocation {
@@ -154,6 +163,8 @@ export default function FinancePage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -167,18 +178,23 @@ export default function FinancePage() {
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allLocations = useMemo<FinanceLocation[]>(
     () =>
-      live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category as Category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        pin: l.pin,
-        mapsQuery: l.mapsQueryEncoded,
-        image: l.image,
-        description: l.description,
-      })),
+      live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category as Category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          pin: l.pin,
+          mapsQuery: l.mapsQueryEncoded,
+          image: l.image,
+          description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     [live]
   );
 
@@ -604,6 +620,32 @@ export default function FinancePage() {
                   {loc.distKm !== null ? formatDist(loc.distKm) : ""}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: loc.id, name: loc.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#2b6b45",
+                }}
+              >
+                <StarRating value={loc.ratingAvg} size={14} />
+                <span>
+                  {loc.ratingCount > 0
+                    ? `${loc.ratingAvg.toFixed(1)} (${loc.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => showOnMap(loc)}>
                   📍 View on Map
@@ -675,6 +717,9 @@ export default function FinancePage() {
               {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
             </strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong id="route-fare">{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -682,6 +727,15 @@ export default function FinancePage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </div>
   );
 }

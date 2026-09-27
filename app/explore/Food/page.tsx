@@ -3,6 +3,9 @@
    EXPLORE SECTION : "food"
    ADMIN LOCATION  : Admin > Listings > Explore > Food & Dining
    Replace the page.tsx inside your Food & Dining folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -20,8 +23,12 @@ import {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
-/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore) ── */
+/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore,
+   and the Firestore collection name for this page) ── */
 const EXPLORE_SECTION = "food";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -50,6 +57,8 @@ interface FoodPlace {
   mapsQuery: string;
   image: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface FoodPlaceWithDistance extends FoodPlace {
@@ -151,6 +160,8 @@ export default function FoodDiningPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -164,18 +175,23 @@ export default function FoodDiningPage() {
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allPlaces = useMemo<FoodPlace[]>(
     () =>
-      live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category as Category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        pin: l.pin,
-        mapsQuery: l.mapsQueryEncoded,
-        image: l.image,
-        description: l.description,
-      })),
+      live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category as Category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          pin: l.pin,
+          mapsQuery: l.mapsQueryEncoded,
+          image: l.image,
+          description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     [live]
   );
 
@@ -605,6 +621,31 @@ export default function FoodDiningPage() {
                   📍 {place.distKm !== null ? formatDist(place.distKm) : ""}
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setReviewsTarget({ id: place.id, name: place.name })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    margin: "6px 0 0",
+                    padding: 0,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: ".78rem",
+                    color: "#c0392b",
+                  }}
+                >
+                  <StarRating value={place.ratingAvg} size={14} />
+                  <span>
+                    {place.ratingCount > 0
+                      ? `${place.ratingAvg.toFixed(1)} (${place.ratingCount})`
+                      : "No reviews yet"}
+                  </span>
+                  <span style={{ textDecoration: "underline" }}>· Reviews</span>
+                </button>
+
                 <div className="food-card-actions">
                   <button type="button" onClick={() => showOnMap(place)}>
                     📍 View on Map
@@ -658,11 +699,23 @@ export default function FoodDiningPage() {
             ⏱️ Estimated time:{" "}
             <strong>{routeInfo ? formatDuration(routeInfo.minutes) : "–"}</strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong>{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
       {/* TOAST */}
       <div className={`food-toast${toast ? " show" : ""}`}>{toast}</div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </main>
   );
 }

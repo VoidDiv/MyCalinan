@@ -8,7 +8,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/Firebase";
-
+import BusinessReviewsPanel from "@/components/BusinessReviewsPanel";
 /* ── Shape returned by /api/business/profile (one entry per business
    the logged-in owner has submitted) ── */
 interface DocEntry {
@@ -313,6 +313,8 @@ function BusinessCard({ biz }: { biz: BusinessSummary }) {
         {biz.overallStatus === "approved" && biz.documents.length > 0 && (
           <DocumentList documents={biz.documents} />
         )}
+
+        <BusinessReviewsPanel businessId={biz.id} />
       </div>
     </div>
   );

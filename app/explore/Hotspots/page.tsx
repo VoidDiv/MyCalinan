@@ -1,6 +1,9 @@
 /* ============================================================
    HOTSPOTS PAGE
    Replace the page.tsx inside your Hotspots folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -18,10 +21,17 @@ import React, {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 mapboxgl.accessToken = token!;
+
+/* This page's Firestore collection name (also passed to useExploreListings below). */
+const EXPLORE_SECTION = "hotspots";
+
 /* ============================================================
    DATA
    Converted 1:1 from the Hotspot static cards, with coordinates
@@ -39,6 +49,8 @@ interface Hotspot {
   mapsQuery: string;
   lat: number;
   lng: number;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface UserLocation {
@@ -155,6 +167,8 @@ export default function HotspotPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -164,21 +178,26 @@ export default function HotspotPage() {
 
   /* ---------- live listings from admin (Firestore) ---------- */
 
-  const { listings: live, loading } = useExploreListings("hotspots");
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allHotspots = useMemo<Hotspot[]>(
     () => [
-      ...live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category,
-        tag: l.tag,
-        image: l.image,
-        description: l.description,
-        location: l.address,
-        mapsQuery: l.mapsQueryEncoded,
-        lat: l.lat,
-        lng: l.lng,
-      })),
+      ...live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category,
+          tag: l.tag,
+          image: l.image,
+          description: l.description,
+          location: l.address,
+          mapsQuery: l.mapsQueryEncoded,
+          lat: l.lat,
+          lng: l.lng,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     ],
     [live]
   );
@@ -661,6 +680,31 @@ export default function HotspotPage() {
                   <span>{distance !== null ? formatDistance(distance) : ""}</span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => setReviewsTarget({ id: hotspot.id, name: hotspot.name })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    margin: "6px 0 0",
+                    padding: 0,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: ".78rem",
+                    color: "#2e8b57",
+                  }}
+                >
+                  <StarRating value={hotspot.ratingAvg} size={14} />
+                  <span>
+                    {hotspot.ratingCount > 0
+                      ? `${hotspot.ratingAvg.toFixed(1)} (${hotspot.ratingCount})`
+                      : "No reviews yet"}
+                  </span>
+                  <span style={{ textDecoration: "underline" }}>· Reviews</span>
+                </button>
+
                 <div className="card-actions">
                   <button
                     className="view-map-btn"
@@ -748,6 +792,9 @@ export default function HotspotPage() {
           <span>
             ⏱️ Estimated time: <strong>{routeInfo?.time ?? "–"}</strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong>{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -755,6 +802,15 @@ export default function HotspotPage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </>
   );
 }

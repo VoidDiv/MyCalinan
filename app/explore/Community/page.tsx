@@ -3,6 +3,14 @@
    EXPLORE SECTION : "community"
    ADMIN LOCATION  : Admin > Listings > Explore > Community
    Replace the page.tsx inside your Community folder.
+
+   ADDED IN THIS VERSION:
+   - Estimated minimum tricycle fare shown in the route-info panel
+     (see lib/tricycleFare.ts to change the two numbers).
+   - Star rating badge + "Reviews" button on every card, opening
+     a shared ReviewsModal to browse, submit, or edit a review
+     (see lib/reviews.ts, components/StarRating.tsx,
+     components/ReviewsModal.tsx).
    ============================================================ */
 
 "use client";
@@ -20,8 +28,12 @@ import {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
-/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore) ── */
+/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore,
+   and the Firestore collection name for this page) ── */
 const EXPLORE_SECTION = "community";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -50,6 +62,8 @@ interface CommunityPlace {
   image: string;
   description: string;
   mapsQuery: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface CommunityPlaceWithDistance extends CommunityPlace {
@@ -167,6 +181,9 @@ export default function CommunityPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Reviews modal target: which place's reviews are being browsed/written
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,18 +197,24 @@ export default function CommunityPage() {
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allPlaces = useMemo<CommunityPlace[]>(
     () =>
-      live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category as Category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        pin: l.pin,
-        image: l.image,
-        description: l.description,
-        mapsQuery: l.mapsQueryEncoded,
-      })),
+      live.map((l) => {
+        // ratingAvg/ratingCount are denormalized onto the listing doc by lib/reviews.ts
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,         
+          name: l.name,
+          category: l.category as Category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          pin: l.pin,
+          image: l.image,
+          description: l.description,
+          mapsQuery: l.mapsQueryEncoded,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     [live]
   );
 
@@ -630,6 +653,32 @@ export default function CommunityPage() {
                   {place.distKm !== null ? formatDist(place.distKm) : ""}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: place.id, name: place.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#1a5c38",
+                }}
+              >
+                <StarRating value={place.ratingAvg} size={14} />
+                <span>
+                  {place.ratingCount > 0
+                    ? `${place.ratingAvg.toFixed(1)} (${place.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => showOnMap(place)}>
                   📍 View on Map
@@ -703,6 +752,9 @@ export default function CommunityPage() {
               {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
             </strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong id="route-fare">{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -710,6 +762,15 @@ export default function CommunityPage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </>
   );
 }

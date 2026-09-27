@@ -1,6 +1,9 @@
 /* ============================================================
    LIFESTYLE PAGE
    Replace the page.tsx inside your Lifestyle folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -17,12 +20,18 @@ import {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 const ROUTE_SOURCE_ID = "lifestyle-route";
 const ROUTE_LAYER_ID = "lifestyle-route-line";
+
+/* This page's Firestore collection name (also passed to useExploreListings below). */
+const EXPLORE_SECTION = "lifestyle";
 
 /* ══════════════════════════════════════════
   TYPES
@@ -44,6 +53,8 @@ export interface LocationItem {
   imageSrc: string;
   address: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface LocationWithDistance extends LocationItem {
@@ -157,6 +168,8 @@ export default function LifestylePage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userLocationRef = useRef<UserLocation | null>(null);
@@ -172,14 +185,19 @@ export default function LifestylePage() {
   }, [userLocation]);
 
   /* ── LIVE LISTINGS FROM ADMIN (Firestore) ── */
-  const { listings: live, loading } = useExploreListings("lifestyle");
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allLocations = useMemo<LocationItem[]>(
     () => [
       ...live.map((l) => {
         // `address` and `pin` are optional extras — fall back safely if the hook doesn't return them
-        const extra = l as typeof l & { address?: string; pin?: string };
+        const extra = l as typeof l & {
+          address?: string;
+          pin?: string;
+          ratingAvg?: number;
+          ratingCount?: number;
+        };
         return {
-          id: l.id,
+          id: l.docId,
           name: l.name,
           category: l.category as Category,
           lat: l.lat,
@@ -190,6 +208,8 @@ export default function LifestylePage() {
           imageSrc: l.image,
           address: extra.address ?? "",
           description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
         };
       }),
     ],
@@ -658,6 +678,32 @@ export default function LifestylePage() {
                   {item.distKm !== null ? formatDist(item.distKm) : ""}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: item.id, name: item.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#2e8b57",
+                }}
+              >
+                <StarRating value={item.ratingAvg} size={14} />
+                <span>
+                  {item.ratingCount > 0
+                    ? `${item.ratingAvg.toFixed(1)} (${item.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => showOnMap(item)}>
                   📍 View on Map
@@ -733,6 +779,9 @@ export default function LifestylePage() {
               {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
             </strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong id="route-fare">{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -740,6 +789,15 @@ export default function LifestylePage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </>
   );
 }

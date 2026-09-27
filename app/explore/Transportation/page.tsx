@@ -1,6 +1,9 @@
 /* ============================================================
    TRANSPORT & UTILITIES PAGE
    Replace the page.tsx inside your Transport folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -18,10 +21,16 @@ import React, {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 mapboxgl.accessToken = token!;
+
+/* This page's Firestore collection name (also passed to useExploreListings below). */
+const EXPLORE_SECTION = "transport";
 
 /* ============================================================
    DATA
@@ -43,6 +52,8 @@ interface TransportPlace {
   image: string;
   description: string;
   mapsQuery: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface UserLocation {
@@ -152,6 +163,8 @@ export default function TransportUtilitiesPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const activeMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -161,21 +174,26 @@ export default function TransportUtilitiesPage() {
 
   /* ---------- live listings from admin (Firestore) ---------- */
 
-  const { listings: live, loading } = useExploreListings("transport");
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allPlaces = useMemo<TransportPlace[]>(
     () => [
-      ...live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        pin: l.pin || "🚐",
-        image: l.image,
-        description: l.description,
-        mapsQuery: l.mapsQueryEncoded,
-      })),
+      ...live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          pin: l.pin || "🚐",
+          image: l.image,
+          description: l.description,
+          mapsQuery: l.mapsQueryEncoded,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     ],
     [live]
   );
@@ -597,6 +615,32 @@ export default function TransportUtilitiesPage() {
                   <div className="dot" />
                   <span>{distance !== null ? formatDistance(distance) : ""}</span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setReviewsTarget({ id: place.id, name: place.name })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    margin: "6px 0 0",
+                    padding: 0,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: ".78rem",
+                    color: "#2b6b45",
+                  }}
+                >
+                  <StarRating value={place.ratingAvg} size={14} />
+                  <span>
+                    {place.ratingCount > 0
+                      ? `${place.ratingAvg.toFixed(1)} (${place.ratingCount})`
+                      : "No reviews yet"}
+                  </span>
+                  <span style={{ textDecoration: "underline" }}>· Reviews</span>
+                </button>
+
                 <div className="card-actions">
                   <button className="view-map-btn" onClick={() => showOnMap(place)}>
                     📍 View on Map
@@ -674,6 +718,9 @@ export default function TransportUtilitiesPage() {
           <span>
             ⏱️ Estimated time: <strong>{routeInfo?.time ?? "–"}</strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong>{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -681,6 +728,15 @@ export default function TransportUtilitiesPage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </div>
   );
 }

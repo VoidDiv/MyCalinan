@@ -4,16 +4,9 @@
    built-in establishments, listings published from business
    applications, and ones you add yourself.
 
-   In this version:
-   - Imports the single merged seed file (data/exploreSeed.ts).
-   - Import banner is per page, and skips places that already exist
-     under a different document ID (same name + same spot).
-   - "Possible duplicate" badge + filter, and "Delete legacy
-     duplicates" (removes Legacy rows that have a Built-in twin).
-   - NEW: Photos banner. "Check photos" loads every listing's photo
-     and flags the ones that fail. "Fix N photos" lists the real
-     files in your Firebase Storage folders and rewrites the broken
-     links by matching filenames to listing names.
+   ADDED IN THIS VERSION:
+   - "Reviews" button per row, opening the shared ReviewsModal in
+     admin mode (isAdmin) so any review can be deleted (moderation).
    ============================================================ */
 
 "use client";
@@ -48,6 +41,7 @@ import {
   type ListingData,
 } from "@/types/listing";
 import ListingModal from "./ListingModal";
+import ReviewsModal from "@/components/ReviewsModal";
 import { styles } from "./styles";
 
 const PAGES = Object.keys(EXPLORE_PAGES) as ExplorePage[];
@@ -227,6 +221,8 @@ interface ExploreRow {
   seeded: boolean;
   businessId?: string;
   order: number;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -259,6 +255,8 @@ function toRow(page: ExplorePage, docId: string, d: Record<string, unknown>): Ex
     seeded: d.seeded === true,
     businessId: str(d.businessId) || undefined,
     order: typeof d.order === "number" ? d.order : NO_ORDER,
+    ratingAvg: typeof d.ratingAvg === "number" ? d.ratingAvg : 0,
+    ratingCount: typeof d.ratingCount === "number" ? d.ratingCount : 0,
   };
 }
 
@@ -349,6 +347,9 @@ export default function ExplorePanel({
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Reviews moderation: which row's reviews are being browsed/moderated
+  const [reviewsRow, setReviewsRow] = useState<ExploreRow | null>(null);
 
   // Photo check / fix
   const [brokenKeys, setBrokenKeys] = useState<Set<string>>(new Set());
@@ -1014,6 +1015,9 @@ export default function ExplorePanel({
                       <button style={styles.smallBtn} onClick={() => toggleVisible(row)}>
                         {row.published ? "Hide" : "Show"}
                       </button>
+                      <button style={styles.smallBtn} onClick={() => setReviewsRow(row)}>
+                        Reviews{row.ratingCount > 0 ? ` (${row.ratingCount})` : ""}
+                      </button>
                       <button style={styles.smallBtnDanger} onClick={() => setDeleting(row)}>Delete</button>
                     </div>
                   </td>
@@ -1092,6 +1096,15 @@ export default function ExplorePanel({
           </div>
         </div>
       )}
+
+      <ReviewsModal
+        open={!!reviewsRow}
+        pageCollection={reviewsRow ? PAGE_COLLECTION[reviewsRow.page] : ""}
+        listingId={reviewsRow?.docId ?? ""}
+        listingName={reviewsRow?.name ?? ""}
+        onClose={() => setReviewsRow(null)}
+        isAdmin
+      />
     </>
   );
 }

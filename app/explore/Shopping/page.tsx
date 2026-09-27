@@ -1,6 +1,9 @@
 /* ============================================================
    SHOPPING & STORE PAGE
    Replace the page.tsx inside your Shopping folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card.
    ============================================================ */
 
 "use client";
@@ -18,10 +21,17 @@ import React, {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 mapboxgl.accessToken = token!;
+
+/* This page's Firestore collection name (also passed to useExploreListings below). */
+const EXPLORE_SECTION = "shopping";
+
 // ----------------------------------------------------------------------
 // Types & Interfaces
 // ----------------------------------------------------------------------
@@ -49,6 +59,8 @@ export interface StoreItem {
   imageSrc: string;
   address: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface UserLocation {
@@ -148,6 +160,8 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [routingStoreId, setRoutingStoreId] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   // Refs for Mapbox objects
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -157,22 +171,27 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── LIVE LISTINGS FROM ADMIN (Firestore) ── */
-  const { listings: live, loading } = useExploreListings("shopping");
+  const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allStores = useMemo<StoreItem[]>(
     () => [
-      ...live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        category: l.category,
-        lat: l.lat,
-        lng: l.lng,
-        tag: l.tag,
-        pin: l.pin || "🛍️",
-        mapsQuery: l.mapsQueryEncoded,
-        imageSrc: l.image,
-        address: l.address,
-        description: l.description,
-      })),
+      ...live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          category: l.category,
+          lat: l.lat,
+          lng: l.lng,
+          tag: l.tag,
+          pin: l.pin || "🛍️",
+          mapsQuery: l.mapsQueryEncoded,
+          imageSrc: l.image,
+          address: l.address,
+          description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     ],
     [live]
   );
@@ -613,6 +632,31 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
                 <span className="dist-text">{item.distance !== null ? formatDist(item.distance) : ""}</span>
               </div>
 
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: item.id, name: item.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#2e8b57",
+                }}
+              >
+                <StarRating value={item.ratingAvg} size={14} />
+                <span>
+                  {item.ratingCount > 0
+                    ? `${item.ratingAvg.toFixed(1)} (${item.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => handleShowOnMap(item)}>
                   📍 View on Map
@@ -679,6 +723,9 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
           <span>
             ⏱️ Estimated time: <strong id="route-time">{routeInfo?.timeStr || "–"}</strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong>{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -686,6 +733,15 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       <div id="toast" className={toastMessage ? "show" : ""}>
         {toastMessage}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </div>
   );
 };

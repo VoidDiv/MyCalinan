@@ -3,6 +3,11 @@
    EXPLORE SECTION : "education"
    ADMIN LOCATION  : Admin > Listings > Explore > Education
    Replace the page.tsx inside your Education folder.
+
+   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   panel, and star ratings/reviews on every card (see
+   lib/tricycleFare.ts, lib/reviews.ts, components/StarRating.tsx,
+   components/ReviewsModal.tsx).
    ============================================================ */
 
 "use client";
@@ -20,8 +25,12 @@ import {
 } from "react";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
+import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import StarRating from "@/components/StarRating";
+import ReviewsModal from "@/components/ReviewsModal";
 
-/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore) ── */
+/* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore,
+   and the Firestore collection name for this page) ── */
 const EXPLORE_SECTION = "education";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
@@ -49,6 +58,8 @@ export interface School {
   mapsQuery: string;
   image: string;
   description: string;
+  ratingAvg: number;
+  ratingCount: number;
 }
 
 interface SchoolWithDistance extends School {
@@ -150,6 +161,8 @@ export default function EducationPage() {
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [reviewsTarget, setReviewsTarget] = useState<{ id: string; name: string } | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -163,18 +176,23 @@ export default function EducationPage() {
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allSchools = useMemo<School[]>(
     () =>
-      live.map((l) => ({
-        id: l.id,
-        name: l.name,
-        // Education listings can carry several tags (e.g. "High School" + "Private")
-        tags: (l.tags && l.tags.length ? l.tags : [l.category]) as Tag[],
-        lat: l.lat,
-        lng: l.lng,
-        displayTag: l.tag,
-        mapsQuery: l.mapsQueryEncoded,
-        image: l.image,
-        description: l.description,
-      })),
+      live.map((l) => {
+        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        return {
+          id: l.docId,
+          name: l.name,
+          // Education listings can carry several tags (e.g. "High School" + "Private")
+          tags: (l.tags && l.tags.length ? l.tags : [l.category]) as Tag[],
+          lat: l.lat,
+          lng: l.lng,
+          displayTag: l.tag,
+          mapsQuery: l.mapsQueryEncoded,
+          image: l.image,
+          description: l.description,
+          ratingAvg: extra.ratingAvg ?? 0,
+          ratingCount: extra.ratingCount ?? 0,
+        };
+      }),
     [live]
   );
 
@@ -597,6 +615,32 @@ export default function EducationPage() {
                   {school.distKm !== null ? formatDist(school.distKm) : ""}
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setReviewsTarget({ id: school.id, name: school.name })}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  margin: "6px 0 0",
+                  padding: 0,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: ".78rem",
+                  color: "#2e8b57",
+                }}
+              >
+                <StarRating value={school.ratingAvg} size={14} />
+                <span>
+                  {school.ratingCount > 0
+                    ? `${school.ratingAvg.toFixed(1)} (${school.ratingCount})`
+                    : "No reviews yet"}
+                </span>
+                <span style={{ textDecoration: "underline" }}>· Reviews</span>
+              </button>
+
               <div className="card-actions">
                 <button className="view-map-btn" onClick={() => showOnMap(school)}>
                   📍 View on Map
@@ -668,6 +712,9 @@ export default function EducationPage() {
               {routeInfo ? formatDuration(routeInfo.minutes) : "–"}
             </strong>
           </span>
+          <span title={TRICYCLE_FARE_NOTE}>
+            🛺 Est. tricycle fare: <strong id="route-fare">{TRICYCLE_FARE_LABEL}</strong>
+          </span>
         </div>
       </div>
 
@@ -675,6 +722,15 @@ export default function EducationPage() {
       <div id="toast" className={toast ? "show" : ""}>
         {toast}
       </div>
+
+      {/* REVIEWS MODAL */}
+      <ReviewsModal
+        open={!!reviewsTarget}
+        pageCollection={EXPLORE_SECTION}
+        listingId={reviewsTarget?.id ?? ""}
+        listingName={reviewsTarget?.name ?? ""}
+        onClose={() => setReviewsTarget(null)}
+      />
     </>
   );
 }
