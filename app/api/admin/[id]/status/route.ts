@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { verifyAdminRequest } from "@/lib/adminAuth";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -17,13 +17,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const admin = await verifyAdminRequest(req);
-
-  if (!admin) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+  try {
+    await verifyAdminRequest(req);
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;

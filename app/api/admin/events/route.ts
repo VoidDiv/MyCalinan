@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { verifyAdminToken } from "@/lib/verifyAdmin";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = await verifyAdminToken(request);
-    if (!decoded) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-    }
+    await verifyAdminRequest(request);
+  } catch {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
 
+  try {
     const body = await request.json();
     const { title, date, category, image, description } = body;
 

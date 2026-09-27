@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { verifyAdminToken } from "@/lib/verifyAdmin";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const decoded = await verifyAdminToken(request);
-    if (!decoded) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-    }
+    await verifyAdminRequest(request);
+  } catch {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
 
+  try {
     const { id } = await params;
     const body = await request.json();
     const { title, date, category, image, description } = body;
@@ -39,11 +40,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const decoded = await verifyAdminToken(request);
-    if (!decoded) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-    }
+    await verifyAdminRequest(request);
+  } catch {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
 
+  try {
     const { id } = await params;
     await adminDb.collection("events").doc(id).delete();
 

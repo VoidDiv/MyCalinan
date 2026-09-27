@@ -1,10 +1,9 @@
 "use client";
 
-
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-
+import { fullLogout } from "../lib/session"; // adjust path to match your project structure
 
 const EXPLORE_LINKS = [
   { label: "Health", href: "/explore/HealthCare" },
@@ -18,7 +17,6 @@ const EXPLORE_LINKS = [
   { label: "Hotspots", href: "/explore/Hotspots" },
 ];
 
-
 const DOCUMENT_LINKS = [
   { label: "Police Clearance", href: "/documents/PoliceClearance" },
   { label: "Barangay Clearance", href: "/documents/BarangayClearance" },
@@ -26,7 +24,6 @@ const DOCUMENT_LINKS = [
   { label: "Cedula", href: "/documents/Cedula" },
   { label: "Get Postal ID", href: "/documents/Postal" },
 ];
-
 
 const DIRECT_LINKS = [
   { label: "Barangay Map", href: "/map" },
@@ -37,10 +34,8 @@ const DIRECT_LINKS = [
   { label: "Business Registration", href: "/business-registration" },
 ];
 
-
 /* Which kind of account button the top-right corner should show. */
 type AuthState = "none" | "guest" | "user" | "admin";
-
 
 function NavDropdown({
   label,
@@ -50,7 +45,6 @@ function NavDropdown({
   links: { label: string; href: string }[];
 }) {
   const [open, setOpen] = useState(false);
-
 
   return (
     <div
@@ -83,7 +77,6 @@ function NavDropdown({
   );
 }
 
-
 /*
   Dropdown shown for a logged-in business owner ("user" role).
   Opens on click (not hover) and closes on click-outside.
@@ -98,7 +91,6 @@ function AccountDropdown({
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -108,7 +100,6 @@ function AccountDropdown({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -151,14 +142,11 @@ function AccountDropdown({
   );
 }
 
-
 export default function Navbar() {
   const router = useRouter();
 
-
   const [lang, setLang] = useState<"en" | "ceb">("en");
   const [authState, setAuthState] = useState<AuthState>("none");
-
 
   /*
     Figure out who (if anyone) is signed in.
@@ -168,11 +156,9 @@ export default function Navbar() {
   useEffect(() => {
     const isGuest = sessionStorage.getItem("mycalinan_guest") === "true";
 
-
     const role =
       localStorage.getItem("mycalinan_role") ||
       sessionStorage.getItem("mycalinan_role");
-
 
     if (isGuest) {
       setAuthState("guest");
@@ -185,46 +171,32 @@ export default function Navbar() {
     }
   }, []);
 
-
-  function handleGuestLogout() {
-    sessionStorage.removeItem("mycalinan_guest");
-    sessionStorage.removeItem("mycalinan_guest_name");
+  /*
+    Single shared logout path for every role. fullLogout() ends the real
+    Firebase Auth session AND clears every app-level storage flag, so the
+    navbar's "logged out" state and Firebase's own session can never drift
+    apart again (which was the bug: the old per-role handlers only cleared
+    localStorage/sessionStorage and never called signOut(auth), so anything
+    reading auth directly — like ReviewsModal's onAuthStateChanged listener —
+    still saw the old user as signed in).
+  */
+  async function handleGuestLogout() {
+    await fullLogout();
     setAuthState("none");
     router.push("/");
   }
 
-
-  function handleUserLogout() {
-    localStorage.removeItem("mycalinan_uid");
-    localStorage.removeItem("mycalinan_token");
-    localStorage.removeItem("mycalinan_username");
-    localStorage.removeItem("mycalinan_role");
-    sessionStorage.removeItem("mycalinan_uid");
-    sessionStorage.removeItem("mycalinan_token");
-    sessionStorage.removeItem("mycalinan_username");
-    sessionStorage.removeItem("mycalinan_role");
-
-
+  async function handleUserLogout() {
+    await fullLogout();
     setAuthState("none");
     router.push("/login");
   }
 
-
-  function handleAdminLogout() {
-    localStorage.removeItem("mycalinan_uid");
-    localStorage.removeItem("mycalinan_token");
-    localStorage.removeItem("mycalinan_username");
-    localStorage.removeItem("mycalinan_role");
-    sessionStorage.removeItem("mycalinan_uid");
-    sessionStorage.removeItem("mycalinan_token");
-    sessionStorage.removeItem("mycalinan_username");
-    sessionStorage.removeItem("mycalinan_role");
-
-
+  async function handleAdminLogout() {
+    await fullLogout();
     setAuthState("none");
     router.push("/login");
   }
-
 
   return (
     <header className="sticky top-0 z-50">
@@ -245,7 +217,6 @@ export default function Navbar() {
           </select>
         </div>
 
-
         <Link href="/" className="justify-self-center flex items-center gap-3">
           <span
             className="font-display text-2xl font-semibold tracking-wide text-white sm:text-3xl"
@@ -254,7 +225,6 @@ export default function Navbar() {
             MyCalinan
           </span>
         </Link>
-
 
         <div className="justify-self-end">
           {authState === "none" && (
@@ -266,7 +236,6 @@ export default function Navbar() {
             </Link>
           )}
 
-
           {authState === "guest" && (
             <button
               onClick={handleGuestLogout}
@@ -276,11 +245,9 @@ export default function Navbar() {
             </button>
           )}
 
-
           {authState === "user" && (
             <AccountDropdown label="My Account" onLogout={handleUserLogout} />
           )}
-
 
           {authState === "admin" && (
             <button
@@ -292,7 +259,6 @@ export default function Navbar() {
           )}
         </div>
       </div>
-
 
       {/* Menu bar — always visible, wraps neatly into centered rows on any screen size */}
       <nav className="border-b-2 border-canopy-600 bg-canopy-100 px-4 py-3 sm:px-10">
@@ -318,5 +284,3 @@ export default function Navbar() {
     </header>
   );
 }
-
-  

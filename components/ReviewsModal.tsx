@@ -9,6 +9,13 @@
    - Admin mode (isAdmin): no submit form (admins don't leave
      reviews here); every review gets a Delete button for
      moderation, not just the current user's own.
+
+   Includes a visible "signed in as X" notice with a Sign out
+   button whenever the review form is shown, so a leftover or
+   unexpected session is never silently used to post a review.
+   Sign-out here goes through fullLogout() (lib/session.ts) so it
+   clears the mycalinan_* storage flags too — not just the Firebase
+   session — keeping this in sync with the navbar's logout.
    ============================================================ */
 
 "use client";
@@ -18,6 +25,7 @@ import Link from "next/link";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/Firebase";
+import { fullLogout } from "@/lib/session";
 import { useListingReviews, submitReview, deleteReview, type ReviewDoc } from "@/lib/reviews";
 import StarRating from "./StarRating";
 
@@ -56,6 +64,7 @@ export default function ReviewsModal({
 
   const [uid, setUid] = useState<string | null>(null);
   const [reviewerName, setReviewerName] = useState("");
+  const [reviewerEmail, setReviewerEmail] = useState("");
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [rating, setRating] = useState(0);
@@ -63,12 +72,13 @@ export default function ReviewsModal({
   const [prefilled, setPrefilled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
 
   /* Who's signed in right now (skip entirely in admin mode — admins don't
-     submit here). We keep this live for as long as the modal is open, so if
-     a session expires mid-visit the form disappears instead of silently
-     trying (and failing) to write. */
+     submit here). Stays live for as long as the modal is open, so if a
+     session expires or someone signs out mid-visit the form disappears
+     instead of silently trying (and failing) to write. */
   useEffect(() => {
     if (!open || isAdmin) {
       setCheckingAuth(false);
@@ -78,10 +88,13 @@ export default function ReviewsModal({
     const unsub = onAuthStateChanged(auth, async (user: User | null) => {
       if (!user) {
         setUid(null);
+        setReviewerName("");
+        setReviewerEmail("");
         setCheckingAuth(false);
         return;
       }
       setUid(user.uid);
+      setReviewerEmail(user.email ?? "");
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         setReviewerName(
@@ -123,8 +136,8 @@ export default function ReviewsModal({
 
   async function handleSubmit() {
     // Hard re-check right before writing — never trust that `uid` from an
-    // earlier render is still valid. If the session lapsed, refuse silently
-    // rather than firing a doomed (and confusing) Firestore write.
+    // earlier render is still valid. If there's no live Firebase session,
+    // refuse silently rather than firing a doomed (and confusing) write.
     const currentUser = auth.currentUser;
     if (!currentUser) {
       setUid(null);
@@ -171,6 +184,24 @@ export default function ReviewsModal({
     }
   }
 
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await fullLogout();
+      setUid(null);
+      setReviewerName("");
+      setReviewerEmail("");
+      setRating(0);
+      setComment("");
+      setPrefilled(false);
+    } catch (e) {
+      console.error(e);
+      setError("Could not sign out. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div style={overlayStyle} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={boxStyle} onClick={(e) => e.stopPropagation()}>
@@ -185,6 +216,23 @@ export default function ReviewsModal({
         </div>
 
         {error && <div style={errorStyle}>{error}</div>}
+
+        {/* Identity notice — always visible whenever a submit form could show,
+            so a leftover or unexpected session is never silently used. */}
+        {!isAdmin && !checkingAuth && uid && (
+          <div style={sessionNoticeStyle}>
+            <i className="fas fa-circle-info" /> Posting as{" "}
+            <strong>{reviewerName || reviewerEmail || "a signed-in user"}</strong>. Not you?{" "}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              style={inlineLinkBtnStyle}
+            >
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
+          </div>
+        )}
 
         {!isAdmin && !checkingAuth && (
           <div style={formBoxStyle}>
@@ -282,6 +330,23 @@ const closeBtnStyle: CSSProperties = {
   cursor: "pointer",
   fontSize: "1.1rem",
   color: "#666",
+};
+const sessionNoticeStyle: CSSProperties = {
+  background: "#eef6f1",
+  color: "#2b6b45",
+  borderRadius: 8,
+  padding: "6px 10px",
+  fontSize: ".75rem",
+  marginBottom: 10,
+};
+const inlineLinkBtnStyle: CSSProperties = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  color: "#1a5c38",
+  textDecoration: "underline",
+  cursor: "pointer",
+  font: "inherit",
 };
 const formBoxStyle: CSSProperties = {
   background: "#f7faf8",

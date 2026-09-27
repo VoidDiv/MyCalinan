@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { verifyAdminRequest } from "@/lib/adminAuth";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -9,8 +9,9 @@ export const runtime = "nodejs";
 // see approved listings elsewhere — this route is for the moderation
 // queue in AdminListings.tsx.
 export async function GET(req: NextRequest) {
-  const admin = await verifyAdminRequest(req);
-  if (!admin) {
+  try {
+    await verifyAdminRequest(req);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

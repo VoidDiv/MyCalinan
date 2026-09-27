@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminStorage } from "@/lib/firebaseAdmin";
-import { verifyAdminRequest } from "@/lib/adminAuth";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -15,9 +15,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const admin = await verifyAdminRequest(req);
-
-  if (!admin) {
+  try {
+    await verifyAdminRequest(req);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -103,9 +103,9 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const admin = await verifyAdminRequest(req);
-
-  if (!admin) {
+  try {
+    await verifyAdminRequest(req);
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

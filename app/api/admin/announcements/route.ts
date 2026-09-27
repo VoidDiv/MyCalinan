@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { verifyAdminToken } from "@/lib/verifyAdmin";
+import { verifyAdminRequest } from "@/lib/serverAuth";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = await verifyAdminToken(request);
-    if (!decoded) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-    }
+    await verifyAdminRequest(request);
 
     const body = await request.json();
     const { title, date, category, image, description } = body;
@@ -29,6 +26,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ _id: docRef.id }, { status: 201 });
   } catch (err) {
     console.error("Create announcement error:", err);
+    if (err instanceof Error && err.message === "Admin access required") {
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Something went wrong." },
       { status: 500 }
