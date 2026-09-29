@@ -35,7 +35,7 @@ export default function Hero() {
       {/* Art Panel — Real Photo of Calinan Poblacion */}
       <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] border border-canopy-600/30 shadow-xl">
         <Image
-          src="/image/Calinan-Poblacion.png"
+          src="/image/Calinan Poblacion.jpg"
           alt="Calinan Poblacion, Davao City"
           fill
           sizes="(min-width: 1024px) 45vw, 90vw"

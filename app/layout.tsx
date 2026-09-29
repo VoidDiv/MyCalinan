@@ -21,7 +21,10 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MyCalinan — Calinan, Davao City",
+  title: {
+    default: "MyCalinan — Calinan, Davao City",
+    template: "%s | MyCalinan",
+  },
   description:
     "Tourism, services, and community information for Calinan Poblacion, Davao City.",
 };

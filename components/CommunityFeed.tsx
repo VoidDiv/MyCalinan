@@ -51,7 +51,7 @@ function useFeed(endpoint: string) {
 
 function FeedCard({ item }: { item: FeedItem }) {
   return (
-    <article className="rounded-[var(--radius-stall)] border border-canopy-600/25 bg-white p-5 shadow-sm">
+    <article className="rounded-[var(--radius-stall)] border border-canopy-600/25 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-center justify-between gap-3">
         {item.category && (
           <span className="rounded-full bg-canopy-100 px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wide text-canopy-800">
@@ -60,7 +60,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         )}
         <span className="font-mono text-xs text-ink-500">{item.date}</span>
       </div>
-      <h3 className="mt-3 font-display text-lg font-semibold text-canopy-900">
+      <h3 className="mt-2 font-display text-lg font-semibold text-canopy-900 sm:mt-3">
         {item.title}
       </h3>
       <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
@@ -84,21 +84,21 @@ export default function CommunityFeed() {
   } = useFeed("/api/events");
 
   return (
-    <section className="bg-canopy-100 px-6 py-16 sm:px-10 lg:px-20">
+    <section className="bg-canopy-100 px-6 py-8 sm:px-10 sm:py-12 lg:px-20 lg:py-16">
       <div className="mx-auto max-w-5xl">
-        <h2 className="font-display text-3xl font-semibold text-canopy-800 sm:text-4xl">
+        <h2 className="font-display text-2xl font-semibold text-canopy-800 sm:text-3xl lg:text-4xl">
           Community announcements
         </h2>
         <WovenDivider tone="cream" />
 
         {announcementsLoading && (
-          <p className="mt-8 font-mono text-sm text-ink-500">
+          <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
             Loading announcements...
           </p>
         )}
 
         {!announcementsLoading && announcementsError && (
-          <p className="mt-8 font-mono text-sm text-ink-500">
+          <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
             Unable to load announcements right now.
           </p>
         )}
@@ -106,7 +106,7 @@ export default function CommunityFeed() {
         {!announcementsLoading &&
           !announcementsError &&
           announcements.length === 0 && (
-            <p className="mt-8 font-mono text-sm text-ink-500">
+            <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
               No announcements yet.
             </p>
           )}
@@ -114,7 +114,7 @@ export default function CommunityFeed() {
         {!announcementsLoading &&
           !announcementsError &&
           announcements.length > 0 && (
-            <div className="mt-8 grid gap-5 sm:grid-cols-2">
+            <div className="mt-5 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5">
               {announcements.map((item, index) => (
                 <FeedCard
                   key={item._id || `announcement-${index}`}
@@ -124,31 +124,31 @@ export default function CommunityFeed() {
             </div>
           )}
 
-        <h2 className="mt-14 font-display text-3xl font-semibold text-canopy-800 sm:text-4xl">
+        <h2 className="mt-10 font-display text-2xl font-semibold text-canopy-800 sm:mt-14 sm:text-3xl lg:text-4xl">
           Community events
         </h2>
         <WovenDivider tone="cream" />
 
         {eventsLoading && (
-          <p className="mt-8 font-mono text-sm text-ink-500">
+          <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
             Loading events...
           </p>
         )}
 
         {!eventsLoading && eventsError && (
-          <p className="mt-8 font-mono text-sm text-ink-500">
+          <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
             Unable to load events right now.
           </p>
         )}
 
         {!eventsLoading && !eventsError && events.length === 0 && (
-          <p className="mt-8 font-mono text-sm text-ink-500">
+          <p className="mt-5 font-mono text-sm text-ink-500 sm:mt-8">
             No events yet.
           </p>
         )}
 
         {!eventsLoading && !eventsError && events.length > 0 && (
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+          <div className="mt-5 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-5">
             {events.map((item, index) => (
               <FeedCard key={item._id || `event-${index}`} item={item} />
             ))}
@@ -158,3 +158,4 @@ export default function CommunityFeed() {
     </section>
   );
 }
+
