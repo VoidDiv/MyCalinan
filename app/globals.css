@@ -20,6 +20,29 @@
   --ink-500: #6b6152;
 
   --radius-stall: 4px 16px 4px 16px;
+
+  /* ==========================================================
+     UNIFIED TYPE SCALE — use these everywhere instead of
+     one-off px/rem values, so every page reads consistently.
+     ========================================================== */
+  --fs-hero-title: clamp(1.5rem, 3vw, 2.1rem);  /* big page-intro headline */
+  --fs-page-title: 1.4rem;                       /* header logo / sub-page H1 */
+  --fs-section-title: 1.2rem;                    /* group / service H2 */
+  --fs-card-title: 1.02rem;                      /* card H3 */
+  --fs-body: 0.9rem;                             /* paragraph text */
+  --fs-body-sm: 0.85rem;                         /* secondary paragraph text */
+  --fs-small: 0.8rem;                            /* meta / captions */
+  --fs-badge: 0.72rem;                           /* tags / badges */
+  --fs-btn: 0.85rem;                             /* regular buttons */
+  --fs-btn-sm: 0.78rem;                          /* compact card-action buttons */
+  --fs-btn-primary: 1rem;                        /* primary CTA buttons */
+
+  /* Shared spacing so headers, containers and cards line up
+     the same way from page to page. */
+  --space-header-pad: 0.9rem 1.5rem;
+  --space-container-pad: 1rem 1.5rem 3rem;
+  --space-card-gap: 1.25rem;
+  --space-card-pad: 1rem 1.1rem 1.2rem;
 }
 
 @theme inline {
@@ -131,18 +154,18 @@ body {
    ============================================================ */
 
 .community-page h1 {
-  font-size: 26px;
+  font-size: 1.6rem;
   font-weight: 700;
 }
 
 .community-page h2 {
-  font-size: 20px;
+  font-size: var(--fs-section-title);
   font-weight: 600;
   color: var(--green-700);
 }
 
 .community-page p {
-  font-size: 15px;
+  font-size: var(--fs-body);
   color: var(--muted, var(--text-soft));
 }
 
@@ -158,7 +181,7 @@ body {
 
   background: var(--green);
 
-  padding: 14px 24px;
+  padding: var(--space-header-pad);
 
   display: flex;
   align-items: center;
@@ -184,10 +207,10 @@ body {
 
   text-decoration: none;
 
-  padding: 7px 14px;
+  padding: 0.5rem 1rem;
   border-radius: 20px;
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
   font-weight: 500;
 
   transition: background 0.2s;
@@ -199,7 +222,7 @@ body {
 
 .community-page .logo {
   color: white;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.3px;
 }
@@ -234,7 +257,7 @@ body {
   background: rgba(255, 255, 255, 0.18);
   color: white;
 
-  font-size: 14px;
+  font-size: var(--fs-body);
   outline: none;
 
   transition: background 0.2s;
@@ -278,7 +301,7 @@ body {
 
   gap: 7px;
 
-  padding: 9px 16px;
+  padding: 0.55rem 1rem;
 
   background: white;
   color: var(--green);
@@ -286,7 +309,7 @@ body {
   border: none;
   border-radius: 24px;
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
   font-weight: 600;
 
   cursor: pointer;
@@ -354,28 +377,28 @@ body {
 
   color: white;
 
-  padding: 40px 24px 32px;
+  padding: 2.5rem 1.5rem 2rem;
 
   text-align: center;
 }
 
 .community-page .hero h2 {
-  font-size: 26px;
+  font-size: var(--fs-hero-title);
   font-weight: 700;
 
-  margin-bottom: 10px;
+  margin-bottom: 0.6rem;
 
   color: white;
 }
 
 .community-page .hero p {
-  font-size: 14px;
+  font-size: var(--fs-body);
 
   color: rgba(255, 255, 255, 0.8);
 
   max-width: 520px;
 
-  margin: 0 auto 20px;
+  margin: 0 auto 1.25rem;
 
   line-height: 1.6;
 }
@@ -397,9 +420,9 @@ body {
 
   border-radius: 12px;
 
-  padding: 10px 18px;
+  padding: 0.65rem 1.1rem;
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
   color: white;
 
   max-width: 480px;
@@ -461,7 +484,7 @@ body {
 
   flex-wrap: wrap;
 
-  padding: 16px 24px;
+  padding: 1rem 1.5rem;
 
   background: white;
 
@@ -469,7 +492,7 @@ body {
 }
 
 .community-page .toolbar-label {
-  font-size: 13px;
+  font-size: var(--fs-small);
 
   color: var(--text-muted);
 
@@ -479,7 +502,7 @@ body {
 }
 
 .community-page .filter-chip {
-  padding: 6px 14px;
+  padding: 0.4rem 0.9rem;
 
   border-radius: 20px;
 
@@ -489,7 +512,7 @@ body {
 
   color: var(--text-soft);
 
-  font-size: 12px;
+  font-size: var(--fs-btn);
   font-weight: 600;
 
   cursor: pointer;
@@ -513,7 +536,7 @@ body {
 .community-page .sort-btn {
   margin-left: auto;
 
-  padding: 7px 15px;
+  padding: 0.45rem 1rem;
 
   border-radius: 20px;
 
@@ -523,7 +546,7 @@ body {
 
   color: var(--text-soft);
 
-  font-size: 12px;
+  font-size: var(--fs-btn);
   font-weight: 600;
 
   cursor: pointer;
@@ -555,11 +578,11 @@ body {
    ============================================================ */
 
 .community-page #result-count {
-  font-size: 12px;
+  font-size: var(--fs-small);
 
   color: var(--text-muted);
 
-  padding: 0 24px 10px;
+  padding: 0 1.5rem 0.6rem;
 
   background: white;
 }
@@ -578,9 +601,9 @@ body {
       minmax(300px, 1fr)
     );
 
-  gap: 20px;
+  gap: var(--space-card-gap);
 
-  padding: 24px;
+  padding: var(--space-container-pad);
 
   max-width: 1200px;
 
@@ -694,22 +717,22 @@ body {
    ============================================================ */
 
 .community-page .card-content {
-  padding: 18px;
+  padding: var(--space-card-pad);
 
   flex: 1;
 
   display: flex;
   flex-direction: column;
 
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .community-page .card-content h3 {
-  font-size: 15px;
+  font-size: var(--fs-card-title);
 
   font-weight: 600;
 
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .community-page .card-content h3 a {
@@ -723,7 +746,7 @@ body {
 }
 
 .community-page .card-content p {
-  font-size: 13px;
+  font-size: var(--fs-body-sm);
 
   color: var(--text-soft);
 
@@ -744,11 +767,11 @@ body {
 
   color: var(--green-dark);
 
-  font-size: 11px;
+  font-size: var(--fs-badge);
 
   font-weight: 600;
 
-  padding: 4px 10px;
+  padding: 0.2rem 0.65rem;
 
   border-radius: 20px;
 
@@ -767,7 +790,7 @@ body {
 
   gap: 5px;
 
-  font-size: 12px;
+  font-size: var(--fs-btn-sm);
 
   font-weight: 600;
 
@@ -775,7 +798,7 @@ body {
 
   background: var(--green-light);
 
-  padding: 4px 10px;
+  padding: 0.2rem 0.65rem;
 
   border-radius: 20px;
 
@@ -803,11 +826,11 @@ body {
 .community-page .card-actions {
   display: flex;
 
-  gap: 8px;
+  gap: 0.5rem;
 
   flex-wrap: wrap;
 
-  margin-top: 4px;
+  margin-top: 0.4rem;
 }
 
 .community-page .view-map-btn {
@@ -818,7 +841,7 @@ body {
 
   gap: 6px;
 
-  padding: 8px 16px;
+  padding: 0.5rem 0.9rem;
 
   background: var(--green);
 
@@ -828,7 +851,7 @@ body {
 
   border-radius: 20px;
 
-  font-size: 12px;
+  font-size: var(--fs-btn-sm);
 
   font-weight: 600;
 
@@ -860,7 +883,7 @@ body {
 
   gap: 6px;
 
-  padding: 8px 16px;
+  padding: 0.5rem 0.9rem;
 
   background: white;
 
@@ -870,7 +893,7 @@ body {
 
   border-radius: 20px;
 
-  font-size: 12px;
+  font-size: var(--fs-btn-sm);
 
   font-weight: 600;
 
@@ -1003,7 +1026,7 @@ body {
   align-items: center;
   justify-content: space-between;
 
-  padding: 10px 18px;
+  padding: 0.6rem 1.1rem;
 
   background: var(--green);
 
@@ -1013,13 +1036,13 @@ body {
 }
 
 .community-page #map-panel-title {
-  font-size: 14px;
+  font-size: var(--fs-body);
 
   font-weight: 700;
 }
 
 .community-page #map-panel-subtitle {
-  font-size: 11px;
+  font-size: var(--fs-badge);
 
   opacity: 0.8;
 
@@ -1041,7 +1064,7 @@ body {
 
   gap: 5px;
 
-  padding: 5px 13px;
+  padding: 0.3rem 0.8rem;
 
   background: rgba(255, 255, 255, 0.2);
 
@@ -1051,7 +1074,7 @@ body {
 
   text-decoration: none;
 
-  font-size: 12px;
+  font-size: var(--fs-badge);
 
   font-weight: 600;
 
@@ -1104,13 +1127,13 @@ body {
 
   gap: 14px;
 
-  padding: 8px 18px;
+  padding: 0.5rem 1.1rem;
 
   background: var(--green-light);
 
   border-top: 1px solid var(--border);
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
 
   color: var(--green-dark);
 
@@ -1151,7 +1174,7 @@ body {
 .community-page .community-popup h4 {
   color: var(--green-dark);
 
-  font-size: 14px;
+  font-size: var(--fs-body);
 
   font-weight: 700;
 
@@ -1159,7 +1182,7 @@ body {
 }
 
 .community-page .community-popup .popup-tag {
-  font-size: 11px;
+  font-size: var(--fs-badge);
 
   color: var(--green-mid);
 
@@ -1169,7 +1192,7 @@ body {
 }
 
 .community-page .community-popup p {
-  font-size: 12px;
+  font-size: var(--fs-badge);
 
   color: #555;
 
@@ -1181,7 +1204,7 @@ body {
 .community-page .community-popup a {
   display: inline-block;
 
-  padding: 6px 14px;
+  padding: 0.35rem 0.9rem;
 
   background: var(--green);
 
@@ -1189,7 +1212,7 @@ body {
 
   border-radius: 12px;
 
-  font-size: 12px;
+  font-size: var(--fs-badge);
 
   font-weight: 600;
 
@@ -1203,7 +1226,7 @@ body {
 .community-page .user-popup h4 {
   color: #1d4ed8;
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
 
   font-weight: 700;
 
@@ -1211,7 +1234,7 @@ body {
 }
 
 .community-page .user-popup p {
-  font-size: 12px;
+  font-size: var(--fs-badge);
 
   color: #555;
 }
@@ -1277,7 +1300,7 @@ body {
 
   align-items: center;
 
-  padding: 60px 24px;
+  padding: 3.75rem 1.5rem;
 
   text-align: center;
 
@@ -1285,13 +1308,13 @@ body {
 }
 
 .community-page #empty-state svg {
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 
   opacity: 0.3;
 }
 
 .community-page #empty-state h3 {
-  font-size: 16px;
+  font-size: var(--fs-body);
 
   color: var(--text-soft);
 
@@ -1299,7 +1322,7 @@ body {
 }
 
 .community-page #empty-state p {
-  font-size: 13px;
+  font-size: var(--fs-btn);
 
   color: var(--text-muted);
 }
@@ -1323,11 +1346,11 @@ body {
 
   color: white;
 
-  padding: 12px 22px;
+  padding: 0.75rem 1.4rem;
 
   border-radius: 24px;
 
-  font-size: 13px;
+  font-size: var(--fs-btn);
 
   font-weight: 500;
 
@@ -1414,25 +1437,25 @@ body {
 
 @media (max-width: 600px) {
   .community-page .header {
-    padding: 10px 14px;
+    padding: 0.6rem 0.9rem;
   }
 
   .community-page .logo {
-    font-size: 17px;
+    font-size: 1.1rem;
   }
 
   .community-page .hero h2 {
-    font-size: 20px;
+    font-size: 1.4rem;
   }
 
   .community-page .container {
     grid-template-columns: 1fr;
 
-    padding: 14px;
+    padding: 0.9rem;
   }
 
   .community-page .toolbar {
-    padding: 12px 14px;
+    padding: 0.75rem 0.9rem;
   }
 
   .community-page #map-panel {
@@ -1447,8 +1470,9 @@ body {
 /* ============================================================
    category-directory.css
    Styles for the Healthcare directory page (HealthcarePage.tsx)
-   Kept as-is — different page, different classNames, doesn't
-   conflict with anything below.
+   This is the reference type/spacing scale used by Healthcare,
+   Finance and Transportation. Kept as the baseline everything
+   else was harmonized against.
    ============================================================ */
 
 .header {
@@ -1460,7 +1484,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1.5rem;
+  padding: var(--space-header-pad);
   background: var(--canopy-800);
   color: white;
   box-shadow: 0 2px 10px rgba(20, 43, 28, 0.15);
@@ -1474,7 +1498,7 @@ body {
 
 .back-btn {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   color: white;
   text-decoration: none;
   opacity: 0.85;
@@ -1488,7 +1512,7 @@ body {
 
 .header .logo {
   font-family: var(--font-display), serif;
-  font-size: 1.4rem;
+  font-size: var(--fs-page-title);
   font-weight: 600;
   margin: 0;
   color: white;
@@ -1522,7 +1546,7 @@ body {
   flex: 1;
   border: none;
   outline: none;
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
   color: var(--ink-900);
   background: transparent;
   min-width: 0;
@@ -1543,7 +1567,7 @@ body {
   background: var(--durian-500);
   color: var(--ink-900);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease;
 }
@@ -1589,7 +1613,7 @@ body {
 
 .hero h2 {
   font-family: var(--font-display), serif;
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-size: var(--fs-hero-title);
   color: var(--canopy-950);
   margin: 0 0 0.5rem;
 }
@@ -1598,7 +1622,7 @@ body {
   color: var(--ink-500);
   max-width: 560px;
   margin: 0 auto;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
 }
 
 #location-status {
@@ -1611,7 +1635,7 @@ body {
   width: fit-content;
   background: white;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-900);
   box-shadow: 0 1px 4px rgba(20, 43, 28, 0.1);
 }
@@ -1650,7 +1674,7 @@ body {
 
 .toolbar-label {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   color: var(--ink-500);
   margin-right: 0.25rem;
 }
@@ -1661,7 +1685,7 @@ body {
   border: 1px solid var(--canopy-100);
   background: white;
   color: var(--ink-900);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -1684,7 +1708,7 @@ body {
   border: 1px dashed var(--ink-500);
   background: transparent;
   color: var(--ink-900);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -1705,17 +1729,17 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1.5rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-500);
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem 1.5rem 3rem;
+  padding: var(--space-container-pad);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+  gap: var(--space-card-gap);
 }
 
 .card {
@@ -1756,13 +1780,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem 1.1rem 1.2rem;
+  padding: var(--space-card-pad);
   flex: 1;
 }
 
 .card-content h3 {
   margin: 0;
-  font-size: 1.02rem;
+  font-size: var(--fs-card-title);
   line-height: 1.3;
 }
 
@@ -1778,7 +1802,7 @@ body {
 
 .card-content p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-500);
   line-height: 1.5;
 }
@@ -1789,7 +1813,7 @@ body {
   border-radius: 999px;
   background: var(--canopy-100);
   color: var(--canopy-800);
-  font-size: 0.72rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -1797,7 +1821,7 @@ body {
   display: none;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.78rem;
+  font-size: var(--fs-btn-sm);
   color: var(--canopy-700);
   font-weight: 600;
 }
@@ -1825,7 +1849,7 @@ body {
   flex: 1 1 auto;
   padding: 0.5rem 0.75rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
@@ -1887,7 +1911,7 @@ body {
 
 #empty-state p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
 }
 
 .image-modal {
@@ -1971,12 +1995,12 @@ body {
 
 #map-panel-title {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   color: var(--canopy-950);
 }
 
 #map-panel-subtitle {
-  font-size: 0.78rem;
+  font-size: var(--fs-badge);
   color: var(--ink-500);
   margin-top: 0.15rem;
 }
@@ -1990,7 +2014,7 @@ body {
 
 #map-directions-link {
   display: none;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--canopy-700);
   text-decoration: none;
@@ -2028,7 +2052,7 @@ body {
   gap: 1.5rem;
   padding: 0.6rem 1.25rem;
   background: var(--canopy-100);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   color: var(--canopy-950);
 }
 
@@ -2075,7 +2099,7 @@ body {
 .health-popup h4,
 .place-popup h4 {
   margin: 0 0 0.2rem;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   color: var(--canopy-950);
 }
 
@@ -2083,7 +2107,7 @@ body {
 .health-popup p,
 .place-popup p {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-500);
 }
 
@@ -2095,7 +2119,7 @@ body {
   border-radius: 999px;
   background: var(--canopy-100);
   color: var(--canopy-800);
-  font-size: 0.68rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -2103,7 +2127,7 @@ body {
 .place-popup a {
   display: inline-block;
   margin-top: 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--canopy-700);
   text-decoration: none;
@@ -2127,7 +2151,7 @@ body {
   border-radius: 999px;
   background: var(--ink-900);
   color: white;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -2193,7 +2217,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.9rem 1.5rem;
+  padding: var(--space-header-pad);
   background: var(--canopy-800);
   color: white;
   box-shadow: 0 2px 10px rgba(20, 43, 28, 0.15);
@@ -2207,7 +2231,7 @@ body {
 
 .back-button {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   color: white;
   background: none;
   border: none;
@@ -2222,7 +2246,7 @@ body {
 
 .food-header h1 {
   font-family: var(--font-display), serif;
-  font-size: 1.4rem;
+  font-size: var(--fs-page-title);
   margin: 0;
 }
 
@@ -2248,7 +2272,7 @@ body {
   background: var(--durian-500);
   color: var(--ink-900);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease;
 }
@@ -2276,7 +2300,7 @@ body {
 
 .food-hero h2 {
   font-family: var(--font-display), serif;
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-size: var(--fs-hero-title);
   color: var(--canopy-950);
   margin: 0 0 0.5rem;
 }
@@ -2285,7 +2309,7 @@ body {
   color: var(--ink-500);
   max-width: 560px;
   margin: 0 auto;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
 }
 
 /* ---------- LOCATION STATUS ---------- */
@@ -2300,7 +2324,7 @@ body {
   width: fit-content;
   background: white;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-900);
   box-shadow: 0 1px 4px rgba(20, 43, 28, 0.1);
 }
@@ -2333,7 +2357,7 @@ body {
   border: 1px solid var(--canopy-100);
   background: white;
   color: var(--ink-900);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -2357,7 +2381,7 @@ body {
   border: 1px dashed var(--ink-500);
   background: transparent;
   color: var(--ink-900);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -2372,7 +2396,7 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1.5rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-500);
 }
 
@@ -2381,10 +2405,10 @@ body {
 .food-card-grid {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem 1.5rem 3rem;
+  padding: var(--space-container-pad);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+  gap: var(--space-card-gap);
 }
 
 .food-card {
@@ -2432,20 +2456,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem 1.1rem 1.2rem;
+  padding: var(--space-card-pad);
   flex: 1;
 }
 
 .food-card-content h3 {
   margin: 0;
-  font-size: 1.02rem;
+  font-size: var(--fs-card-title);
   line-height: 1.3;
   color: var(--canopy-950);
 }
 
 .food-card-content p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-500);
   line-height: 1.5;
 }
@@ -2456,7 +2480,7 @@ body {
   border-radius: 999px;
   background: var(--canopy-100);
   color: var(--canopy-800);
-  font-size: 0.72rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
@@ -2465,7 +2489,7 @@ body {
   display: none;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.78rem;
+  font-size: var(--fs-btn-sm);
   color: var(--canopy-700);
   font-weight: 600;
 }
@@ -2486,7 +2510,7 @@ body {
   flex: 1 1 auto;
   padding: 0.5rem 0.75rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
@@ -2530,7 +2554,7 @@ body {
 
 .food-empty-state p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
 }
 
 /* ---------- IMAGE MODAL ---------- */
@@ -2615,12 +2639,12 @@ body {
 
 .food-map-panel-title {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   color: var(--canopy-950);
 }
 
 .food-map-panel-subtitle {
-  font-size: 0.78rem;
+  font-size: var(--fs-badge);
   color: var(--ink-500);
   margin-top: 0.15rem;
 }
@@ -2633,7 +2657,7 @@ body {
 }
 
 .food-map-directions-link {
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--canopy-700);
   text-decoration: none;
@@ -2667,7 +2691,7 @@ body {
   gap: 1.5rem;
   padding: 0.6rem 1.25rem;
   background: var(--canopy-100);
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   color: var(--canopy-950);
 }
 
@@ -2705,14 +2729,14 @@ body {
 .food-user-popup h4,
 .food-place-popup h4 {
   margin: 0 0 0.2rem;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   color: var(--canopy-950);
 }
 
 .food-user-popup p,
 .food-place-popup p {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   color: var(--ink-500);
 }
 
@@ -2723,14 +2747,14 @@ body {
   border-radius: 999px;
   background: var(--canopy-100);
   color: var(--canopy-800);
-  font-size: 0.68rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
 }
 
 .food-place-popup a {
   display: inline-block;
   margin-top: 0.4rem;
-  font-size: 0.8rem;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--canopy-700);
   text-decoration: none;
@@ -2755,7 +2779,7 @@ body {
   border-radius: 999px;
   background: var(--ink-900);
   color: white;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -2795,17 +2819,8 @@ body {
    Styles for the government-document guide pages (Police
    Clearance, Barangay Clearance, Cedula, Postal ID, etc.)
 
-   Scoping notes:
-   - The original draft styled `*` and `body` directly, which
-     would have overwritten the whole site's canopy/durian look.
-     Scoped to `.doc-page` instead — add that class to each
-     document page's outer wrapper div.
-   - `.back-btn` was renamed to `.doc-back-btn`: Lifestyle and
-     Hotspot already use `.back-btn` for a different (plain text,
-     no background) design, and the class names collided.
-   - Added `.doc-card.highlight` and `.apply-btn`, which
-     PoliceClearancePage.tsx references but the original CSS
-     never defined.
+   Font sizes converted from raw px to the shared rem type scale;
+   layout/behavior notes from the original file kept as-is.
    ============================================================ */
 
 .doc-page {
@@ -2820,7 +2835,7 @@ body {
 }
 
 .doc-header {
-  padding: 35px 8%;
+  padding: 2.2rem 8%;
   background: linear-gradient(135deg, #1f8f4d, #63c987);
   color: white;
 }
@@ -2830,8 +2845,8 @@ body {
   align-items: center;
   gap: 8px;
 
-  padding: 10px 18px;
-  margin-bottom: 20px;
+  padding: 0.55rem 1.1rem;
+  margin-bottom: 1.25rem;
 
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -2840,7 +2855,7 @@ body {
   color: white;
   text-decoration: none;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-btn);
 
   backdrop-filter: blur(10px);
   transition: all 0.25s ease;
@@ -2858,27 +2873,27 @@ body {
 }
 
 .doc-header h1 {
-  font-size: 42px;
-  margin-bottom: 8px;
+  font-size: var(--fs-hero-title);
+  margin-bottom: 0.5rem;
 }
 
 .doc-header p {
-  font-size: 17px;
+  font-size: var(--fs-body);
   opacity: 0.95;
 }
 
 .doc-container {
   width: 90%;
   max-width: 1100px;
-  margin: 35px auto;
+  margin: 2.2rem auto;
   display: grid;
-  gap: 22px;
+  gap: 1.4rem;
 }
 
 .doc-card {
   background: white;
   border-radius: 18px;
-  padding: 25px;
+  padding: 1.6rem;
   box-shadow: 0 10px 30px rgba(0, 80, 35, 0.12);
   border-left: 7px solid #4f75dd;
 }
@@ -2891,17 +2906,20 @@ body {
 }
 
 .doc-card h2 {
+  font-size: var(--fs-section-title);
   color: #271ba6;
-  margin-bottom: 15px;
+  margin-bottom: 0.9rem;
 }
 
 .doc-card ul,
 .doc-card ol {
   padding-left: 22px;
   line-height: 1.8;
+  font-size: var(--fs-body);
 }
 
 .doc-card p {
+  font-size: var(--fs-body);
   line-height: 1.7;
 }
 
@@ -2910,14 +2928,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 14px;
-  padding: 11px 22px;
+  margin-top: 0.9rem;
+  padding: 0.65rem 1.35rem;
   background: #1f8f4d;
   color: white;
   border: none;
   border-radius: 50px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-btn);
   text-decoration: none;
   transition: background 0.2s ease, transform 0.15s ease;
 }
@@ -2928,12 +2946,8 @@ body {
 }
 
 @media (max-width: 768px) {
-  .doc-header h1 {
-    font-size: 30px;
-  }
-
   .doc-card {
-    padding: 20px;
+    padding: 1.25rem;
   }
 }
 
@@ -2941,7 +2955,7 @@ body {
 .doc-hero {
   width: 100%;
   max-width: 1100px;
-  margin: 20px auto;
+  margin: 1.25rem auto;
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
@@ -2959,7 +2973,7 @@ body {
 .doc-hero-grid {
   width: 100%;
   max-width: 1100px;
-  margin: 20px auto;
+  margin: 1.25rem auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
@@ -2988,24 +3002,8 @@ body {
 /* ============================================================
    history.css
    Styles for the History of Calinan page.
-
-   Scoping notes:
-   - `*` and `body` were unscoped in the original file (Georgia
-     serif + a mint background), which would've overridden the
-     whole site's Poppins/Inter + canopy-cream look. Scoped to
-     `.history-page` instead — add that class to the page's
-     outer wrapper div.
-   - The Home link previously combined `.back-btn` (Lifestyle/
-     Hotspot's plain-text style: opacity 0.85, underline on
-     hover) with `.history-back` (its own solid pill button).
-     Combining them fought each other, so use `.history-back`
-     alone.
-   - `.history-paragraph` had `font-size: 100px` — almost
-     certainly a typo for `16px`; fixed here. It happened to be
-     silently overridden by `.headline-text p`'s higher
-     specificity, so it never visibly broke, but would balloon
-     to giant text anywhere that paragraph isn't nested inside
-     `.headline-text`.
+   Font sizes converted from raw px to the shared rem type scale.
+   Georgia serif kept — it's the page's intentional newspaper look.
    ============================================================ */
 
 .history-page {
@@ -3043,19 +3041,19 @@ body {
   text-align: center;
   color: white;
   background: rgba(255, 255, 255, 0.08);
-  padding: 25px 40px;
+  padding: 1.6rem 2.5rem;
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .header-overlay h1 {
-  font-size: 30px;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
   letter-spacing: 2px;
   text-transform: uppercase;
 }
 
 .header-overlay p {
-  margin-top: 10px;
-  font-size: 17px;
+  margin-top: 0.6rem;
+  font-size: var(--fs-body);
   font-style: italic;
 }
 
@@ -3079,13 +3077,13 @@ body {
   left: 20px;
 
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--fs-btn);
   font-weight: 600;
 
   color: white;
   background: rgba(0, 0, 0, 0.45);
 
-  padding: 7px 12px;
+  padding: 0.45rem 0.75rem;
   border-radius: 10px;
 
   white-space: nowrap;
@@ -3103,37 +3101,37 @@ body {
 .history-wrapper {
   max-width: 1250px;
   margin: auto;
-  padding: 30px 20px 50px;
+  padding: 1.9rem 1.25rem 3.1rem;
 }
 
 /* HEADLINE FRAME */
 .headline-frame {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 1.6rem;
   background: white;
   border: 2px solid var(--history-green);
-  padding: 25px;
+  padding: 1.6rem;
   box-shadow: 0 8px 20px var(--history-shadow);
-  margin-bottom: 30px;
+  margin-bottom: 1.9rem;
 }
 
 .headline-text .mini-title {
-  font-size: 13px;
+  font-size: var(--fs-badge);
   font-weight: bold;
   color: var(--history-green);
   letter-spacing: 2px;
 }
 
 .headline-text h2 {
-  font-size: 20px;
-  line-height: 1.1;
-  margin: 10px 0;
+  font-size: 1.3rem;
+  line-height: 1.15;
+  margin: 0.6rem 0;
   color: var(--history-green-dark);
 }
 
 .headline-text p {
-  font-size: 16px;
+  font-size: var(--fs-body);
   line-height: 1.8;
   color: var(--history-muted);
   text-align: justify;
@@ -3176,8 +3174,8 @@ body {
 }
 
 .history-paragraph {
-  margin-top: 10px;
-  font-size: 16px;
+  margin-top: 0.6rem;
+  font-size: var(--fs-body);
 }
 
 /* NEWSPAPER GRID */
@@ -3207,27 +3205,27 @@ body {
 }
 
 .news-content {
-  padding: 18px;
+  padding: 1.1rem;
 }
 
 .news-content span {
   display: inline-block;
-  font-size: 12px;
+  font-size: var(--fs-badge);
   font-weight: bold;
   color: var(--history-green);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .news-content h3 {
-  font-size: 24px;
-  margin-bottom: 10px;
+  font-size: 1.3rem;
+  margin-bottom: 0.6rem;
   color: var(--history-green-dark);
   line-height: 1.2;
 }
 
 .news-content p {
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--history-muted);
   text-align: justify;
@@ -3241,7 +3239,7 @@ body {
 /* RESPONSIVE */
 @media (max-width: 992px) {
   .history-wrapper {
-    padding: 25px 16px 40px;
+    padding: 1.6rem 1rem 2.5rem;
   }
 
   .headline-frame {
@@ -3269,17 +3267,9 @@ body {
 }
 
 @media (max-width: 768px) {
-  .header-overlay h1 {
-    font-size: 34px;
-  }
-
-  .headline-text h2 {
-    font-size: 30px;
-  }
-
   .headline-frame {
-    padding: 18px;
-    gap: 18px;
+    padding: 1.1rem;
+    gap: 1.1rem;
   }
 
   .headline-image-1 {
@@ -3305,14 +3295,14 @@ body {
   }
 
   .header-overlay {
-    padding: 18px 24px;
+    padding: 1.1rem 1.5rem;
   }
 
   .history-back {
     top: 12px;
     left: 12px;
-    font-size: 13px;
-    padding: 6px 10px;
+    font-size: var(--fs-btn-sm);
+    padding: 0.35rem 0.6rem;
   }
 
   .history-grid {
@@ -3331,11 +3321,11 @@ body {
   }
 
   .header-overlay {
-    padding: 14px 18px;
+    padding: 0.9rem 1.1rem;
   }
 
   .header-overlay p {
-    font-size: 14px;
+    font-size: var(--fs-btn-sm);
   }
 
   .headline-image-1 img {
@@ -3352,126 +3342,204 @@ body {
   }
 
   .news-content h3 {
-    font-size: 20px;
+    font-size: 1.15rem;
   }
 }
 
 /* ============================================================
    hotlines-page.css — styles for Hotlines/page.tsx
-   Scoped to .hotlines-page; uses the site's canopy/durian/cream
-   tokens instead of a parallel color system.
+   REPLACE the whole hotlines section in globals.css with this.
+   Muted version: uses only the site's existing canopy/durian/cream
+   tokens, same as the rest of MyCalinan — no extra police-blue /
+   fire-red accent colors. Cards are told apart by icon + label,
+   not by color.
    ============================================================ */
 
 .hotlines-page {
-  font-family: Georgia, serif;
+  min-height: 100vh;
+  padding-bottom: 3rem;
   background: var(--canopy-100);
   color: var(--ink-900);
+  font-family: var(--font-body), "Segoe UI", Arial, sans-serif;
 }
 
 .hotlines-page * {
   box-sizing: border-box;
 }
 
+/* ---------- Header ---------- */
 .hotlines-header {
+  padding: 0.9rem 1.5rem 1.2rem;
+  background: var(--canopy-800);
+  color: #fff;
   text-align: center;
-  background: var(--cream);
-  padding: 25px 15px;
-  border-bottom: 3px solid var(--canopy-700);
+  border-bottom: 1px solid var(--canopy-950);
+  box-shadow: 0 2px 10px rgba(20, 43, 28, 0.15);
 }
 
 .hotlines-header-top {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding-top: 0.25rem;
+}
+
+.hotlines-back-btn {
+  position: relative;
+  z-index: 2;
+  margin: 0.15rem 0;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: var(--fs-btn);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hotlines-back-btn:hover {
+  background: #fff;
+  color: var(--canopy-800);
 }
 
 .hotlines-title {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  text-align: center;
-  font-size: 32px;
-  letter-spacing: 2px;
-  color: var(--canopy-700);
-  text-transform: uppercase;
+  width: max-content;
+  max-width: calc(100% - 200px);
+  margin: 0;
+  font-family: var(--font-display), serif;
+  font-size: var(--fs-hero-title);
+  font-weight: 600;
+  line-height: 1.15;
+  color: #fff;
 }
 
 .hotlines-subtitle {
-  font-size: 14px;
-  margin-top: 5px;
-  color: var(--ink-500);
+  margin-top: 0.6rem;
+  font-size: var(--fs-btn);
+  color: var(--canopy-100);
+  opacity: 0.85;
 }
 
-.hotlines-back-btn {
-  z-index: 2;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--canopy-800);
-  background: var(--canopy-100);
-  padding: 7px 12px;
-  border-radius: 10px;
-  white-space: nowrap;
-  transition: 0.3s ease;
-}
-
-.hotlines-back-btn:hover {
-  background: var(--canopy-700);
-  color: white;
-}
-
+/* ---------- Container ---------- */
 .hotlines-container {
   max-width: 1000px;
-  margin: 20px auto;
-  background: var(--cream);
-  padding: 20px;
-  border: 1px solid var(--canopy-100);
-  box-shadow: 0 6px 18px rgba(20, 43, 28, 0.08);
+  margin: 1.5rem auto 0;
+  padding: 0 1.25rem;
 }
 
 .hotlines-headline {
-  font-size: 22px;
-  font-weight: bold;
-  color: var(--canopy-700);
-  margin-bottom: 15px;
-  border-bottom: 2px solid var(--canopy-100);
-  padding-bottom: 10px;
+  display: inline-block;
+  margin-bottom: 1.1rem;
+  padding: 0.55rem 1rem;
+  background: var(--canopy-950);
+  color: #fff;
+  font-family: var(--font-display), serif;
+  font-size: var(--fs-section-title);
+  font-weight: 600;
+  border-radius: 4px;
 }
 
 .hotlines-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 25px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-card-gap);
+  align-items: stretch;
 }
 
-.hotlines-column h2 {
-  font-size: 18px;
-  color: var(--canopy-700);
-  margin-bottom: 6px;
+/* ---------- Service cards ---------- */
+/* One quiet look for every card — no per-service color coding. */
+.hotlines-service {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border-radius: var(--radius-stall);
+  border: 1px solid var(--canopy-100);
+  box-shadow: 0 1px 3px rgba(20, 43, 28, 0.06);
 }
 
-.hotlines-column p {
-  font-size: 14px;
+/* Station photos: same frame size so the two cards line up */
+.hotlines-photo {
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--canopy-100);
+}
+
+.hotlines-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hotlines-service--police .hotlines-photo img {
+  object-position: 50% 45%;
+}
+
+.hotlines-service--fire .hotlines-photo img {
+  object-position: 50% 55%;
+}
+
+.hotlines-service-body {
+  flex: 1;
+  padding: var(--space-card-pad);
+}
+
+.hotlines-service h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display), serif;
+  font-size: var(--fs-section-title);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--canopy-950);
+}
+
+.hotlines-service p {
+  margin: 0 0 0.5rem;
+  font-size: var(--fs-body);
   line-height: 1.6;
-  margin-bottom: 10px;
-}
-
-.hotlines-column hr {
-  border: none;
-  border-top: 1px solid var(--canopy-100);
-  margin: 12px 0;
-}
-
-.hotlines-footer-note {
-  margin-top: 20px;
-  text-align: center;
-  font-style: italic;
-  font-size: 14px;
   color: var(--ink-500);
-  border-top: 1px solid var(--canopy-100);
-  padding-top: 12px;
 }
 
+.hotlines-service p b {
+  color: var(--ink-900);
+}
+
+/* Bold hotline lines become easy-to-spot number boxes —
+   still a neutral canopy tint, not a bright accent color */
+.hotlines-service p:has(> b:first-child) {
+  margin-top: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--canopy-100);
+  border-radius: 6px;
+  font-size: var(--fs-body);
+  color: var(--ink-900);
+}
+
+/* ---------- Footer note ---------- */
+.hotlines-footer-note {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--cream);
+  border: 1px solid var(--canopy-100);
+  border-radius: var(--radius-stall);
+  text-align: center;
+  font-family: var(--font-display), serif;
+  font-style: italic;
+  font-size: var(--fs-body);
+  color: var(--canopy-800);
+}
+
+/* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .hotlines-columns {
     grid-template-columns: 1fr;
@@ -3479,76 +3547,41 @@ body {
 
   .hotlines-header-top {
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    gap: 0.6rem;
   }
 
   .hotlines-title {
     position: static;
     transform: none;
     width: 100%;
-    font-size: 24px;
-    letter-spacing: 1px;
+    max-width: none;
   }
 
   .hotlines-subtitle {
-    font-size: 13px;
-    padding: 0 10px;
-  }
-
-  .hotlines-container {
-    margin: 14px auto;
-    padding: 16px;
-  }
-
-  .hotlines-headline {
-    font-size: 19px;
+    padding: 0 0.5rem;
   }
 }
 
 @media (max-width: 480px) {
   .hotlines-header {
-    padding: 14px 10px;
-  }
-
-  .hotlines-title {
-    font-size: 20px;
-  }
-
-  .hotlines-back-btn {
-    font-size: 13px;
-    padding: 6px 10px;
+    padding: 0.9rem 0.9rem 1.1rem;
   }
 
   .hotlines-container {
-    margin: 10px auto;
-    padding: 14px;
+    padding: 0 0.8rem;
   }
 
-  .hotlines-headline {
-    font-size: 17px;
-  }
-
-  .hotlines-column h2 {
-    font-size: 16px;
-  }
-
-  .hotlines-column p {
-    font-size: 13px;
-  }
-
-  .hotlines-footer-note {
-    font-size: 13px;
+  .hotlines-service-body {
+    padding: 1rem;
   }
 }
 
 /* ============================================================
    announcement-page.css — styles for Announcements/page.tsx
-   Scoped to .announcement-page; unscoped `* { margin/padding }`
-   reset removed and colors mapped onto the site's canopy/cream
-   tokens instead of a one-off hex palette. Category badge colors
-   for advisory/program/festival had no site-token equivalent, so
-   those stay as their original custom hex values.
+   Font sizes/spacing harmonized to the shared type scale and
+   header/container spacing tokens; colors already used canopy
+   tokens except the per-category badge hues, kept as-is since
+   those are deliberately distinct per category.
    ============================================================ */
 
 .announcement-page {
@@ -3566,12 +3599,12 @@ body {
   position: relative;
   background: var(--canopy-800);
   color: white;
-  padding: 25px 20px;
+  padding: 1.6rem 1.25rem;
   text-align: center;
 }
 
 .announcement-header h1 {
-  font-size: 2rem;
+  font-size: var(--fs-hero-title);
   font-weight: 700;
 }
 
@@ -3583,9 +3616,9 @@ body {
   text-decoration: none;
   color: white;
   background: rgba(255, 255, 255, 0.15);
-  padding: 10px 16px;
+  padding: 0.55rem 1rem;
   border-radius: 8px;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   font-weight: 500;
   transition: 0.2s ease;
 }
@@ -3598,13 +3631,13 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 30px 20px 50px;
+  padding: 1.9rem 1.25rem 3.1rem;
 }
 
 .announcement-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  gap: var(--space-card-gap);
 }
 
 .announcement-card {
@@ -3639,16 +3672,16 @@ body {
 }
 
 .announcement-card-content {
-  padding: 18px;
+  padding: var(--space-card-pad);
 }
 
 .announcement-category {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.75rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 0.6rem;
   background: var(--canopy-100);
   color: var(--canopy-800);
 }
@@ -3675,37 +3708,39 @@ body {
 }
 
 .announcement-title {
-  font-size: 1.1rem;
+  font-size: var(--fs-card-title);
   font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   line-height: 1.35;
   color: var(--ink-900);
 }
 
 .announcement-date {
-  font-size: 0.85rem;
+  font-size: var(--fs-btn);
   color: var(--ink-500);
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 
 .announcement-description {
   color: var(--ink-900);
   line-height: 1.5;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
 }
 
 .announcement-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 3.75rem 1.25rem;
   color: var(--ink-500);
 }
 
 .announcement-state h2 {
-  margin-bottom: 10px;
+  font-size: var(--fs-section-title);
+  margin-bottom: 0.6rem;
   color: var(--ink-900);
 }
 
 .announcement-state p {
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
@@ -3745,14 +3780,14 @@ body {
 }
 
 .retry-button {
-  margin-top: 20px;
-  padding: 10px 18px;
+  margin-top: 1.25rem;
+  padding: 0.6rem 1.1rem;
   border: none;
   border-radius: 8px;
   background: var(--canopy-800);
   color: white;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   transition: 0.2s ease;
 }
 
@@ -3762,18 +3797,14 @@ body {
 
 @media (max-width: 768px) {
   .announcement-header {
-    padding: 75px 20px 25px;
-  }
-
-  .announcement-header h1 {
-    font-size: 1.6rem;
+    padding: 4.7rem 1.25rem 1.6rem;
   }
 
   .announcement-back-btn {
     left: 15px;
     top: 15px;
     transform: none;
-    padding: 8px 12px;
+    padding: 0.5rem 0.75rem;
   }
 
   .announcement-grid {
@@ -3781,17 +3812,13 @@ body {
   }
 
   .announcement-container {
-    padding: 25px 15px 40px;
+    padding: 1.6rem 0.9rem 2.5rem;
   }
 }
 
 @media (max-width: 480px) {
-  .announcement-header h1 {
-    font-size: 1.35rem;
-  }
-
   .announcement-back-btn {
-    font-size: 0.8rem;
+    font-size: var(--fs-btn-sm);
   }
 
   .announcement-image,
@@ -3800,28 +3827,23 @@ body {
   }
 
   .announcement-card-content {
-    padding: 15px;
+    padding: 0.9rem;
   }
 
   .announcement-title {
-    font-size: 1rem;
+    font-size: var(--fs-btn);
   }
 
   .announcement-description {
-    font-size: 0.9rem;
+    font-size: var(--fs-body-sm);
   }
 }
 
 /* ============================================================
    events-page.css — styles for Events/page.tsx
-   Scoped to .events-page. Original selectors were bare tags and
-   generic classnames (header, .container, .card, .badge, .title,
-   .loading, .empty) that would have collided with the Healthcare
-   page's .card and every other page's headers/containers — all
-   renamed with an events- prefix. Colors mapped onto site tokens
-   where there's a real equivalent; category badge hues kept as
-   their original one-off hex values since they're deliberately
-   distinct per category.
+   Font sizes/spacing harmonized to the shared type scale.
+   Category badge hues kept as their original one-off values
+   since they're deliberately distinct per category.
    ============================================================ */
 
 .events-page {
@@ -3839,11 +3861,11 @@ body {
   background: var(--canopy-800);
   color: #fff;
   text-align: center;
-  padding: 25px;
+  padding: 1.6rem;
 }
 
 .events-header h1 {
-  font-size: 2rem;
+  font-size: var(--fs-hero-title);
   line-height: 1.3;
 }
 
@@ -3857,10 +3879,10 @@ body {
   text-decoration: none;
   color: white;
   background: rgba(255, 255, 255, 0.15);
-  padding: 10px 16px;
+  padding: 0.55rem 1rem;
   border-radius: 8px;
   transition: 0.2s ease;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   font-weight: 500;
 }
 
@@ -3872,20 +3894,20 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 30px 20px;
+  padding: 1.9rem 1.25rem;
 }
 
 .events-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 15px;
-  margin-bottom: 30px;
+  margin-bottom: 1.9rem;
 }
 
 .events-stat-card {
   background: #fff;
   border-radius: 12px;
-  padding: 20px;
+  padding: 1.25rem;
   text-align: center;
   box-shadow: 0 4px 12px rgba(20, 43, 28, 0.08);
   transition: 0.25s ease;
@@ -3905,19 +3927,19 @@ body {
 
 .events-stat-card h2 {
   color: var(--canopy-800);
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   margin-bottom: 4px;
 }
 
 .events-stat-card p {
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
   color: var(--ink-500);
 }
 
 .events-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 20px;
+  gap: var(--space-card-gap);
 }
 
 .events-card {
@@ -3942,16 +3964,16 @@ body {
 }
 
 .events-card-body {
-  padding: 18px;
+  padding: var(--space-card-pad);
 }
 
 .events-badge {
   display: inline-block;
-  padding: 5px 12px;
+  padding: 0.3rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.75rem;
+  font-size: var(--fs-badge);
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 
 .events-badge.event {
@@ -3980,17 +4002,17 @@ body {
 }
 
 .events-title {
-  font-size: 1.15rem;
+  font-size: var(--fs-section-title);
   font-weight: 700;
-  margin-bottom: 10px;
+  margin-bottom: 0.6rem;
   color: var(--ink-900);
   line-height: 1.4;
 }
 
 .events-meta {
   color: var(--ink-500);
-  font-size: 0.9rem;
-  margin-bottom: 10px;
+  font-size: var(--fs-body);
+  margin-bottom: 0.6rem;
 }
 
 .events-meta p {
@@ -4010,15 +4032,15 @@ body {
 .events-description {
   color: var(--ink-900);
   line-height: 1.6;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   word-wrap: break-word;
 }
 
 .events-loading {
   text-align: center;
-  padding: 60px 20px;
+  padding: 3.75rem 1.25rem;
   color: var(--ink-500);
-  font-size: 1rem;
+  font-size: var(--fs-body);
 }
 
 .events-loading i {
@@ -4028,9 +4050,9 @@ body {
 
 .events-empty {
   text-align: center;
-  padding: 60px 20px;
+  padding: 3.75rem 1.25rem;
   color: var(--ink-500);
-  font-size: 1rem;
+  font-size: var(--fs-body);
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(20, 43, 28, 0.06);
@@ -4042,12 +4064,12 @@ body {
 
 @media (max-width: 992px) {
   .events-container {
-    padding: 25px 16px;
+    padding: 1.6rem 1rem;
   }
 
   .events-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 18px;
+    gap: 1.1rem;
   }
 
   .events-card img {
@@ -4057,41 +4079,37 @@ body {
 
 @media (max-width: 768px) {
   .events-header {
-    padding: 70px 20px 25px;
-  }
-
-  .events-header h1 {
-    font-size: 1.7rem;
+    padding: 4.4rem 1.25rem 1.6rem;
   }
 
   .events-back-btn {
     left: 15px;
     top: 15px;
-    padding: 8px 12px;
-    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    font-size: var(--fs-body-sm);
   }
 
   .events-container {
-    padding: 20px 15px;
+    padding: 1.25rem 0.9rem;
   }
 
   .events-stats {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
-    margin-bottom: 25px;
+    margin-bottom: 1.6rem;
   }
 
   .events-stat-card {
-    padding: 16px 10px;
+    padding: 1rem 0.6rem;
   }
 
   .events-stat-card h2 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 
   .events-grid {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 1.1rem;
   }
 
   .events-card img {
@@ -4101,22 +4119,18 @@ body {
 
 @media (max-width: 480px) {
   .events-header {
-    padding: 65px 15px 22px;
-  }
-
-  .events-header h1 {
-    font-size: 1.45rem;
+    padding: 4.1rem 0.9rem 1.4rem;
   }
 
   .events-back-btn {
     left: 12px;
     top: 12px;
-    padding: 7px 10px;
-    font-size: 0.8rem;
+    padding: 0.45rem 0.6rem;
+    font-size: var(--fs-btn-sm);
   }
 
   .events-container {
-    padding: 18px 12px;
+    padding: 1.1rem 0.75rem;
   }
 
   .events-stats {
@@ -4125,7 +4139,7 @@ body {
   }
 
   .events-stat-card {
-    padding: 14px 8px;
+    padding: 0.9rem 0.5rem;
     border-radius: 10px;
   }
 
@@ -4134,11 +4148,11 @@ body {
   }
 
   .events-stat-card h2 {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .events-stat-card p {
-    font-size: 0.78rem;
+    font-size: var(--fs-btn-sm);
   }
 
   .events-card {
@@ -4150,40 +4164,31 @@ body {
   }
 
   .events-card-body {
-    padding: 16px;
+    padding: 1rem;
   }
 
   .events-title {
-    font-size: 1.05rem;
+    font-size: var(--fs-card-title);
   }
 
   .events-description {
-    font-size: 0.9rem;
+    font-size: var(--fs-body-sm);
   }
 
   .events-loading,
   .events-empty {
-    padding: 45px 15px;
+    padding: 2.8rem 0.9rem;
   }
 }
 
 
 /* ============================================================
    transportation-page.css — TransportUtilitiesPage.tsx
-   Previously had its own scoped `.transport-page` theme (green
-   pill header/search, white "Locate Me" pill) mirrored from the
-   original static Transport & Utilities mockup. That's why it
-   looked inconsistent with Finance/Healthcare, which both use
-   the shared, unscoped "category-directory.css" template above
-   (canopy-800 header, durian-500 "Locate Me" pill, serif hero,
-   dashed sort button, etc.). Removed the standalone theme —
-   TransportUtilitiesPage.tsx now uses the exact same unscoped
-   classNames/ids as Healthcare and Finance (.header, #locate-btn,
-   .hero, .toolbar, .filter-chip, .sort-btn, .container, .card,
-   .view-map-btn, .route-btn, #map-panel, .place-popup, etc.) so
-   it inherits that look automatically with zero page-specific
-   CSS. The only addition needed: extend the shared map-container
-   selector to include Transportation's map id.
+   Uses the same unscoped classNames/ids as Healthcare and
+   Finance (.header, #locate-btn, .hero, .toolbar, .filter-chip,
+   .sort-btn, .container, .card, .view-map-btn, .route-btn,
+   #map-panel, .place-popup, etc.) so it inherits that look
+   automatically with zero page-specific CSS.
    ============================================================ */
 
 #health-map,
@@ -4206,27 +4211,7 @@ body {
 /* ============================================================
    login-page.css — styles for LoginPage.tsx (merged Admin Login
    + Continue as Guest into one page with a tab toggle).
-
-   Scoping notes:
-   - Both source files (Admin-login.css, SignInAsGuest.css) reset
-     `*` and styled `body` directly and used their own hardcoded
-     green (#1a5c38 / #13452a). Scoped everything under
-     `.login-page` and remapped those greens onto the site's
-     canopy tokens: #1a5c38 -> --canopy-800, #13452a -> --canopy-950
-     (closest matches), so the login page matches the rest of the
-     site instead of carrying a slightly-different one-off green.
-   - Renamed classes with a `login-page-` prefix throughout
-     (login-page-card, login-page-input-group, login-page-btn,
-     login-page-guest-btn, etc.) since generic names like
-     `.card`, `.footer-text`, `.home-btn`, `.input-group` already
-     exist unscoped elsewhere in this file (category-directory.css,
-     doc-page, etc.) and would otherwise collide.
-   - Added `.login-page-tabs` for the new Admin/Guest toggle,
-     which didn't exist in either original file.
-   - Registration tab added later on: `.login-page-register-content`,
-     `.login-page-success`, `.login-page-badge`, `.login-page-row`,
-     `.login-page-terms`, `.login-page-hint`, plus `select`/`textarea`
-     support on `.login-page-input-group`.
+   Font sizes harmonized to the shared type scale.
    ============================================================ */
 
 .login-page {
@@ -4237,7 +4222,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  padding: 30px 20px;
+  padding: 1.9rem 1.25rem;
   background: linear-gradient(rgba(20, 43, 28, 0.06), rgba(20, 43, 28, 0.06)),
     var(--cream);
   font-family: var(--font-body), "Segoe UI", Arial, sans-serif;
@@ -4253,14 +4238,14 @@ body {
   max-width: 460px;
   background: #ffffff;
   border-radius: 16px;
-  padding: 35px;
+  padding: 2.2rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
 /* LOGO */
 .login-page-logo-section {
   text-align: center;
-  margin-bottom: 22px;
+  margin-bottom: 1.4rem;
 }
 
 .login-page-logo-section img {
@@ -4273,14 +4258,14 @@ body {
 
 .login-page-logo-section h1 {
   color: var(--canopy-800);
-  font-size: 2rem;
+  font-size: var(--fs-hero-title);
   font-weight: 700;
-  margin-bottom: 5px;
+  margin-bottom: 0.3rem;
 }
 
 .login-page-logo-section p {
   color: var(--ink-500);
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
 }
 
 /* MODE TABS */
@@ -4290,7 +4275,7 @@ body {
   background: var(--canopy-100);
   border-radius: 12px;
   padding: 5px;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .login-page-tabs button {
@@ -4299,9 +4284,9 @@ body {
   background: transparent;
   color: var(--canopy-800);
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-btn);
   font-weight: 600;
-  padding: 10px 12px;
+  padding: 0.6rem 0.75rem;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;
@@ -4322,8 +4307,8 @@ body {
 .login-page-register-content h2 {
   text-align: center;
   color: var(--canopy-800);
-  font-size: 1.4rem;
-  margin-bottom: 20px;
+  font-size: var(--fs-page-title);
+  margin-bottom: 1.25rem;
 }
 
 .login-page-error {
@@ -4332,9 +4317,9 @@ body {
   color: #c0392b;
   border: 1px solid #f5c6c1;
   border-radius: 8px;
-  padding: 11px 13px;
-  margin-bottom: 18px;
-  font-size: 0.9rem;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 1.1rem;
+  font-size: var(--fs-btn);
   line-height: 1.4;
 }
 
@@ -4344,9 +4329,9 @@ body {
   color: #1f7a3d;
   border: 1px solid #bfe8cd;
   border-radius: 8px;
-  padding: 12px 14px;
-  margin-bottom: 18px;
-  font-size: 0.9rem;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1.1rem;
+  font-size: var(--fs-btn);
   line-height: 1.5;
 }
 
@@ -4358,8 +4343,8 @@ body {
   background: var(--canopy-100);
   border: 1px solid rgba(31, 77, 51, 0.18);
   border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 18px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1.1rem;
 }
 
 .login-page-badge-icon {
@@ -4378,19 +4363,19 @@ body {
 .login-page-badge-text strong {
   display: block;
   color: var(--canopy-800);
-  font-size: 0.88rem;
+  font-size: var(--fs-btn);
   margin-bottom: 2px;
 }
 
 .login-page-badge-text span {
   color: var(--ink-500);
-  font-size: 0.8rem;
+  font-size: var(--fs-btn-sm);
   line-height: 1.4;
 }
 
 /* INPUT GROUPS — shared by admin login and registration */
 .login-page-input-group {
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .login-page-row {
@@ -4406,7 +4391,7 @@ body {
 .login-page-input-group label {
   display: block;
   color: var(--ink-900);
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   font-weight: 600;
   margin-bottom: 7px;
 }
@@ -4419,7 +4404,7 @@ body {
   border-radius: 8px;
   padding: 0 13px;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   outline: none;
   background: #ffffff;
   color: var(--ink-900);
@@ -4460,7 +4445,7 @@ body {
 .login-page-hint {
   display: block;
   color: var(--ink-500);
-  font-size: 0.76rem;
+  font-size: var(--fs-badge);
   margin-top: 5px;
 }
 
@@ -4482,7 +4467,7 @@ body {
   background: transparent;
   color: var(--canopy-800);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--fs-btn-sm);
   font-weight: 600;
   cursor: pointer;
   padding: 6px 8px;
@@ -4496,7 +4481,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 5px 0 22px;
+  margin: 5px 0 1.25rem;
 }
 
 .login-page-remember input {
@@ -4508,7 +4493,7 @@ body {
 
 .login-page-remember label {
   color: var(--ink-500);
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   cursor: pointer;
 }
 
@@ -4517,7 +4502,7 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 4px 0 22px;
+  margin: 4px 0 1.25rem;
 }
 
 .login-page-terms input {
@@ -4531,7 +4516,7 @@ body {
 
 .login-page-terms label {
   color: var(--ink-500);
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   line-height: 1.4;
   cursor: pointer;
 }
@@ -4544,7 +4529,7 @@ body {
   background: var(--canopy-800);
   color: #ffffff;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--fs-btn-primary);
   font-weight: 600;
   cursor: pointer;
   transition: 0.2s ease;
@@ -4567,8 +4552,8 @@ body {
 .login-page-footer-text {
   text-align: center;
   color: var(--ink-500);
-  font-size: 0.8rem;
-  margin-top: 18px;
+  font-size: var(--fs-small);
+  margin-top: 1.1rem;
 }
 
 /* GUEST CONTENT */
@@ -4594,9 +4579,9 @@ body {
 
 .login-page-guest-description {
   color: var(--ink-500);
-  font-size: 0.92rem;
+  font-size: var(--fs-body);
   line-height: 1.6;
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .login-page-guest-info {
@@ -4604,8 +4589,8 @@ body {
   background: var(--canopy-100);
   border: 1px solid rgba(31, 77, 51, 0.18);
   border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 20px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .login-page-info-item {
@@ -4613,7 +4598,7 @@ body {
   align-items: center;
   gap: 10px;
   color: var(--ink-900);
-  font-size: 0.88rem;
+  font-size: var(--fs-btn);
   line-height: 1.4;
 }
 
@@ -4643,7 +4628,7 @@ body {
   background: var(--canopy-800);
   color: #ffffff;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: var(--fs-btn-primary);
   font-weight: 600;
   cursor: pointer;
   transition: 0.2s ease;
@@ -4686,8 +4671,8 @@ body {
 }
 
 .login-page-guest-notice {
-  margin-top: 20px;
-  padding: 13px;
+  margin-top: 1.25rem;
+  padding: 0.8rem;
   border-radius: 8px;
   background: #fff8e7;
   border: 1px solid #f0dfb0;
@@ -4697,20 +4682,20 @@ body {
 .login-page-guest-notice strong {
   display: block;
   color: #856404;
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   margin-bottom: 4px;
 }
 
 .login-page-guest-notice p {
   color: #806f45;
-  font-size: 0.78rem;
+  font-size: var(--fs-badge);
   line-height: 1.5;
 }
 
 /* HOME LINK — shared */
 .login-page-home-link {
   text-align: center;
-  margin-top: 18px;
+  margin-top: 1.1rem;
 }
 
 .login-page-home-btn {
@@ -4718,7 +4703,7 @@ body {
   background: transparent;
   color: var(--canopy-800);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
@@ -4734,7 +4719,7 @@ body {
 /* PAGE FOOTER */
 .login-page-footer {
   color: var(--ink-500);
-  font-size: 0.75rem;
+  font-size: var(--fs-small);
   text-align: center;
 }
 
@@ -4744,40 +4729,32 @@ body {
 
 @media (max-width: 768px) {
   .login-page {
-    padding: 25px 16px;
+    padding: 1.6rem 1rem;
   }
 
   .login-page-card {
     max-width: 420px;
-    padding: 30px;
-  }
-
-  .login-page-logo-section h1 {
-    font-size: 1.8rem;
+    padding: 1.9rem;
   }
 }
 
 @media (max-width: 480px) {
   .login-page {
-    padding: 20px 12px;
+    padding: 1.25rem 0.75rem;
   }
 
   .login-page-card {
-    padding: 25px 20px;
+    padding: 1.6rem 1.25rem;
     border-radius: 12px;
   }
 
   .login-page-logo-section {
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
   }
 
   .login-page-logo-section img {
     width: 75px;
     height: 75px;
-  }
-
-  .login-page-logo-section h1 {
-    font-size: 1.65rem;
   }
 
   .login-page-input-group input,
@@ -4798,26 +4775,22 @@ body {
 
 @media (max-width: 360px) {
   .login-page-card {
-    padding: 22px 16px;
+    padding: 1.4rem 1rem;
   }
 
   .login-page-logo-section img {
     width: 68px;
     height: 68px;
   }
-
-  .login-page-logo-section h1 {
-    font-size: 1.5rem;
-  }
 }
 /* BUSINESS REGISTRATION CTA — shown below the mode tabs,
    visible regardless of which tab (Sign In / Guest) is active */
 .login-page-business-cta {
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-500);
   margin-top: -6px;
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
   line-height: 1.5;
 }
 
@@ -4833,8 +4806,7 @@ body {
 }
 /* ============================================================
    business-reg-page.css — styles for BusinessRegistrationPage.tsx
-   Scoped to .business-reg-page. Uses the site's canopy/durian/cream
-   tokens instead of the page's old hardcoded #1a5c38 green.
+   Font sizes harmonized to the shared type scale.
    ============================================================ */
 
 .business-reg-page {
@@ -4844,7 +4816,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 3rem 1.25rem;
   color: var(--ink-900);
 }
 
@@ -4856,26 +4828,26 @@ body {
   background: #ffffff;
   border-radius: 14px;
   box-shadow: 0 2px 10px rgba(20, 43, 28, 0.08);
-  padding: 36px 40px;
+  padding: 2.2rem 2.5rem;
   width: 100%;
   max-width: 560px;
 }
 
 /* HEADER */
 .business-reg-header {
-  margin-bottom: 26px;
+  margin-bottom: 1.6rem;
   text-align: center;
 }
 
 .business-reg-header h1 {
-  font-size: 1.4rem;
+  font-size: var(--fs-page-title);
   color: var(--canopy-950);
   font-weight: 700;
-  margin-bottom: 6px;
+  margin-bottom: 0.4rem;
 }
 
 .business-reg-header p {
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-500);
 }
 
@@ -4885,14 +4857,14 @@ body {
   color: #c0392b;
   border: 1px solid #f5c6c1;
   border-radius: 8px;
-  padding: 11px 14px;
-  margin-bottom: 18px;
-  font-size: 0.88rem;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 1.1rem;
+  font-size: var(--fs-btn);
 }
 
 /* FORM */
 .business-reg-input-group {
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .business-reg-row {
@@ -4907,7 +4879,7 @@ body {
 
 .business-reg-input-group label {
   display: block;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   font-weight: 600;
   color: var(--canopy-950);
   margin-bottom: 6px;
@@ -4915,7 +4887,7 @@ body {
 
 .business-reg-hint {
   display: block;
-  font-size: 0.74rem;
+  font-size: var(--fs-badge);
   color: var(--ink-500);
   margin-bottom: 8px;
 }
@@ -4928,7 +4900,7 @@ body {
   border-radius: 8px;
   padding: 0 13px;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
   outline: none;
   color: var(--ink-900);
   background: #ffffff;
@@ -4950,7 +4922,7 @@ body {
 /* FILE INPUT */
 .business-reg-file-input {
   width: 100%;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-900);
 }
 
@@ -4967,7 +4939,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.82rem;
+  font-size: var(--fs-btn-sm);
   color: var(--canopy-950);
   background: var(--canopy-100);
   border-radius: 6px;
@@ -4999,10 +4971,10 @@ body {
   background: var(--canopy-800);
   color: #ffffff;
   border: none;
-  padding: 13px 20px;
+  padding: 0.8rem 1.25rem;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: var(--fs-btn-primary);
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -5042,10 +5014,10 @@ body {
   background: var(--canopy-800);
   color: #ffffff;
   border: none;
-  padding: 12px 22px;
+  padding: 0.75rem 1.4rem;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-btn);
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -5053,7 +5025,7 @@ body {
   gap: 8px;
   justify-content: center;
   width: 100%;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
   transition: background 0.2s ease;
 }
 
@@ -5071,28 +5043,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 18px;
+  margin: 0 auto 1.1rem;
 }
 
 .business-reg-success-title {
   text-align: center;
-  font-size: 1.2rem;
+  font-size: var(--fs-section-title);
   color: var(--canopy-950);
-  margin-bottom: 10px;
+  margin-bottom: 0.6rem;
 }
 
 .business-reg-success-text {
   text-align: center;
-  font-size: 0.88rem;
+  font-size: var(--fs-body-sm);
   color: var(--ink-500);
   line-height: 1.6;
-  margin-bottom: 22px;
+  margin-bottom: 1.4rem;
 }
 
 .business-reg-home-link {
   display: block;
   text-align: center;
-  font-size: 0.85rem;
+  font-size: var(--fs-body-sm);
   color: var(--canopy-800);
   text-decoration: none;
 }
@@ -5108,11 +5080,11 @@ body {
 
 @media (max-width: 600px) {
   .business-reg-page {
-    padding: 30px 14px;
+    padding: 1.9rem 0.9rem;
   }
 
   .business-reg-card {
-    padding: 26px 22px;
+    padding: 1.6rem 1.4rem;
   }
 
   .business-reg-row {
@@ -5121,15 +5093,18 @@ body {
   }
 
   .business-reg-header h1 {
-    font-size: 1.2rem;
+    font-size: var(--fs-section-title);
   }
 }
 
-/* ── Terms and Conditions page ── */
+/* ── Terms and Conditions page ──
+   Hardcoded #1a5c38 green remapped onto the site's canopy
+   tokens (same mapping already used by login-page: #1a5c38 ->
+   --canopy-800), and font sizes harmonized to the shared scale. */
 .terms-page {
   min-height: 100vh;
-  background: #f4f9f5;
-  padding: 60px 20px;
+  background: var(--cream);
+  padding: 3.75rem 1.25rem;
   display: flex;
   justify-content: center;
 }
@@ -5140,7 +5115,7 @@ body {
   width: 100%;
   border: 1px solid #dce8e0;
   border-radius: 14px;
-  padding: 40px 44px;
+  padding: 2.5rem 2.75rem;
   box-shadow: 0 4px 18px rgba(26, 92, 56, 0.08);
 }
 
@@ -5148,11 +5123,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #1a5c38;
-  font-size: 0.9rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-decoration: none;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .terms-home-link:hover {
@@ -5160,31 +5135,31 @@ body {
 }
 
 .terms-title {
-  color: #1a5c38;
-  font-size: 2rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-hero-title);
   font-weight: 800;
-  margin-bottom: 6px;
-  border-bottom: 3px solid #1a5c38;
-  padding-bottom: 12px;
+  margin-bottom: 0.4rem;
+  border-bottom: 3px solid var(--canopy-800);
+  padding-bottom: 0.75rem;
 }
 
 .terms-updated {
-  color: #5c7a68;
-  font-size: 0.85rem;
+  color: var(--ink-500);
+  font-size: var(--fs-body-sm);
   font-style: italic;
-  margin-top: 10px;
-  margin-bottom: 30px;
+  margin-top: 0.6rem;
+  margin-bottom: 1.9rem;
 }
 
 .terms-section {
-  margin-bottom: 26px;
+  margin-bottom: 1.6rem;
 }
 
 .terms-section h2 {
-  color: #1a5c38;
-  font-size: 1.15rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-section-title);
   font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5194,31 +5169,30 @@ body {
   content: "";
   width: 6px;
   height: 6px;
-  background: #2f9e5e;
+  background: var(--canopy-600);
   border-radius: 50%;
   display: inline-block;
 }
 
 .terms-section p {
   color: #333;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   line-height: 1.65;
 }
 
 @media (max-width: 600px) {
   .terms-card {
-    padding: 28px 22px;
-  }
-  .terms-title {
-    font-size: 1.5rem;
+    padding: 1.75rem 1.4rem;
   }
 }
 
-/* ── Privacy Notice page ── */
+/* ── Privacy Notice page ──
+   Same green-token remap and type-scale harmonization as the
+   Terms page. */
 .privacy-page {
   min-height: 100vh;
-  background: #f4f9f5;
-  padding: 60px 20px;
+  background: var(--cream);
+  padding: 3.75rem 1.25rem;
   display: flex;
   justify-content: center;
 }
@@ -5229,7 +5203,7 @@ body {
   width: 100%;
   border: 1px solid #dce8e0;
   border-radius: 14px;
-  padding: 40px 44px;
+  padding: 2.5rem 2.75rem;
   box-shadow: 0 4px 18px rgba(26, 92, 56, 0.08);
 }
 
@@ -5237,11 +5211,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #1a5c38;
-  font-size: 0.9rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-decoration: none;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .privacy-home-link:hover {
@@ -5249,31 +5223,31 @@ body {
 }
 
 .privacy-title {
-  color: #1a5c38;
-  font-size: 2rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-hero-title);
   font-weight: 800;
-  margin-bottom: 6px;
-  border-bottom: 3px solid #1a5c38;
-  padding-bottom: 12px;
+  margin-bottom: 0.4rem;
+  border-bottom: 3px solid var(--canopy-800);
+  padding-bottom: 0.75rem;
 }
 
 .privacy-updated {
-  color: #5c7a68;
-  font-size: 0.85rem;
+  color: var(--ink-500);
+  font-size: var(--fs-body-sm);
   font-style: italic;
-  margin-top: 10px;
-  margin-bottom: 30px;
+  margin-top: 0.6rem;
+  margin-bottom: 1.9rem;
 }
 
 .privacy-section {
-  margin-bottom: 26px;
+  margin-bottom: 1.6rem;
 }
 
 .privacy-section h2 {
-  color: #1a5c38;
-  font-size: 1.15rem;
+  color: var(--canopy-800);
+  font-size: var(--fs-section-title);
   font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -5283,23 +5257,66 @@ body {
   content: "";
   width: 6px;
   height: 6px;
-  background: #2f9e5e;
+  background: var(--canopy-600);
   border-radius: 50%;
   display: inline-block;
 }
 
 .privacy-section p {
   color: #333;
-  font-size: 0.95rem;
+  font-size: var(--fs-body);
   line-height: 1.65;
 }
 
 @media (max-width: 600px) {
   .privacy-card {
-    padding: 28px 22px;
+    padding: 1.75rem 1.4rem;
   }
-  .privacy-title {
-    font-size: 1.5rem;
-  }
+}
+
+/* Cursor pointer sa tanan clickable images */
+.zoomable-img {
+  cursor: zoom-in;
+  transition: transform 0.2s ease;
+}
+.zoomable-img:hover {
+  transform: scale(1.02);
+}
+
+/* Full-screen dark overlay */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+
+/* Ang enlarged image mismo */
+.lightbox-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 6px;
+  cursor: default;
+}
+
+/* Close (X) button sa taas-tuo */
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 2.5rem;
+  cursor: pointer;
+  line-height: 1;
 }
 

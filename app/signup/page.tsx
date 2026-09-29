@@ -1,11 +1,20 @@
+/* ============================================================
+   FILE: app/signup/page.tsx   (REPLACE whole file)
+   Sign-up now requires a verified email:
+   1. type your email -> "Send verification code"
+   2. enter the 6-digit code from the email -> "Verify code"
+   3. "Sign Up" is only accepted with the verification token
+
+   The account itself is created by /api/auth/signup (server), so the
+   browser is no longer left silently signed in after registering.
+   ============================================================ */
+
 "use client";
 
 import React, { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../../lib/Firebase";
+import EmailOtpVerifier from "@/components/EmailOtpVerifier";
 
 interface FormErrors {
   fullName?: string;
@@ -16,6 +25,16 @@ interface FormErrors {
   password?: string;
   confirmPassword?: string;
 }
+
+const ERROR_FIELDS: (keyof FormErrors)[] = [
+  "fullName",
+  "phoneNumber",
+  "address",
+  "sex",
+  "email",
+  "password",
+  "confirmPassword",
+];
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -30,8 +49,14 @@ export default function SignUpPage() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Email OTP: token proving this exact email was verified.
+  // verifierKey remounts the verifier when the server rejects the token.
+  const [otpToken, setOtpToken] = useState<string | null>(null);
+  const [verifierKey, setVerifierKey] = useState(0);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -64,6 +89,8 @@ export default function SignUpPage() {
       newErrors.email = "Email is required";
     } else if (!emailRegex.test(email.trim())) {
       newErrors.email = "Please enter a valid email address";
+    } else if (!otpToken) {
+      newErrors.email = "Verify your email with the code we send you before signing up";
     }
 
     if (!password) {
@@ -97,44 +124,46 @@ export default function SignUpPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    setFormError("");
+    if (!validateForm() || !otpToken) return;
 
     setLoading(true);
     try {
-      // 1. Create the user account in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email.trim(),
-        formData.password
-      );
-
-      // 2. Save the additional profile data to Firestore ("users" collection)
-      //    role is always "user" on signup — business status is tracked separately
-      //    in the "businesses" collection once they submit a registration form.
-      await setDoc(doc(db, "users", userCredential.user.uid), {
-        fullName: formData.fullName.trim(),
-        phoneNumber: formData.phoneNumber.trim(),
-        address: formData.address.trim(),
-        sex: formData.sex,
-        email: formData.email.trim(),
-        role: "user",
-        createdAt: serverTimestamp(),
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: formData.fullName.trim(),
+          phoneNumber: formData.phoneNumber.trim(),
+          address: formData.address.trim(),
+          sex: formData.sex,
+          email: formData.email.trim(),
+          password: formData.password,
+          verificationToken: otpToken,
+        }),
       });
+      const data = await res.json().catch(() => ({}));
 
-      // 3. Redirect to Login page after successful registration
-      router.push("/login");
-    } catch (err: any) {
-      console.error("Firebase Registration Error:", err);
+      if (!res.ok) {
+        // The server no longer trusts the verification -> ask again
+        if (res.status === 403) {
+          setOtpToken(null);
+          setVerifierKey((k) => k + 1);
+        }
 
-      if (err.code === "auth/email-already-in-use") {
-        setErrors((prev) => ({ ...prev, email: "This email address is already registered." }));
-      } else if (err.code === "auth/invalid-email") {
-        setErrors((prev) => ({ ...prev, email: "Invalid email address format." }));
-      } else if (err.code === "auth/weak-password") {
-        setErrors((prev) => ({ ...prev, password: "Password is too weak." }));
-      } else {
-        alert("Registration failed: " + (err.message || "Please check your network connection."));
+        const field = data.field as keyof FormErrors | undefined;
+        if (field && ERROR_FIELDS.includes(field)) {
+          setErrors((prev) => ({ ...prev, [field]: data.error }));
+        } else {
+          setFormError(data.error ?? "Registration failed. Please try again.");
+        }
+        return;
       }
+
+      router.push("/login");
+    } catch (err) {
+      console.error("Registration error:", err);
+      setFormError("Cannot reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -145,6 +174,15 @@ export default function SignUpPage() {
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold text-center text-[#1b4332] mb-2">Create Account</h2>
         <p className="text-sm text-gray-600 text-center mb-6">Sign up for your MyCalinan account</p>
+
+        {formError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600"
+          >
+            {formError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -209,9 +247,21 @@ export default function SignUpPage() {
               value={formData.email}
               onChange={handleChange}
               placeholder="Enter email"
+              autoComplete="email"
               className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
             />
             {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+
+            <EmailOtpVerifier
+              key={verifierKey}
+              email={formData.email}
+              disabled={loading}
+              onVerified={(token) => {
+                setOtpToken(token);
+                setErrors((prev) => ({ ...prev, email: undefined }));
+              }}
+              onReset={() => setOtpToken(null)}
+            />
           </div>
 
           <div>
@@ -223,6 +273,7 @@ export default function SignUpPage() {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="Enter password"
+                autoComplete="new-password"
                 className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
               />
               <button
@@ -244,6 +295,7 @@ export default function SignUpPage() {
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="Confirm password"
+              autoComplete="new-password"
               className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
             />
             {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}

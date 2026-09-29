@@ -1,4 +1,8 @@
-import React from "react";
+"use client";
+
+
+import React, { useState } from "react";
+
 
 // ----------------------------------------------------------------------
 // Firebase Storage base path (same pattern as Hotspots/Documents pages)
@@ -6,13 +10,37 @@ import React from "react";
 const STORAGE_BASE =
   "https://storage.googleapis.com/mycalinan.firebasestorage.app/History";
 
+
 // Helper: builds the full public URL for a filename in the History
 // folder, URL-encoding spaces/special characters as needed.
 function img(filename: string): string {
   return `${STORAGE_BASE}/${encodeURIComponent(filename)}`;
 }
 
+
+// Shape of the currently zoomed-in image (null = lightbox closed)
+type LightboxImage = {
+  src: string;
+  alt: string;
+} | null;
+
+
 const HistoryPage: React.FC = () => {
+  const [lightbox, setLightbox] = useState<LightboxImage>(null);
+
+
+  // Opens the lightbox with the clicked image
+  const openLightbox = (src: string, alt: string) => {
+    setLightbox({ src, alt });
+  };
+
+
+  // Closes the lightbox and returns to the normal page view
+  const closeLightbox = () => {
+    setLightbox(null);
+  };
+
+
   return (
     <div className="history-page">
       {/* HEADER */}
@@ -22,6 +50,7 @@ const HistoryPage: React.FC = () => {
           Home
         </a>
 
+
         <div className="header-overlay">
           <h1>History of Calinan</h1>
           <p>
@@ -30,7 +59,9 @@ const HistoryPage: React.FC = () => {
         </div>
       </header>
 
+
       <main className="history-wrapper">
+
 
         {/* BEFORE COLONIAL PERIOD */}
         <section className="headline-frame">
@@ -39,19 +70,31 @@ const HistoryPage: React.FC = () => {
               CALINAN HERITAGE TIMES
             </span>
 
+
             <h2>Before Colonial Period</h2>
+
 
             <div className="headline-image-1">
               <img
                 src={img("Before Colonial Period1.jpg")}
                 alt="Before Colonial Period"
+                className="zoomable-img"
+                onClick={() =>
+                  openLightbox(img("Before Colonial Period1.jpg"), "Before Colonial Period")
+                }
               />
+
 
               <img
                 src={img("Before Colonial Period2.png")}
                 alt="Before Colonial Period"
+                className="zoomable-img"
+                onClick={() =>
+                  openLightbox(img("Before Colonial Period2.png"), "Before Colonial Period")
+                }
               />
             </div>
+
 
             <p className="history-paragraph">
               Before the arrival of Spanish and American influences, the area
@@ -74,24 +117,26 @@ const HistoryPage: React.FC = () => {
           </div>
         </section>
 
+
         {/* EARLY SETTLEMENT */}
         <section className="headline-frame">
           <div className="headline-text">
             <h2>Early Settlement and Community Formation</h2>
 
+
             <div className="headline-image-2">
               <img
-                src={img("Lt. Cipriano Villafuerte Sr..png")}
-                alt="Lt. Cipriano Villafuerte Sr."
-              />
-
-              <img
-                src={img("Paulino Naraval.png")}
+                src={img("Paulino Naraval.jpg")}
                 alt="Paulino Naraval"
+                className="zoomable-img"
+                onClick={() =>
+                  openLightbox(img("Paulino Naraval.jpg"), "Paulino Naraval")
+                }
               />
             </div>
 
-            <p>
+
+                    <p>
               In the early 1900s, Calinan was still a small tribal settlement
               with no established town structure. The arrival of early settlers
               slowly introduced changes that shaped the growth of the
@@ -111,22 +156,30 @@ const HistoryPage: React.FC = () => {
           </div>
         </section>
 
+
         {/* GROWTH OF CALINAN */}
         <section className="headline-frame">
           <div className="headline-text">
             <h2>Growth of Calinan as a Community</h2>
 
+
             <div className="headline-image-1">
               <img
                 src={img("Growth-1.png")}
                 alt="Growth of Calinan"
+                className="zoomable-img"
+                onClick={() => openLightbox(img("Growth-1.png"), "Growth of Calinan")}
               />
+
 
               <img
                 src={img("Growth-2.png")}
                 alt="Growth of Calinan"
+                className="zoomable-img"
+                onClick={() => openLightbox(img("Growth-2.png"), "Growth of Calinan")}
               />
             </div>
+
 
             <p>
               Calinan began to develop into a growing settlement when
@@ -147,22 +200,40 @@ const HistoryPage: React.FC = () => {
           </div>
         </section>
 
+
         {/* CHALLENGES AND REBUILDING */}
         <section className="headline-frame">
           <div className="headline-text">
             <h2>Challenges and Rebuilding After the War</h2>
 
+
             <div className="headline-image-1">
               <img
                 src={img("Challenges-1.png")}
                 alt="Challenges and Rebuilding After the War"
+                className="zoomable-img"
+                onClick={() =>
+                  openLightbox(
+                    img("Challenges-1.png"),
+                    "Challenges and Rebuilding After the War"
+                  )
+                }
               />
+
 
               <img
                 src={img("Challenges-2.png")}
                 alt="Challenges and Rebuilding After the War"
+                className="zoomable-img"
+                onClick={() =>
+                  openLightbox(
+                    img("Challenges-2.png"),
+                    "Challenges and Rebuilding After the War"
+                  )
+                }
               />
             </div>
+
 
             <p>
               During World War II, Calinan experienced hardships as it became
@@ -182,22 +253,30 @@ const HistoryPage: React.FC = () => {
           </div>
         </section>
 
+
         {/* CALINAN TODAY */}
         <section className="headline-frame">
           <div className="headline-text">
             <h2>Calinan Today</h2>
 
+
             <div className="headline-image-1">
               <img
                 src={img("Calinan Today1.png")}
                 alt="Calinan Today"
+                className="zoomable-img"
+                onClick={() => openLightbox(img("Calinan Today1.png"), "Calinan Today")}
               />
 
+
               <img
-                src={img("Calinan Today2.png")}
+                src={img("Calinan Today2.jpg")}
                 alt="Calinan Today"
+                className="zoomable-img"
+                onClick={() => openLightbox(img("Calinan Today2.jpg"), "Calinan Today")}
               />
             </div>
+
 
             <p>
               From a small Bagobo settlement surrounded by forests, Calinan
@@ -216,77 +295,126 @@ const HistoryPage: React.FC = () => {
           </div>
         </section>
 
+
         {/* NEWSPAPER GRID */}
         <section className="history-grid">
+
 
           <article className="news-card">
             <img
               src={img("Holy Cross Students (1953).jpg")}
               alt="Holy Cross Students (1953)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Holy Cross Students (1953).jpg"),
+                  "Holy Cross Students (1953)"
+                )
+              }
             />
             <div className="news-content">
               <span>Holy Cross Students (1953)</span>
             </div>
           </article>
 
+
           <article className="news-card">
             <img
               src={img("Old  Calinan Building (1990s).jpg")}
               alt="Old Calinan Building (1990s)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Old  Calinan Building (1990s).jpg"),
+                  "Old Calinan Building (1990s)"
+                )
+              }
             />
             <div className="news-content">
               <span>Old Calinan Building (1990s)</span>
             </div>
           </article>
 
+
           <article className="news-card">
             <img
               src={img("Calinan Police Station (1970).jpg")}
               alt="Calinan Police Station (1970)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Calinan Police Station (1970).jpg"),
+                  "Calinan Police Station (1970)"
+                )
+              }
             />
             <div className="news-content">
               <span>Calinan Police Station (1970)</span>
             </div>
           </article>
 
+
           <article className="news-card">
             <img
               src={img("Calinan Central Elemetary (1970).jpg")}
               alt="Calinan Central Elementary (1970)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Calinan Central Elemetary (1970).jpg"),
+                  "Calinan Central Elementary (1970)"
+                )
+              }
             />
             <div className="news-content">
               <span>Calinan Central Elemetary (1970)</span>
             </div>
           </article>
 
+
           <article className="news-card">
             <img
               src={img("Employees of Calinan District Hall (1954).jpg")}
               alt="Employees of Calinan District Hall (1954)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Employees of Calinan District Hall (1954).jpg"),
+                  "Employees of Calinan District Hall (1954)"
+                )
+              }
             />
             <div className="news-content">
               <span>Employees of Calinan District Hall (1954)</span>
             </div>
           </article>
 
+
         </section>
+
 
         <br />
         <br />
+
 
         {/* 20TH CENTURY - PRESENT */}
         <section className="headline-frame">
+
 
           <div className="headline-text">
             <span className="mini-title">
               CALINAN HERITAGE TIMES
             </span>
 
+
             <h2>20th Century - Present</h2>
+
 
             <br />
 
+
             <h3>Botica Carina (2010)</h3>
+
 
             <p>
               During the 20th century, Calinan experienced major growth as
@@ -302,18 +430,26 @@ const HistoryPage: React.FC = () => {
               to the area’s development.
             </p>
 
+
             <br />
           </div>
+
 
           <div className="headline-image">
             <img
               src={img("Botica Carina (2010).jpg")}
               alt="Botica Carina (2010)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(img("Botica Carina (2010).jpg"), "Botica Carina (2010)")
+              }
             />
           </div>
 
+
           <div className="headline-text">
             <h3>Sacred Heart Parish of Calinan (2012)</h3>
+
 
             <p>
               In the mid-20th century, Calinan continued to progress through
@@ -328,15 +464,25 @@ const HistoryPage: React.FC = () => {
             </p>
           </div>
 
+
           <div className="headline-image">
             <img
-              src={img("Sacred Heart Parish of Calinan (2012).jpg")}
+              src={img("Sacred Heart Parish of Calinan (2012).png")}
               alt="Sacred Heart Parish of Calinan (2012)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Sacred Heart Parish of Calinan (2012).png"),
+                  "Sacred Heart Parish of Calinan (2012)"
+                )
+              }
             />
           </div>
 
+
           <div className="headline-text">
             <h3>Calinan Police Station Inauguration (2013)</h3>
+
 
             <p>
               From the late 20th century to the present, Calinan has grown
@@ -352,15 +498,25 @@ const HistoryPage: React.FC = () => {
             </p>
           </div>
 
+
           <div className="headline-image">
             <img
               src={img("Calinan Police Station Inauguration (2013).jpg")}
               alt="Calinan Police Station Inauguration (2013)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Calinan Police Station Inauguration (2013).jpg"),
+                  "Calinan Police Station Inauguration (2013)"
+                )
+              }
             />
           </div>
 
+
           <div className="headline-text">
             <h3>Calinan Poblacion Signage (2019)</h3>
+
 
             <p>
               From the 20th century to the present, Calinan transformed from a
@@ -372,18 +528,53 @@ const HistoryPage: React.FC = () => {
             </p>
           </div>
 
+
           <div className="headline-image">
             <img
               src={img("Calinan Poblacion Signage (2019).jpg")}
               alt="Calinan Poblacion Signage (2019)"
+              className="zoomable-img"
+              onClick={() =>
+                openLightbox(
+                  img("Calinan Poblacion Signage (2019).jpg"),
+                  "Calinan Poblacion Signage (2019)"
+                )
+              }
             />
           </div>
 
+
         </section>
 
+
       </main>
+
+
+      {/* LIGHTBOX / ZOOM OVERLAY — renders only when an image is selected */}
+      {lightbox && (
+        <div className="lightbox-overlay" onClick={closeLightbox}>
+          <button
+            className="lightbox-close"
+            onClick={closeLightbox}
+            aria-label="Close"
+          >
+            &times;
+          </button>
+
+
+          <img
+            src={lightbox.src}
+            alt={lightbox.alt}
+            className="lightbox-image"
+            // Prevent clicks on the image itself from closing (only backdrop/X closes)
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
 
+
 export default HistoryPage;
+

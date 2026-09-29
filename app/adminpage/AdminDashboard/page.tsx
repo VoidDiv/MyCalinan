@@ -368,8 +368,35 @@ export default function AdminDashboard() {
 
   return (
     <div style={styles.body}>
+      {/* Responsive breakpoints — same pattern as AdminAnnouncements/AdminEvents.
+          The classNames here (admin-sidebar / admin-content / admin-panels) sit
+          ALONGSIDE the existing inline `style` props below; !important is needed
+          because inline styles otherwise always win over a stylesheet. */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .admin-sidebar {
+            width: 200px !important;
+          }
+          .admin-content {
+            margin-left: 200px !important;
+            padding: 18px !important;
+          }
+          .admin-panels {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        @media (max-width: 540px) {
+          .admin-sidebar {
+            display: none !important;
+          }
+          .admin-content {
+            margin-left: 0 !important;
+          }
+        }
+      `}</style>
+
       {/* ── SIDEBAR ── */}
-      <aside style={styles.sidebar}>
+      <aside className="admin-sidebar" style={styles.sidebar}>
         <div style={styles.logoBlock}>
           <h2 style={styles.logoH2}>MyCalinan</h2>
           <p style={styles.logoP}>Admin Panel</p>
@@ -424,7 +451,7 @@ export default function AdminDashboard() {
       </aside>
 
       {/* ── MAIN ── */}
-      <main style={styles.content}>
+      <main className="admin-content" style={styles.content}>
         {!authed && (
           <div style={styles.authWarning}>
             <i className="fas fa-exclamation-triangle" /> You are not logged in.{" "}
@@ -437,7 +464,7 @@ export default function AdminDashboard() {
             <i className="fas fa-gauge-high" style={{ color: "#1a5c38", marginRight: 8 }} />
             Dashboard
           </h1>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Link href="/adminpage/AdminEvents" style={{ ...styles.addBtn, ...styles.addBtnOutline }}>
               <i className="fas fa-plus" /> Add Event
             </Link>
@@ -499,7 +526,7 @@ export default function AdminDashboard() {
         </section>
 
         {/* Recent panels */}
-        <div style={styles.panels}>
+        <div className="admin-panels" style={styles.panels}>
           <section style={styles.panel}>
             <div style={styles.panelHead}>
               <h2 style={styles.panelH2}>
