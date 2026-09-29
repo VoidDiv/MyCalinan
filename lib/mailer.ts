@@ -1,9 +1,9 @@
 /* ============================================================
-   FILE: lib/mailer.ts   (NEW — server only)
+   FILE: lib/mailer.ts   (server only)
    Sends the verification-code email through SMTP (Nodemailer).
    Works with a Gmail account + App Password out of the box.
 
-   Required env vars (.env.local):
+   Required env vars:
      SMTP_USER   the sending address, e.g. mycalinan.app@gmail.com
      SMTP_PASS   a Gmail App Password (NOT your normal password)
    Optional:
@@ -13,10 +13,11 @@
    ============================================================ */
 
 import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter {
+function getTransporter(): Transporter {
   if (transporter) return transporter;
 
   const user = process.env.SMTP_USER;
