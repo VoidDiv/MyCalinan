@@ -1,23 +1,16 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Gauge,
-  Home,
   CalendarDays,
-  Megaphone,
-  LineChart,
-  LogOut,
   Plus,
   Save,
   X,
   Pencil,
   Trash2,
-  AlertTriangle,
   Drama,
   AlertCircle,
   Loader2,
   CalendarClock,
-  Layers,
 } from 'lucide-react';
 import {
   collection,
@@ -30,8 +23,9 @@ import {
   query,
   serverTimestamp,
 } from 'firebase/firestore';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { db, auth } from '@/lib/Firebase';
+import { db } from '@/lib/Firebase';
+import useAdminGuard from '@/hooks/useAdminGuard';
+import AdminSidebar from '@/components/AdminSidebar';
 
 /* ─────────────────────────────────────────────────────────
    Config
@@ -76,64 +70,6 @@ function tagClass(category?: string) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Sidebar
-   ───────────────────────────────────────────────────────── */
-
-const menuItems = [
-  { label: 'Dashboard', href: '/adminpage/AdminDashboard', icon: Gauge },
-  { label: 'Home Page', href: '/', icon: Home },
-  { label: 'Events & Festivals', href: '/adminpage/AdminEvents', icon: CalendarDays, active: true },
-  { label: 'Announcements', href: '/adminpage/AdminAnnouncements', icon: Megaphone },
-  { label: 'Listings', href: '/adminpage/AdminListings', icon: Layers },
-  { label: 'Reports', href: '/adminpage/AdminReports', icon: LineChart },
-];
-
-function Sidebar({
-  adminName,
-  adminRole,
-  onLogoutClick,
-}: {
-  adminName: string;
-  adminRole: string;
-  onLogoutClick: () => void;
-}) {
-  return (
-    <aside className="sidebar">
-      <div className="logo">
-        <h2>MyCalinan</h2>
-        <p>Admin Panel</p>
-      </div>
-
-      <div className="admin-badge">
-        <div className="admin-avatar">{adminName.charAt(0).toUpperCase() || 'A'}</div>
-        <div className="admin-info">
-          <div className="name">{adminName}</div>
-          <div className="role">{adminRole}</div>
-        </div>
-      </div>
-
-      <ul className="menu">
-        {menuItems.map(({ label, href, icon: Icon, active }) => (
-          <li key={label} className={active ? 'active' : ''}>
-            <a href={href}>
-              <Icon size={16} />
-              {label}
-            </a>
-          </li>
-        ))}
-      </ul>
-
-      <div className="sidebar-footer">
-        <button className="logout-btn" onClick={onLogoutClick}>
-          <LogOut size={16} />
-          Log Out
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
    Toast
    ───────────────────────────────────────────────────────── */
 
@@ -152,7 +88,7 @@ function Toast({ toast }: { toast: ToastState | null }) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Modals
+   Delete modal
    ───────────────────────────────────────────────────────── */
 
 function DeleteModal({
@@ -184,44 +120,12 @@ function DeleteModal({
   );
 }
 
-function LogoutModal({
-  open,
-  onStay,
-  onConfirm,
-}: {
-  open: boolean;
-  onStay: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div
-      className={`modal-overlay ${open ? 'open' : ''}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onStay();
-      }}
-    >
-      <div className="modal-box">
-        <LogOut size={32} color="#1a5c38" />
-        <h3>Log Out?</h3>
-        <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
-        <div className="modal-btns">
-          <button className="modal-cancel" onClick={onStay}>Stay</button>
-          <button className="modal-confirm" style={{ background: '#1a5c38' }} onClick={onConfirm}>Log Out</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─────────────────────────────────────────────────────────
    Main component
    ───────────────────────────────────────────────────────── */
 
 export default function AdminEvents() {
-  const [adminName, setAdminName] = useState('Admin');
-  const [adminRole, setAdminRole] = useState('admin');
-  const [authWarning, setAuthWarning] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const { user, ready } = useAdminGuard();
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -234,8 +138,6 @@ export default function AdminEvents() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
-
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -245,26 +147,10 @@ export default function AdminEvents() {
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
-  // Firebase Auth state — matches the security rules' isAdmin() check
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setAuthWarning(!user);
-
-      if (user) {
-        setAdminName(user.displayName || user.email || 'Admin');
-        setAdminRole('admin');
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
   const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
-      const eventsRef = collection(db, 'events');
-      const q = query(eventsRef, orderBy('date', 'desc'));
+      const q = query(collection(db, 'events'), orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
 
       const data: EventItem[] = snapshot.docs.map((d) => ({
@@ -288,8 +174,8 @@ export default function AdminEvents() {
   }, []);
 
   useEffect(() => {
-    loadEvents();
-  }, [loadEvents]);
+    if (ready) loadEvents();
+  }, [ready, loadEvents]);
 
   const stats = (() => {
     let eventCount = 0;
@@ -315,9 +201,9 @@ export default function AdminEvents() {
       editId: item._id || '',
       title: item.title || '',
       date: item.date || '',
-      category: CATEGORY_OPTIONS.find(
-        (c) => c.toLowerCase() === (item.category || '').toLowerCase()
-      ) || 'General',
+      category:
+        CATEGORY_OPTIONS.find((c) => c.toLowerCase() === (item.category || '').toLowerCase()) ||
+        'General',
       image: item.image || '',
       description: item.description || '',
     });
@@ -328,7 +214,7 @@ export default function AdminEvents() {
   const hideForm = () => setFormOpen(false);
 
   const handleSave = async () => {
-    if (!currentUser) {
+    if (!user) {
       showToast('Please log in first.', true);
       return;
     }
@@ -390,7 +276,7 @@ export default function AdminEvents() {
     const id = pendingDeleteId;
     closeDeleteModal();
 
-    if (!currentUser) {
+    if (!user) {
       showToast('Please log in first.', true);
       return;
     }
@@ -409,14 +295,7 @@ export default function AdminEvents() {
     }
   };
 
-  const handleLogout = () => {
-    auth.signOut();
-    ['mycalinan_uid', 'mycalinan_token', 'mycalinan_username', 'mycalinan_role'].forEach((key) => {
-      window.localStorage?.removeItem(key);
-      window.sessionStorage?.removeItem(key);
-    });
-    window.location.href = '/login';
-  };
+  if (!ready) return null;
 
   return (
     <div className="admin-events-root">
@@ -433,47 +312,6 @@ export default function AdminEvents() {
         }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .sidebar {
-          width: 240px; background: #1a5c38; color: #fff;
-          display: flex; flex-direction: column; min-height: 100vh;
-          position: fixed; top: 0; left: 0; z-index: 50;
-        }
-        .sidebar .logo { padding: 24px 24px 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
-        .sidebar .logo h2 { font-size: 1.2rem; font-weight: 700; margin: 0; }
-        .sidebar .logo p { font-size: .75rem; opacity: .65; margin-top: 2px; }
-
-        .admin-badge {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 24px; border-bottom: 1px solid rgba(255,255,255,.1);
-          background: rgba(0,0,0,.12);
-        }
-        .admin-avatar {
-          width: 34px; height: 34px; background: rgba(255,255,255,.25);
-          border-radius: 50%; display: flex; align-items: center; justify-content: center;
-          font-size: .9rem; font-weight: 700; flex-shrink: 0;
-        }
-        .admin-info { min-width: 0; }
-        .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
-
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0;}
-        .sidebar .menu li a {
-          display: flex; align-items: center; gap: 12px; padding: 12px 24px;
-          color: rgba(255,255,255,.82); text-decoration: none; font-size: .88rem;
-          transition: background .2s, color .2s;
-        }
-        .sidebar .menu li a:hover, .sidebar .menu li.active a { background: rgba(255,255,255,.15); color: #fff; }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
-        .logout-btn {
-          display: flex; align-items: center; gap: 10px; width: 100%;
-          padding: 10px 16px; background: rgba(231,76,60,.2);
-          border: 1px solid rgba(231,76,60,.35); color: #ff8f85;
-          border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer;
-          transition: background .2s, color .2s;
-        }
-        .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
 
         .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
 
@@ -495,13 +333,6 @@ export default function AdminEvents() {
         .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
         .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
         .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
-
-        .auth-warning {
-          background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px;
-          padding: 14px 20px; margin-bottom: 22px; font-size: .88rem; color: #856404;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .auth-warning a { color: #6b5200; font-weight: 600; }
 
         .form-section, .table-section {
           background: #fff; border-radius: 12px; padding: 26px 28px;
@@ -564,7 +395,7 @@ export default function AdminEvents() {
 
         table { width: 100%; border-collapse: collapse; font-size: .86rem; }
         thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid#e8f0ec; vertical-align: top; }
+        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
         th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
         tbody tr:hover td { background: #f9fdfb; }
 
@@ -584,7 +415,7 @@ export default function AdminEvents() {
 
         td button {
           padding: 5px 12px; border-radius: 6px; font-size: .78rem; font-weight: 600;
-          cursor: pointer; border: none; margin-right: 5px; transition: opacity.2s;
+          cursor: pointer; border: none; margin-right: 5px; transition: opacity .2s;
           display: inline-flex; align-items: center; gap: 5px;
         }
         td button:hover { opacity: .8; }
@@ -594,27 +425,18 @@ export default function AdminEvents() {
         .table-state td { text-align: center; padding: 40px; color: #888; }
 
         @media (max-width: 768px) {
-          .sidebar { width: 200px; }
           .content { margin-left: 200px; padding: 18px; }
           .form-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 540px) {
-          .sidebar { display: none; }
           .content { margin-left: 0; }
         }
       `}</style>
 
-      <Sidebar adminName={adminName} adminRole={adminRole} onLogoutClick={() => setLogoutModalOpen(true)} />
+      <AdminSidebar />
 
       <main className="content">
         <Toast toast={toast} />
-
-        {authWarning && (
-          <div className="auth-warning">
-            <AlertTriangle size={16} />
-            You are not logged in. <a href="/login">Click here to log in</a> — changes will not be saved until you do.
-          </div>
-        )}
 
         <div className="header">
           <h1>
@@ -752,6 +574,7 @@ export default function AdminEvents() {
                     <td>
                       <div className="title-cell">
                         {item.image && (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             className="title-thumb"
                             src={item.image}
@@ -786,7 +609,6 @@ export default function AdminEvents() {
       </main>
 
       <DeleteModal open={deleteModalOpen} onCancel={closeDeleteModal} onConfirm={handleConfirmDelete} />
-      <LogoutModal open={logoutModalOpen} onStay={() => setLogoutModalOpen(false)} onConfirm={handleLogout} />
     </div>
   );
 }
