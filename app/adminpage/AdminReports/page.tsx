@@ -1,21 +1,18 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Gauge,
-  Home,
   CalendarDays,
   Megaphone,
   LineChart,
-  LogOut,
   Printer,
-  AlertTriangle,
   Layers,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { db, auth } from '@/lib/Firebase';
+import { db } from '@/lib/Firebase';
+import useAdminGuard from '@/hooks/useAdminGuard';
+import AdminSidebar from '@/components/AdminSidebar';
 
 /* ─────────────────────────────────────────────────────────
    Config
@@ -63,62 +60,6 @@ function tally(items: Posting[]): CategoryCounts {
 
 const sumCounts = (counts: CategoryCounts) =>
   Object.values(counts).reduce((s, n) => s + n, 0);
-
-/* ─────────────────────────────────────────────────────────
-   Sidebar
-   ───────────────────────────────────────────────────────── */
-
-interface SidebarProps {
-  adminName: string;
-  adminRole: string;
-  onLogoutClick: () => void;
-}
-
-const menuItems = [
-  { label: 'Dashboard', href: '/adminpage/AdminDashboard', icon: Gauge },
-  { label: 'Home Page', href: '/', icon: Home },
-  { label: 'Events & Festivals', href: '/adminpage/AdminEvents', icon: CalendarDays },
-  { label: 'Announcements', href: '/adminpage/AdminAnnouncements', icon: Megaphone },
-  { label: 'Listings', href: '/adminpage/AdminListings', icon: Layers },
-  { label: 'Reports', href: '/adminpage/AdminReports', icon: LineChart, active: true },
-];
-
-function Sidebar({ adminName, adminRole, onLogoutClick }: SidebarProps) {
-  return (
-    <aside className="sidebar">
-      <div className="logo">
-        <h2>MyCalinan</h2>
-        <p>Admin Panel</p>
-      </div>
-
-      <div className="admin-badge">
-        <div className="admin-avatar">{adminName.charAt(0).toUpperCase() || 'A'}</div>
-        <div className="admin-info">
-          <div className="name">{adminName}</div>
-          <div className="role">{adminRole}</div>
-        </div>
-      </div>
-
-      <ul className="menu">
-        {menuItems.map(({ label, href, icon: Icon, active }) => (
-          <li key={label} className={active ? 'active' : ''}>
-            <a href={href}>
-              <Icon size={16} />
-              {label}
-            </a>
-          </li>
-        ))}
-      </ul>
-
-      <div className="sidebar-footer">
-        <button className="logout-btn" onClick={onLogoutClick}>
-          <LogOut size={16} />
-          Log Out
-        </button>
-      </div>
-    </aside>
-  );
-}
 
 /* ─────────────────────────────────────────────────────────
    Breakdown panel (bars)
@@ -179,71 +120,16 @@ function BreakdownPanel({
 }
 
 /* ─────────────────────────────────────────────────────────
-   Logout confirm modal
-   ───────────────────────────────────────────────────────── */
-
-function LogoutModal({
-  open,
-  onStay,
-  onConfirm,
-}: {
-  open: boolean;
-  onStay: () => void;
-  onConfirm: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div
-      className="modal-overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onStay();
-      }}
-    >
-      <div className="modal-box">
-        <LogOut size={32} className="modal-icon" />
-        <h3>Log Out?</h3>
-        <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
-        <div className="modal-actions">
-          <button className="btn-stay" onClick={onStay}>
-            Stay
-          </button>
-          <button className="btn-logout" onClick={onConfirm}>
-            Log Out
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
    Main component
    ───────────────────────────────────────────────────────── */
 
 export default function AdminReports() {
-  const [adminName, setAdminName] = useState('Admin');
-  const [adminRole, setAdminRole] = useState('admin');
-  const [authWarning, setAuthWarning] = useState(false);
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const { ready } = useAdminGuard();
 
   const [announcements, setAnnouncements] = useState<Posting[]>([]);
   const [events, setEvents] = useState<Posting[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-
-  // Firebase Auth state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
-      setAuthWarning(!user);
-
-      if (user) {
-        setAdminName(user.displayName || user.email || 'Admin');
-        setAdminRole('admin');
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   const loadReport = useCallback(async () => {
     let failed = false;
@@ -273,22 +159,15 @@ export default function AdminReports() {
   }, []);
 
   useEffect(() => {
-    loadReport();
-  }, [loadReport]);
+    if (ready) loadReport();
+  }, [ready, loadReport]);
+
+  if (!ready) return null;
 
   const annCounts = tally(announcements);
   const evtCounts = tally(events);
   const advisoryTotal = annCounts.Advisory + evtCounts.Advisory;
   const allTotal = announcements.length + events.length;
-
-  const handleLogout = () => {
-    auth.signOut();
-    ['mycalinan_uid', 'mycalinan_token', 'mycalinan_username', 'mycalinan_role'].forEach((key) => {
-      window.localStorage?.removeItem(key);
-      window.sessionStorage?.removeItem(key);
-    });
-    window.location.href = '/login';
-  };
 
   return (
     <div className="admin-reports-root">
@@ -304,65 +183,6 @@ export default function AdminReports() {
         }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-        .sidebar {
-          width: 240px;
-          background: #1a5c38;
-          color: #fff;
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh;
-          position: fixed;
-          top: 0; left: 0;
-          z-index: 50;
-        }
-        .sidebar .logo { padding: 24px 24px 18px; border-bottom: 1px solid rgba(255,255,255,.15); }
-        .sidebar .logo h2 { font-size: 1.2rem; font-weight: 700; margin: 0; }
-        .sidebar .logo p { font-size: .75rem; opacity: .65; margin-top: 2px; }
-
-        .admin-badge {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 24px;
-          border-bottom: 1px solid rgba(255,255,255,.1);
-          background: rgba(0,0,0,.12);
-        }
-        .admin-avatar {
-          width: 34px; height: 34px;
-          background: rgba(255,255,255,.25);
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: .9rem; font-weight: 700; flex-shrink: 0;
-        }
-        .admin-info { min-width: 0; }
-        .admin-info .name { font-size: .82rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-info .role { font-size: .7rem; color: rgba(255,255,255,.6); text-transform: capitalize; }
-
-        .sidebar .menu { list-style: none; padding: 16px 0; flex: 1; margin: 0;}
-        .sidebar .menu li a {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 24px;
-          color: rgba(255,255,255,.82);
-          text-decoration: none;
-          font-size: .88rem;
-          transition: background .2s, color .2s;
-        }
-        .sidebar .menu li a:hover,
-        .sidebar .menu li.active a { background: rgba(255,255,255,.15); color: #fff; }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); }
-        .logout-btn {
-          display: flex; align-items: center; gap: 10px;
-          width: 100%;
-          padding: 10px 16px;
-          background: rgba(231,76,60,.2);
-          border: 1px solid rgba(231,76,60,.35);
-          color: #ff8f85;
-          border-radius: 8px;
-          font-size: .85rem; font-weight: 600;
-          cursor: pointer;
-          transition: background .2s, color .2s;
-        }
-        .logout-btn:hover { background: rgba(231,76,60,.4); color: #fff; }
 
         .content { margin-left: 240px; padding: 32px 36px; flex: 1; }
 
@@ -384,14 +204,6 @@ export default function AdminReports() {
           transition: background .2s;
         }
         .export-btn:hover { background: #145029; }
-
-        .auth-warning {
-          background: #fff3cd; border: 1px solid #ffc107;
-          border-radius: 10px; padding: 14px 20px; margin-bottom: 22px;
-          font-size: .88rem; color: #856404;
-          display: flex; align-items: center; gap: 8px;
-        }
-        .auth-warning a { color: #6b5200; font-weight: 600; }
 
         .stats {
           display: grid;
@@ -433,64 +245,31 @@ export default function AdminReports() {
         }
         table { width: 100%; border-collapse: collapse; font-size: .86rem; }
         thead { background: #f4faf6; }
-        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid#e8f0ec; vertical-align: top; }
+        th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #e8f0ec; vertical-align: top; }
         th { font-weight: 700; color: #1a3d28; font-size: .78rem; text-transform: uppercase; letter-spacing: .4px; }
         tbody tr:hover td { background: #f9fdfb; }
         td.num { text-align: right; font-weight: 600; color: #1a3d28; }
         .table-state td { text-align: center; padding: 40px; color: #888; }
         .total-row { background: #f4faf6; }
 
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: flex; align-items: center; justify-content: center; z-index:8000;
-        }
-        .modal-box {
-          background: #fff; border-radius: 14px; padding: 30px 32px;
-          max-width: 380px; width: 90%; text-align: center;
-          box-shadow: 0 8px 32px rgba(0,0,0,.18);
-        }
-        .modal-icon { color: #1a5c38; margin-bottom: 10px; }
-        .modal-box h3 { font-size: 1.1rem; font-weight: 700; color: #1a3d28; margin-bottom: 8px; }
-        .modal-box p { font-size: .88rem; color: #666; margin-bottom: 22px; }
-        .modal-actions { display: flex; gap: 10px; justify-content: center; }
-        .modal-actions button {
-          padding: 9px 24px; border-radius: 8px; font-size: .88rem; font-weight: 600;
-          cursor: pointer; border: none;
-        }
-        .btn-stay { background: #e8f0ec; color: #333; }
-        .btn-logout { background: #1a5c38; color: #fff; }
-
         @media (max-width: 900px) {
           .panels { grid-template-columns: 1fr; }
         }
         @media (max-width: 768px) {
-          .sidebar { width: 200px; }
           .content { margin-left: 200px; padding: 18px; }
         }
         @media (max-width: 540px) {
-          .sidebar { display: none; }
           .content { margin-left: 0; }
         }
         @media print {
-          .sidebar, .export-btn, .auth-warning { display: none !important; }
+          .adm-sidebar, .export-btn { display: none !important; }
           .content { margin-left: 0; }
         }
       `}</style>
 
-      <Sidebar
-        adminName={adminName}
-        adminRole={adminRole}
-        onLogoutClick={() => setLogoutModalOpen(true)}
-      />
+      <AdminSidebar />
 
       <main className="content">
-        {authWarning && (
-          <div className="auth-warning">
-            <AlertTriangle size={16} />
-            You are not logged in. <a href="/login">Click here to log in</a>.
-          </div>
-        )}
-
         <div className="header">
           <h1>
             <LineChart size={20} color="#1a5c38" />
@@ -589,12 +368,6 @@ export default function AdminReports() {
           </table>
         </section>
       </main>
-
-      <LogoutModal
-        open={logoutModalOpen}
-        onStay={() => setLogoutModalOpen(false)}
-        onConfirm={handleLogout}
-      />
     </div>
   );
 }

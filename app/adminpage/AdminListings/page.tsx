@@ -5,21 +5,14 @@
    TABS: Applications     -> review business applications, approve & publish
          Explore Listings -> manage EVERYTHING shown on the Explore pages
 
-   CHANGE IN THIS VERSION:
-   - Documents (Business Permit, DTI, Barangay Clearance, Barangay
-     Certification, Cedula) now open in an in-app PreviewModal
-     instead of a new browser tab. Images render directly; PDFs
-     render via an <iframe> using the browser's built-in viewer.
-     An "Open in new tab" link stays inside the modal so nothing
-     is lost — it still relies on your Storage rules allowing the
-     signed-in admin to read those files.
+   - Shared AdminSidebar (Admin lang, naa ang Rules ug Log Out)
+   - Firebase Auth admin guard (wala nay localStorage)
+   - Documents open in an in-app PreviewModal
    ============================================================ */
 
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   collection,
   onSnapshot,
@@ -32,6 +25,8 @@ import {
 } from "firebase/firestore";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/Firebase";
+import useAdminGuard from "@/hooks/useAdminGuard";
+import AdminSidebar from "@/components/AdminSidebar";
 import type { BusinessRegistration, DocStatus, DocumentEntry } from "@/types/business";
 import {
   EXPLORE_PAGES,
@@ -61,18 +56,6 @@ const DOC_LABELS: Record<string, string> = {
   barangayCertification: "Barangay Certification",
   cedula: "Cedula",
 };
-
-function getStoredAdmin() {
-  const username =
-    localStorage.getItem("mycalinan_username") ||
-    sessionStorage.getItem("mycalinan_username") ||
-    "Admin";
-  const role =
-    localStorage.getItem("mycalinan_role") ||
-    sessionStorage.getItem("mycalinan_role") ||
-    "admin";
-  return { username, role };
-}
 
 function statusStyle(status: DocStatus): { background: string; color: string } {
   if (status === "approved") return { background: "#d4edda", color: "#155724" };
@@ -391,9 +374,9 @@ function BusinessCard({
 
 /* ── Main page ── */
 export default function AdminListingsPage() {
-  const router = useRouter();
+  const { user, ready } = useAdminGuard();
+  const reviewer = user?.email ?? "Admin";
 
-  const [admin, setAdmin] = useState({ username: "Admin", role: "admin" });
   const [tab, setTab] = useState<"applications" | "explore">("applications");
   const [businesses, setBusinesses] = useState<AdminBusiness[]>([]);
   const [loading, setLoading] = useState(true);
@@ -404,19 +387,10 @@ export default function AdminListingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdminBusiness | null>(null);
   const [preview, setPreview] = useState<PreviewFile | null>(null);
 
-  /* Admin-only guard (same check as the dashboard) */
-  useEffect(() => {
-    const role =
-      localStorage.getItem("mycalinan_role") || sessionStorage.getItem("mycalinan_role");
-    if (role !== "admin") {
-      router.push("/login");
-      return;
-    }
-    setAdmin(getStoredAdmin());
-  }, [router]);
-
   /* Real-time list of applications */
   useEffect(() => {
+    if (!ready) return;
+
     const q = query(collection(db, "businesses"), orderBy("submittedAt", "desc"));
     const unsubscribe = onSnapshot(
       q,
@@ -436,7 +410,7 @@ export default function AdminListingsPage() {
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [ready]);
 
   /* Approve (first publish) or edit. Writes into the existing category collection. */
   const saveListing = useCallback(
@@ -471,14 +445,14 @@ export default function AdminListingsPage() {
         rejectionReason: null,
         listing: data,
         ...(biz.overallStatus !== "approved"
-          ? { reviewedAt: serverTimestamp(), reviewedBy: admin.username }
+          ? { reviewedAt: serverTimestamp(), reviewedBy: reviewer }
           : {}),
       });
 
       await batch.commit();
       setPublishTarget(null);
     },
-    [admin.username]
+    [reviewer]
   );
 
   const confirmReject = useCallback(
@@ -489,7 +463,7 @@ export default function AdminListingsPage() {
         batch.update(doc(db, "businesses", rejectTargetId), {
           overallStatus: "rejected",
           reviewedAt: serverTimestamp(),
-          reviewedBy: admin.username,
+          reviewedBy: reviewer,
           rejectionReason: reason || "No reason provided.",
         });
         await batch.commit();
@@ -499,7 +473,7 @@ export default function AdminListingsPage() {
         setRejectTargetId(null);
       }
     },
-    [rejectTargetId, admin.username]
+    [rejectTargetId, reviewer]
   );
 
   /* Delete: Explore doc first, then the application, then files (best effort) */
@@ -537,6 +511,8 @@ export default function AdminListingsPage() {
     [businesses]
   );
 
+  if (!ready) return null;
+
   const filtered =
     filter === "all" ? businesses : businesses.filter((b) => b.overallStatus === filter);
   const pendingCount = businesses.filter((b) => b.overallStatus === "pending").length;
@@ -550,54 +526,7 @@ export default function AdminListingsPage() {
 
   return (
     <div style={styles.body}>
-      {/* ── SIDEBAR (matches AdminDashboard) ── */}
-      <aside style={styles.sidebar}>
-        <div style={styles.logoBlock}>
-          <h2 style={styles.logoH2}>MyCalinan</h2>
-          <p style={styles.logoP}>Admin Panel</p>
-        </div>
-
-        <div style={styles.adminBadge}>
-          <div style={styles.adminAvatar}>{admin.username.charAt(0).toUpperCase()}</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={styles.adminName}>{admin.username}</div>
-            <div style={styles.adminRole}>{admin.role}</div>
-          </div>
-        </div>
-
-        <ul style={styles.menu}>
-          <li>
-            <Link href="/adminpage/AdminDashboard" style={styles.menuLink}>
-              <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
-            </Link>
-          </li>
-          <li>
-            <Link href="/" style={styles.menuLink}>
-              <i className="fas fa-home" style={styles.menuIcon} /> Home Page
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminEvents" style={styles.menuLink}>
-              <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
-              <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminListings" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
-              <i className="fas fa-list" style={styles.menuIcon} /> Listings
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminReports" style={styles.menuLink}>
-              <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
-            </Link>
-          </li>
-        </ul>
-      </aside>
+      <AdminSidebar />
 
       {/* ── MAIN ── */}
       <main style={styles.content}>

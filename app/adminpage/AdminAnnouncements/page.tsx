@@ -12,15 +12,9 @@ import {
   query,
   serverTimestamp,
 } from 'firebase/firestore';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { db, auth } from '@/lib/Firebase';
-
-/**
- * NOTE: This component uses Font Awesome icon classes (fa-*).
- * Add the stylesheet once in app/layout.tsx <head>:
- *   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
- * and set the favicon there as well (rel="icon", href="/image/CALINAN LOGO.png").
- */
+import { db } from '@/lib/Firebase';
+import useAdminGuard from '@/hooks/useAdminGuard';
+import AdminSidebar from '@/components/AdminSidebar';
 
 /* ── Types ── */
 interface Announcement {
@@ -51,13 +45,10 @@ const EMPTY_FORM: AnnouncementFormState = {
 };
 
 export default function AdminAnnouncementsPage() {
+  const { user, ready } = useAdminGuard();
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'empty' | 'error' | 'ready'>('loading');
-
-  const [adminName, setAdminName] = useState('Admin');
-  const [adminRole, setAdminRole] = useState('admin');
-  const [isAuthed, setIsAuthed] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<AnnouncementFormState>(EMPTY_FORM);
@@ -66,22 +57,6 @@ export default function AdminAnnouncementsPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [logoutOpen, setLogoutOpen] = useState(false);
-
-  /* ── Auth (Firebase Auth instead of localStorage JWT) ── */
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setIsAuthed(!!user);
-
-      if (user) {
-        setAdminName(user.displayName || user.email || 'Admin');
-        setAdminRole('admin');
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   /* ── Toast ── */
   function showToast(message: string, isError = false) {
@@ -104,8 +79,7 @@ export default function AdminAnnouncementsPage() {
   async function loadAnnouncements() {
     try {
       setLoadState('loading');
-      const announcementsRef = collection(db, 'announcements');
-      const q = query(announcementsRef, orderBy('date', 'desc'));
+      const q = query(collection(db, 'announcements'), orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
 
       const data: Announcement[] = snapshot.docs.map((d) => ({
@@ -127,9 +101,9 @@ export default function AdminAnnouncementsPage() {
   }
 
   useEffect(() => {
-    loadAnnouncements();
+    if (ready) loadAnnouncements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
 
   /* ── Derived stats ── */
   const stats = {
@@ -155,7 +129,7 @@ export default function AdminAnnouncementsPage() {
 
   /* ── Save (create or update) — Firestore ── */
   async function saveAnnouncement() {
-    if (!currentUser) {
+    if (!user) {
       showToast('Please log in first.', true);
       return;
     }
@@ -232,7 +206,7 @@ export default function AdminAnnouncementsPage() {
     const id = deleteTargetId;
     closeModal();
 
-    if (!currentUser) {
+    if (!user) {
       showToast('Please log in first.', true);
       return;
     }
@@ -251,98 +225,18 @@ export default function AdminAnnouncementsPage() {
     }
   }
 
-  /* ── Logout ── */
-  function confirmLogout() {
-    setLogoutOpen(true);
-  }
-
-  function closeLogoutModal() {
-    setLogoutOpen(false);
-  }
-
-  function doLogout() {
-    auth.signOut();
-    localStorage.removeItem('mycalinan_uid');
-    localStorage.removeItem('mycalinan_token');
-    localStorage.removeItem('mycalinan_username');
-    localStorage.removeItem('mycalinan_role');
-    sessionStorage.removeItem('mycalinan_uid');
-    sessionStorage.removeItem('mycalinan_token');
-    sessionStorage.removeItem('mycalinan_username');
-    sessionStorage.removeItem('mycalinan_role');
-    window.location.href = '/login';
-  }
+  if (!ready) return null;
 
   return (
     <>
       <div className="admin-shell">
-        {/* ── SIDEBAR ── */}
-        <aside className="sidebar">
-          <div className="logo">
-            <h2>MyCalinan</h2>
-            <p>Admin Panel</p>
-          </div>
-
-          <div className="admin-badge">
-            <div className="admin-avatar">{adminName.charAt(0).toUpperCase()}</div>
-            <div className="admin-info">
-              <div className="name">{adminName}</div>
-              <div className="role">{adminRole}</div>
-            </div>
-          </div>
-
-          <ul className="menu">
-            <li>
-              <a href="/adminpage/AdminDashboard">
-                <i className="fas fa-gauge" /> Dashboard
-              </a>
-            </li>
-            <li>
-              <a href="/">
-                <i className="fas fa-home" /> Home Page
-              </a>
-            </li>
-            <li>
-              <a href="/adminpage/AdminEvents">
-                <i className="fas fa-calendar-alt" /> Events &amp; Festivals
-              </a>
-            </li>
-            <li className="active">
-              <a href="/adminpage/AdminAnnouncements">
-                <i className="fas fa-bullhorn" /> Announcements
-              </a>
-            </li>
-            <li>
-              <a href="/adminpage/AdminListings">
-                <i className="fas fa-list" /> Listings
-              </a>
-            </li>
-            <li>
-              <a href="/adminpage/AdminReports">
-                <i className="fas fa-chart-line" /> Reports
-              </a>
-            </li>
-          </ul>
-
-          <div className="sidebar-footer">
-            <button className="logout-btn" onClick={confirmLogout}>
-              <i className="fas fa-sign-out-alt" /> Log Out
-            </button>
-          </div>
-        </aside>
+        <AdminSidebar />
 
         {/* ── MAIN ── */}
         <main className="content">
           {toast && (
             <div id="toast" style={{ display: 'block', background: toast.isError ? '#c0392b' : '#1a5c38' }}>
               {toast.message}
-            </div>
-          )}
-
-          {!isAuthed && (
-            <div className="auth-warning" style={{ display: 'block' }}>
-              <i className="fas fa-exclamation-triangle" /> You are not logged in.{' '}
-              <a href="/login">Click here to log in</a> — changes will not be saved until you do.
             </div>
           )}
 
@@ -527,37 +421,7 @@ export default function AdminAnnouncementsPage() {
         </div>
       </div>
 
-      {/* ── LOGOUT CONFIRM MODAL ── */}
-      <div
-        className={`modal-overlay${logoutOpen ? ' open' : ''}`}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) closeLogoutModal();
-        }}
-      >
-        <div className="modal-box">
-          <i className="fas fa-sign-out-alt" style={{ color: '#1a5c38' }} />
-          <h3>Log Out?</h3>
-          <p>You will be returned to the login page. Any unsaved changes will be lost.</p>
-          <div className="modal-btns">
-            <button className="modal-cancel" onClick={closeLogoutModal}>
-              Stay
-            </button>
-            <button className="modal-confirm" style={{ background: '#1a5c38' }} onClick={doLogout}>
-              Log Out
-            </button>
-          </div>
-        </div>
-      </div>
-
       <style jsx global>{`
-        * ,
-        *::before,
-        *::after {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-
         body {
           font-family: 'Segoe UI', sans-serif;
           background: #f0f4f8;
@@ -566,127 +430,6 @@ export default function AdminAnnouncementsPage() {
         .admin-shell {
           display: flex;
           min-height: 100vh;
-        }
-
-        .sidebar {
-          width: 240px;
-          background: #1a5c38;
-          color: #fff;
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh;
-          position: fixed;
-          top: 0;
-          left: 0;
-          z-index: 50;
-        }
-
-        .sidebar .logo {
-          padding: 24px 24px 18px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-        }
-
-        .sidebar .logo h2 {
-          font-size: 1.2rem;
-          font-weight: 700;
-        }
-        .sidebar .logo p {
-          font-size: 0.75rem;
-          opacity: 0.65;
-          margin-top: 2px;
-        }
-
-        .admin-badge {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 14px 24px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(0, 0, 0, 0.12);
-        }
-
-        .admin-avatar {
-          width: 34px;
-          height: 34px;
-          background: rgba(255, 255, 255, 0.25);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.9rem;
-          font-weight: 700;
-          flex-shrink: 0;
-        }
-
-        .admin-info {
-          min-width: 0;
-        }
-        .admin-info .name {
-          font-size: 0.82rem;
-          font-weight: 600;
-          color: #fff;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .admin-info .role {
-          font-size: 0.7rem;
-          color: rgba(255, 255, 255, 0.6);
-          text-transform: capitalize;
-        }
-
-        .sidebar .menu {
-          list-style: none;
-          padding: 16px 0;
-          flex: 1;
-        }
-
-        .sidebar .menu li a {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 24px;
-          color: rgba(255, 255, 255, 0.82);
-          text-decoration: none;
-          font-size: 0.88rem;
-          transition: background 0.2s, color 0.2s;
-        }
-
-        .sidebar .menu li a:hover,
-        .sidebar .menu li.active a {
-          background: rgba(255, 255, 255, 0.15);
-          color: #fff;
-        }
-
-        .sidebar .menu li a i {
-          width: 16px;
-          text-align: center;
-        }
-
-        .sidebar-footer {
-          padding: 16px 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          width: 100%;
-          padding: 10px 16px;
-          background: rgba(231, 76, 60, 0.2);
-          border: 1px solid rgba(231, 76, 60, 0.35);
-          color: #ff8f85;
-          border-radius: 8px;
-          font-size: 0.85rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: background 0.2s, color 0.2s;
-        }
-
-        .logout-btn:hover {
-          background: rgba(231, 76, 60, 0.4);
-          color: #fff;
         }
 
         .content {
@@ -757,16 +500,6 @@ export default function AdminAnnouncementsPage() {
           font-size: 0.78rem;
           color: #777;
           margin-top: 2px;
-        }
-
-        .auth-warning {
-          background: #fff3cd;
-          border: 1px solid #ffc107;
-          border-radius: 10px;
-          padding: 14px 20px;
-          margin-bottom: 22px;
-          font-size: 0.88rem;
-          color: #856404;
         }
 
         .form-section,
@@ -1052,9 +785,6 @@ export default function AdminAnnouncementsPage() {
         }
 
         @media (max-width: 768px) {
-          .sidebar {
-            width: 200px;
-          }
           .content {
             margin-left: 200px;
             padding: 18px;
@@ -1065,9 +795,6 @@ export default function AdminAnnouncementsPage() {
         }
 
         @media (max-width: 540px) {
-          .sidebar {
-            display: none;
-          }
           .content {
             margin-left: 0;
           }

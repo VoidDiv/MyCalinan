@@ -1,64 +1,35 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
+import useAdminGuard from "@/hooks/useAdminGuard";
+import AdminSidebar from "@/components/AdminSidebar";
 
 /* ── Types ── */
 interface Posting {
-  _id?: string;
+  _id: string;
   title?: string;
   date?: string;
   category?: string;
   image?: string;
   description?: string;
+  createdAt?: { toMillis?: () => number } | null;
 }
 
-interface BusinessSubmission {
+interface PendingBusiness {
   id: string;
-  username?: string;
-  ownerFullName?: string;
   businessName?: string;
+  fullName?: string;
   businessType?: string;
-  yearOperating?: string;
-  establishmentPictureUrl?: string;
-  registrationStatus?: string;
-  submittedAt?: { toDate?: () => Date } | null;
+  exploreCategory?: string;
+  overallStatus?: string;
+  submittedAt?: { toMillis?: () => number } | null;
+  documents?: { businessPictures?: { urls?: { url: string }[] } };
 }
 
-/* ── Same public read endpoints used by the Announcements and Events admin pages. ── */
-const ANNOUNCEMENTS_API = "/api/announcements";
-const EVENTS_API = "/api/events";
-
-function getToken(): string {
-  return (
-    localStorage.getItem("mycalinan_token") ||
-    sessionStorage.getItem("mycalinan_token") ||
-    ""
-  );
-}
-
-function getStoredAdmin() {
-  const username =
-    localStorage.getItem("mycalinan_username") ||
-    sessionStorage.getItem("mycalinan_username") ||
-    "Admin";
-  const role =
-    localStorage.getItem("mycalinan_role") ||
-    sessionStorage.getItem("mycalinan_role") ||
-    "admin";
-  return { username, role };
-}
+const millis = (v?: { toMillis?: () => number } | null) => v?.toMillis?.() ?? 0;
 
 function tagStyle(category?: string): { background: string; color: string } {
   const c = (category || "").toLowerCase();
@@ -83,14 +54,10 @@ function RecentList({
   failed: boolean;
   emptyLabel: string;
 }) {
-  if (failed) {
-    return <div style={styles.panelState}>⚠️ Cannot connect to server.</div>;
-  }
-  if (!items || items.length === 0) {
-    return <div style={styles.panelState}>{emptyLabel}</div>;
-  }
+  if (failed) return <div style={styles.panelState}>⚠️ Unable to load from Firestore.</div>;
+  if (!items || items.length === 0) return <div style={styles.panelState}>{emptyLabel}</div>;
 
-  const recent = items.slice(-5).reverse();
+  const recent = items.slice(0, 5);
 
   return (
     <>
@@ -98,13 +65,14 @@ function RecentList({
         const tag = tagStyle(item.category);
         return (
           <div
-            key={item._id || idx}
+            key={item._id}
             style={{
               ...styles.itemRow,
               borderBottom: idx === recent.length - 1 ? "none" : "1px solid #f0f4f0",
             }}
           >
             {item.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={item.image}
                 alt=""
@@ -130,179 +98,108 @@ function RecentList({
   );
 }
 
-/* ── Pending business submissions panel (real-time) ── */
-function BusinessApprovalPanel({
-  items,
-  onApprove,
-  onReject,
-  actioningId,
-}: {
-  items: BusinessSubmission[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  actioningId: string | null;
-}) {
-  if (!items || items.length === 0) {
+/* ── Pending business submissions (real-time) ── */
+function PendingPanel({ items }: { items: PendingBusiness[] }) {
+  if (items.length === 0) {
     return <div style={styles.panelState}>No pending business submissions.</div>;
   }
 
   return (
     <>
-      {items.map((biz, idx) => (
-        <div
-          key={biz.id}
-          style={{
-            ...styles.itemRow,
-            borderBottom: idx === items.length - 1 ? "none" : "1px solid #f0f4f0",
-          }}
-        >
-          {biz.establishmentPictureUrl ? (
-            <img src={biz.establishmentPictureUrl} alt="" style={styles.itemThumb} />
-          ) : (
-            <div style={styles.itemThumb} />
-          )}
-          <div style={styles.itemBody}>
-            <div style={styles.itemTitle}>{biz.businessName || "—"}</div>
-            <div style={styles.itemMeta}>
-              {biz.ownerFullName || biz.username} • {biz.businessType || "—"}
+      {items.map((biz, idx) => {
+        const pic = biz.documents?.businessPictures?.urls?.[0]?.url;
+        return (
+          <div
+            key={biz.id}
+            style={{
+              ...styles.itemRow,
+              alignItems: "center",
+              borderBottom: idx === items.length - 1 ? "none" : "1px solid #f0f4f0",
+            }}
+          >
+            {pic ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={pic} alt="" style={styles.itemThumb} />
+            ) : (
+              <div style={styles.itemThumb} />
+            )}
+            <div style={styles.itemBody}>
+              <div style={styles.itemTitle}>{biz.businessName || "—"}</div>
+              <div style={styles.itemMeta}>
+                {biz.fullName || "—"} • {biz.exploreCategory || biz.businessType || "—"}
+              </div>
             </div>
+            <Link href="/adminpage/AdminListings" style={styles.reviewBtn}>
+              Review
+            </Link>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <button
-              style={styles.approveBtn}
-              disabled={actioningId === biz.id}
-              onClick={() => onApprove(biz.id)}
-            >
-              {actioningId === biz.id ? "..." : "Approve"}
-            </button>
-            <button
-              style={styles.rejectBtn}
-              disabled={actioningId === biz.id}
-              onClick={() => onReject(biz.id)}
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </>
-  );
-}
-
-/* ── Logout confirm modal ── */
-function LogoutModal({
-  open,
-  onStay,
-  onConfirm,
-}: {
-  open: boolean;
-  onStay: () => void;
-  onConfirm: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div
-      style={styles.modalOverlay}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onStay();
-      }}
-    >
-      <div style={styles.modalBox}>
-        <i className="fas fa-sign-out-alt" style={{ color: "#1a5c38", fontSize: "2rem", marginBottom: 10, display: "block" }} />
-        <h3 style={styles.modalTitle}>Log Out?</h3>
-        <p style={styles.modalText}>
-          You will be returned to the login page. Any unsaved changes will be lost.
-        </p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button onClick={onStay} style={styles.modalCancelBtn}>
-            Stay
-          </button>
-          <button onClick={onConfirm} style={styles.modalConfirmBtn}>
-            Log Out
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
 /* ── Main component ── */
 export default function AdminDashboard() {
-  const router = useRouter();
+  const { ready } = useAdminGuard();
 
-  const [admin, setAdmin] = useState({ username: "Admin", role: "admin" });
-  const [authed, setAuthed] = useState(true);
   const [announcements, setAnnouncements] = useState<Posting[]>([]);
   const [events, setEvents] = useState<Posting[]>([]);
   const [announcementsFailed, setAnnouncementsFailed] = useState(false);
   const [eventsFailed, setEventsFailed] = useState(false);
-  const [logoutOpen, setLogoutOpen] = useState(false);
-
-  /* ── Pending business submissions (real-time) ── */
-  const [pendingBusinesses, setPendingBusinesses] = useState<BusinessSubmission[]>([]);
+  const [pendingBusinesses, setPendingBusinesses] = useState<PendingBusiness[]>([]);
   const [businessesFailed, setBusinessesFailed] = useState(false);
-  const [actioningId, setActioningId] = useState<string | null>(null);
 
+  /* Announcements + Events (Firestore, real-time) */
   useEffect(() => {
-    const role =
-      localStorage.getItem("mycalinan_role") ||
-      sessionStorage.getItem("mycalinan_role");
-    const token = getToken();
+    if (!ready) return;
 
-    if (!token || role !== "admin") {
-      router.push("/login");
-      return;
-    }
+    const toPostings = (snap: import("firebase/firestore").QuerySnapshot): Posting[] =>
+      snap.docs
+        .map((d) => ({ _id: d.id, ...(d.data() as Omit<Posting, "_id">) }))
+        .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
 
-    setAdmin(getStoredAdmin());
-    setAuthed(true);
-  }, [router]);
-
-  const loadDashboard = useCallback(async () => {
-    try {
-      const res = await fetch(ANNOUNCEMENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setAnnouncements(data);
-      setAnnouncementsFailed(false);
-    } catch (err) {
-      console.error("Load announcements error:", err);
-      setAnnouncementsFailed(true);
-    }
-
-    try {
-      const res = await fetch(EVENTS_API);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      setEvents(data);
-      setEventsFailed(false);
-    } catch (err) {
-      console.error("Load events error:", err);
-      setEventsFailed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadDashboard();
-    const interval = setInterval(loadDashboard, 30000);
-    return () => clearInterval(interval);
-  }, [loadDashboard]);
-
-  /* ── Real-time listener for pending business submissions ── */
-  useEffect(() => {
-    const q = query(
-      collection(db, "businesses"),
-      where("registrationStatus", "==", "pending"),
-      orderBy("submittedAt", "desc")
+    const unsubAnn = onSnapshot(
+      collection(db, "announcements"),
+      (snap) => {
+        setAnnouncements(toPostings(snap));
+        setAnnouncementsFailed(false);
+      },
+      (err) => {
+        console.error("Announcements listener error:", err);
+        setAnnouncementsFailed(true);
+      }
     );
 
-    const unsubscribe = onSnapshot(
+    const unsubEvt = onSnapshot(
+      collection(db, "events"),
+      (snap) => {
+        setEvents(toPostings(snap));
+        setEventsFailed(false);
+      },
+      (err) => {
+        console.error("Events listener error:", err);
+        setEventsFailed(true);
+      }
+    );
+
+    return () => {
+      unsubAnn();
+      unsubEvt();
+    };
+  }, [ready]);
+
+  /* Pending business applications (real-time) */
+  useEffect(() => {
+    if (!ready) return;
+
+    const q = query(collection(db, "businesses"), where("overallStatus", "==", "pending"));
+    const unsub = onSnapshot(
       q,
-      (snapshot) => {
-        const items: BusinessSubmission[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
+      (snap) => {
+        const items: PendingBusiness[] = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<PendingBusiness, "id">) }))
+          .sort((a, b) => millis(b.submittedAt) - millis(a.submittedAt));
         setPendingBusinesses(items);
         setBusinessesFailed(false);
       },
@@ -311,154 +208,36 @@ export default function AdminDashboard() {
         setBusinessesFailed(true);
       }
     );
+    return () => unsub();
+  }, [ready]);
 
-    return () => unsubscribe();
-  }, []);
-
-  async function handleApprove(id: string) {
-    setActioningId(id);
-    try {
-      await updateDoc(doc(db, "businesses", id), {
-        registrationStatus: "approved",
-        reviewedAt: new Date(),
-      });
-    } catch (err) {
-      console.error("Approve error:", err);
-      alert("Failed to approve. Please try again.");
-    } finally {
-      setActioningId(null);
-    }
-  }
-
-  async function handleReject(id: string) {
-    setActioningId(id);
-    try {
-      await updateDoc(doc(db, "businesses", id), {
-        registrationStatus: "rejected",
-        reviewedAt: new Date(),
-      });
-    } catch (err) {
-      console.error("Reject error:", err);
-      alert("Failed to reject. Please try again.");
-    } finally {
-      setActioningId(null);
-    }
-  }
-
-  function doLogout() {
-    localStorage.removeItem("mycalinan_token");
-    localStorage.removeItem("mycalinan_username");
-    localStorage.removeItem("mycalinan_role");
-    sessionStorage.removeItem("mycalinan_token");
-    sessionStorage.removeItem("mycalinan_username");
-    sessionStorage.removeItem("mycalinan_role");
-    router.push("/login");
-  }
+  if (!ready) return null;
 
   const bothFailed = announcementsFailed && eventsFailed;
   const totalPostings = bothFailed ? "—" : announcements.length + events.length;
   const annTotal = announcementsFailed ? "—" : announcements.length;
   const evtTotal = eventsFailed ? "—" : events.length;
-  const advTotal =
-    announcementsFailed && eventsFailed
-      ? "—"
-      : (announcementsFailed ? 0 : countByCategory(announcements, "advisory")) +
-        (eventsFailed ? 0 : countByCategory(events, "advisory"));
+  const advTotal = bothFailed
+    ? "—"
+    : (announcementsFailed ? 0 : countByCategory(announcements, "advisory")) +
+      (eventsFailed ? 0 : countByCategory(events, "advisory"));
   const pendingTotal = businessesFailed ? "—" : pendingBusinesses.length;
 
   return (
     <div style={styles.body}>
-      {/* Responsive breakpoints — same pattern as AdminAnnouncements/AdminEvents.
-          The classNames here (admin-sidebar / admin-content / admin-panels) sit
-          ALONGSIDE the existing inline `style` props below; !important is needed
-          because inline styles otherwise always win over a stylesheet. */}
-      <style jsx global>{`
+      <style>{`
         @media (max-width: 768px) {
-          .admin-sidebar {
-            width: 200px !important;
-          }
-          .admin-content {
-            margin-left: 200px !important;
-            padding: 18px !important;
-          }
-          .admin-panels {
-            grid-template-columns: 1fr !important;
-          }
+          .admin-content { margin-left: 200px !important; padding: 18px !important; }
+          .admin-panels { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 540px) {
-          .admin-sidebar {
-            display: none !important;
-          }
-          .admin-content {
-            margin-left: 0 !important;
-          }
+          .admin-content { margin-left: 0 !important; }
         }
       `}</style>
 
-      {/* ── SIDEBAR ── */}
-      <aside className="admin-sidebar" style={styles.sidebar}>
-        <div style={styles.logoBlock}>
-          <h2 style={styles.logoH2}>MyCalinan</h2>
-          <p style={styles.logoP}>Admin Panel</p>
-        </div>
+      <AdminSidebar />
 
-        <div style={styles.adminBadge}>
-          <div style={styles.adminAvatar}>{admin.username.charAt(0).toUpperCase()}</div>
-          <div style={{ minWidth: 0 }}>
-            <div style={styles.adminName}>{admin.username}</div>
-            <div style={styles.adminRole}>{admin.role}</div>
-          </div>
-        </div>
-
-        <ul style={styles.menu}>
-          <li>
-            <Link href="/adminpage/AdminDashboard" style={{ ...styles.menuLink, ...styles.menuLinkActive }}>
-              <i className="fas fa-gauge-high" style={styles.menuIcon} /> Dashboard
-            </Link>
-          </li>
-          <li>
-            <Link href="/" style={styles.menuLink}>
-              <i className="fas fa-home" style={styles.menuIcon} /> Home Page
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminEvents" style={styles.menuLink}>
-              <i className="fas fa-calendar-alt" style={styles.menuIcon} /> Events &amp; Festivals
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminAnnouncements" style={styles.menuLink}>
-              <i className="fas fa-bullhorn" style={styles.menuIcon} /> Announcements
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminListings" style={styles.menuLink}>
-              <i className="fas fa-list" style={styles.menuIcon} /> Listings
-            </Link>
-          </li>
-          <li>
-            <Link href="/adminpage/AdminReports" style={styles.menuLink}>
-              <i className="fas fa-chart-line" style={styles.menuIcon} /> Reports
-            </Link>
-          </li>
-        </ul>
-
-        <div style={styles.sidebarFooter}>
-          <button style={styles.logoutBtn} onClick={() => setLogoutOpen(true)}>
-            <i className="fas fa-sign-out-alt" /> Log Out
-          </button>
-        </div>
-      </aside>
-
-      {/* ── MAIN ── */}
       <main className="admin-content" style={styles.content}>
-        {!authed && (
-          <div style={styles.authWarning}>
-            <i className="fas fa-exclamation-triangle" /> You are not logged in.{" "}
-            <Link href="/login">Click here to log in</Link>.
-          </div>
-        )}
-
         <div style={styles.header}>
           <h1 style={styles.headerH1}>
             <i className="fas fa-gauge-high" style={{ color: "#1a5c38", marginRight: 8 }} />
@@ -474,10 +253,9 @@ export default function AdminDashboard() {
           </div>
         </div>
         <p style={styles.subtitle}>
-          Welcome back, {admin.username}. Here&apos;s what&apos;s happening across MyCalinan right now.
+          Welcome back, Admin. Here&apos;s what&apos;s happening across MyCalinan right now.
         </p>
 
-        {/* Combined stats */}
         <div style={styles.stats}>
           <div style={styles.statCard}>
             <i className="fas fa-layer-group" style={styles.statIcon} />
@@ -506,26 +284,23 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Business approval panel (real-time) */}
         <section style={{ ...styles.panel, marginBottom: 24 }}>
           <div style={styles.panelHead}>
             <h2 style={styles.panelH2}>
               <i className="fas fa-store" style={{ color: "#1a5c38", marginRight: 6 }} />
-              Pending Business Approvals
+              Pending Business Applications
             </h2>
             <span style={styles.panelHeadLink}>
               {businessesFailed ? "⚠️ Connection error" : "Live"}
             </span>
           </div>
-          <BusinessApprovalPanel
-            items={pendingBusinesses}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            actioningId={actioningId}
-          />
+          {businessesFailed ? (
+            <div style={styles.panelState}>⚠️ Unable to load applications from Firestore.</div>
+          ) : (
+            <PendingPanel items={pendingBusinesses} />
+          )}
         </section>
 
-        {/* Recent panels */}
         <div className="admin-panels" style={styles.panels}>
           <section style={styles.panel}>
             <div style={styles.panelHead}>
@@ -558,94 +333,17 @@ export default function AdminDashboard() {
           </section>
         </div>
       </main>
-
-      <LogoutModal
-        open={logoutOpen}
-        onStay={() => setLogoutOpen(false)}
-        onConfirm={doLogout}
-      />
     </div>
   );
 }
 
-/* ── Styles (mirrors the original Admin-Dashboard.html CSS) ── */
+/* ── Styles ── */
 const styles: Record<string, React.CSSProperties> = {
   body: {
     fontFamily: "'Segoe UI', sans-serif",
     background: "#f0f4f8",
     display: "flex",
     minHeight: "100vh",
-  },
-  sidebar: {
-    width: 240,
-    background: "#1a5c38",
-    color: "#fff",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: "100vh",
-    position: "fixed",
-    top: 0,
-    left: 0,
-    zIndex: 50,
-  },
-  logoBlock: { padding: "24px 24px 18px", borderBottom: "1px solid rgba(255,255,255,.15)" },
-  logoH2: { fontSize: "1.2rem", fontWeight: 700 },
-  logoP: { fontSize: ".75rem", opacity: 0.65, marginTop: 2 },
-  adminBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "14px 24px",
-    borderBottom: "1px solid rgba(255,255,255,.1)",
-    background: "rgba(0,0,0,.12)",
-  },
-  adminAvatar: {
-    width: 34,
-    height: 34,
-    background: "rgba(255,255,255,.25)",
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: ".9rem",
-    fontWeight: 700,
-    flexShrink: 0,
-  },
-  adminName: {
-    fontSize: ".82rem",
-    fontWeight: 600,
-    color: "#fff",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  adminRole: { fontSize: ".7rem", color: "rgba(255,255,255,.6)", textTransform: "capitalize" },
-  menu: { listStyle: "none", padding: "16px 0", flex: 1 },
-  menuLink: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 24px",
-    color: "rgba(255,255,255,.82)",
-    textDecoration: "none",
-    fontSize: ".88rem",
-  },
-  menuLinkActive: { background: "rgba(255,255,255,.15)", color: "#fff" },
-  menuIcon: { width: 16, textAlign: "center" },
-  sidebarFooter: { padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.1)" },
-  logoutBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-    padding: "10px 16px",
-    background: "rgba(231,76,60,.2)",
-    border: "1px solid rgba(231,76,60,.35)",
-    color: "#ff8f85",
-    borderRadius: 8,
-    fontSize: ".85rem",
-    fontWeight: 600,
-    cursor: "pointer",
   },
   content: { marginLeft: 240, padding: "32px 36px", flex: 1 },
   header: {
@@ -673,15 +371,6 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: "none",
   },
   addBtnOutline: { background: "#fff", color: "#1a5c38", border: "1.5px solid #1a5c38" },
-  authWarning: {
-    background: "#fff3cd",
-    border: "1px solid #ffc107",
-    borderRadius: 10,
-    padding: "14px 20px",
-    marginBottom: 22,
-    fontSize: ".88rem",
-    color: "#856404",
-  },
   stats: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
@@ -716,7 +405,14 @@ const styles: Record<string, React.CSSProperties> = {
   panelH2: { fontSize: "1rem", fontWeight: 700, color: "#1a3d28" },
   panelHeadLink: { fontSize: ".8rem", color: "#1a5c38", fontWeight: 600, textDecoration: "none" },
   itemRow: { display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 0" },
-  itemThumb: { width: 40, height: 40, objectFit: "cover", borderRadius: 8, flexShrink: 0, background: "#e8f0ec" },
+  itemThumb: {
+    width: 40,
+    height: 40,
+    objectFit: "cover",
+    borderRadius: 8,
+    flexShrink: 0,
+    background: "#e8f0ec",
+  },
   itemBody: { minWidth: 0, flex: 1 },
   itemTitle: {
     fontSize: ".86rem",
@@ -727,66 +423,23 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
   },
   itemMeta: { fontSize: ".75rem", color: "#888", marginTop: 2 },
-  tag: { display: "inline-block", padding: "3px 11px", borderRadius: 20, fontSize: ".72rem", fontWeight: 700, flexShrink: 0 },
+  tag: {
+    display: "inline-block",
+    padding: "3px 11px",
+    borderRadius: 20,
+    fontSize: ".72rem",
+    fontWeight: 700,
+    flexShrink: 0,
+  },
   panelState: { textAlign: "center", padding: "30px 10px", color: "#888", fontSize: ".86rem" },
-  approveBtn: {
+  reviewBtn: {
     padding: "7px 16px",
     borderRadius: 8,
     fontSize: ".8rem",
     fontWeight: 600,
-    cursor: "pointer",
-    border: "none",
     background: "#1a5c38",
     color: "#fff",
-  },
-  rejectBtn: {
-    padding: "7px 16px",
-    borderRadius: 8,
-    fontSize: ".8rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    border: "1px solid #e74c3c",
-    background: "#fff",
-    color: "#e74c3c",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,.45)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 8000,
-  },
-  modalBox: {
-    background: "#fff",
-    borderRadius: 14,
-    padding: "30px 32px",
-    maxWidth: 380,
-    width: "90%",
-    textAlign: "center",
-    boxShadow: "0 8px 32px rgba(0,0,0,.18)",
-  },
-  modalTitle: { fontSize: "1.1rem", fontWeight: 700, color: "#1a3d28", marginBottom: 8 },
-  modalText: { fontSize: ".88rem", color: "#666", marginBottom: 22 },
-  modalCancelBtn: {
-    padding: "9px 24px",
-    borderRadius: 8,
-    fontSize: ".88rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    border: "none",
-    background: "#e8f0ec",
-    color: "#333",
-  },
-  modalConfirmBtn: {
-    padding: "9px 24px",
-    borderRadius: 8,
-    fontSize: ".88rem",
-    fontWeight: 600,
-    cursor: "pointer",
-    border: "none",
-    background: "#1a5c38",
-    color: "#fff",
+    textDecoration: "none",
+    flexShrink: 0,
   },
 };
