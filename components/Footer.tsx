@@ -1,4 +1,5 @@
 import Link from "next/link";
+import InstallButton from "@/components/InstallButton";
 
 export default function Footer() {
   return (
@@ -16,6 +17,7 @@ export default function Footer() {
           Privacy notice
         </Link>
       </p>
+      <InstallButton />
     </footer>
   );
 }

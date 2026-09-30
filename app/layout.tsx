@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -20,6 +21,10 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#1f4d33",
+};
+
 export const metadata: Metadata = {
   title: {
     default: "MyCalinan — Calinan, Davao City",
@@ -27,6 +32,15 @@ export const metadata: Metadata = {
   },
   description:
     "Tourism, services, and community information for Calinan Poblacion, Davao City.",
+  applicationName: "MyCalinan",
+  appleWebApp: {
+    capable: true,
+    title: "MyCalinan",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -44,6 +58,7 @@ export default function RootLayout({
         className={`${fraunces.variable} ${inter.variable} ${plexMono.variable} antialiased`}
       >
         {children}
+        <PwaRegister />
       </body>
     </html>
   );
