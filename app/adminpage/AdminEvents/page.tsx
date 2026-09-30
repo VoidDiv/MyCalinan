@@ -19,13 +19,13 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/Firebase';
 import useAdminGuard from '@/hooks/useAdminGuard';
 import AdminSidebar from '@/components/AdminSidebar';
+import ImagePicker from '@/components/ImagePicker';
+import { uploadImage } from '@/lib/uploadImage';
 
 /* ─────────────────────────────────────────────────────────
    Config
@@ -40,6 +40,7 @@ interface EventItem {
   category?: string;
   image?: string;
   description?: string;
+  _sort?: number;
 }
 
 interface FormState {
@@ -141,26 +142,42 @@ export default function AdminEvents() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
   const showToast = (message: string, isError = false) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, isError });
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
-  const loadEvents = useCallback(async () => {
-    try {
-      setLoading(true);
-      const q = query(collection(db, 'events'), orderBy('date', 'desc'));
-      const snapshot = await getDocs(q);
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
-      const data: EventItem[] = snapshot.docs.map((d) => ({
-        _id: d.id,
-        title: d.data().title || '',
-        date: d.data().date || '',
-        category: d.data().category || 'General',
-        image: d.data().image || '',
-        description: d.data().description || '',
-      }));
+  const loadEvents = useCallback(async (showSpinner = true) => {
+    try {
+      if (showSpinner) setLoading(true);
+      const snapshot = await getDocs(collection(db, 'events'));
+
+      const data: EventItem[] = snapshot.docs.map((d) => {
+        const v = d.data();
+        const created = v.createdAt?.toMillis?.() as number | undefined;
+        const parsed = Date.parse(v.date || '');
+        return {
+          _id: d.id,
+          title: v.title || '',
+          date: v.date || '',
+          category: v.category || 'General',
+          image: v.image || '',
+          description: v.description || '',
+          _sort: created ?? (Number.isNaN(parsed) ? 0 : parsed),
+        };
+      });
+
+      data.sort((a, b) => (b._sort ?? 0) - (a._sort ?? 0));
 
       setEvents(data);
       setLoadError(false);
@@ -190,10 +207,13 @@ export default function AdminEvents() {
     return { total: events.length, events: eventCount, festivals, advisories };
   })();
 
+  const scrollToForm = () => setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 0);
+
   const openCreateForm = () => {
     setForm(emptyForm());
+    setImageFile(null);
     setFormOpen(true);
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 0);
+    scrollToForm();
   };
 
   const openEditForm = (item: EventItem) => {
@@ -207,11 +227,15 @@ export default function AdminEvents() {
       image: item.image || '',
       description: item.description || '',
     });
+    setImageFile(null);
     setFormOpen(true);
-    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth' }), 0);
+    scrollToForm();
   };
 
-  const hideForm = () => setFormOpen(false);
+  const hideForm = () => {
+    setImageFile(null);
+    setFormOpen(false);
+  };
 
   const handleSave = async () => {
     if (!user) {
@@ -228,13 +252,19 @@ export default function AdminEvents() {
     }
 
     const isEdit = form.editId !== '';
+    setSaving(true);
 
     try {
+      let image = form.image.trim();
+      if (imageFile) {
+        image = await uploadImage(imageFile, 'events');
+      }
+
       const payload = {
         title,
         date: form.date.trim(),
         category: form.category,
-        image: form.image.trim(),
+        image,
         description,
         updatedAt: serverTimestamp(),
       };
@@ -250,14 +280,16 @@ export default function AdminEvents() {
 
       showToast(isEdit ? '✅ Event updated!' : '✅ Event created!');
       hideForm();
-      loadEvents();
+      loadEvents(false);
     } catch (err: any) {
       console.error('Save error:', err);
       if (err?.code === 'permission-denied') {
         showToast('Permission denied. Admin access required.', true);
       } else {
-        showToast('Failed to save event.', true);
+        showToast(err?.message || 'Failed to save event.', true);
       }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -284,7 +316,7 @@ export default function AdminEvents() {
     try {
       await deleteDoc(doc(db, 'events', id));
       showToast('🗑️ Event deleted.');
-      loadEvents();
+      loadEvents(false);
     } catch (err: any) {
       console.error('Delete error:', err);
       if (err?.code === 'permission-denied') {
@@ -300,7 +332,7 @@ export default function AdminEvents() {
   return (
     <div className="admin-events-root">
       <style>{`
-        .admin-events-root, .admin-events-root *, .admin-events-root *::before,.admin-events-root *::after {
+        .admin-events-root, .admin-events-root *, .admin-events-root *::before, .admin-events-root *::after {
           box-sizing: border-box;
         }
         .admin-events-root {
@@ -329,7 +361,7 @@ export default function AdminEvents() {
           display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           gap: 18px; margin-bottom: 28px;
         }
-        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px;text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+        .stat-card { background: #fff; border-radius: 12px; padding: 20px 18px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
         .stat-card svg { color: #1a5c38; margin-bottom: 6px; }
         .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
         .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
@@ -364,6 +396,7 @@ export default function AdminEvents() {
         .save-btn:hover { background: #145029; }
         .save-btn.grey { background: #888; }
         .save-btn.grey:hover { background: #666; }
+        .save-btn:disabled { opacity: .6; cursor: not-allowed; }
 
         .toast {
           position: fixed; top: 20px; right: 24px; background: #1a5c38; color: #fff;
@@ -374,7 +407,7 @@ export default function AdminEvents() {
 
         .modal-overlay {
           position: fixed; inset: 0; background: rgba(0,0,0,.45);
-          display: none; align-items: center; justify-content: center; z-index:8000;
+          display: none; align-items: center; justify-content: center; z-index: 8000;
         }
         .modal-overlay.open { display: flex; }
         .modal-box {
@@ -478,8 +511,9 @@ export default function AdminEvents() {
 
             <div className="form-grid">
               <div className="input-box">
-                <label>Title *</label>
+                <label htmlFor="ev-title">Title *</label>
                 <input
+                  id="ev-title"
                   type="text"
                   placeholder="Calinan Foundation Day Festival"
                   value={form.title}
@@ -487,17 +521,19 @@ export default function AdminEvents() {
                 />
               </div>
               <div className="input-box">
-                <label>Date</label>
+                <label htmlFor="ev-date">Date</label>
                 <input
+                  id="ev-date"
                   type="text"
                   placeholder="June 28, 2026"
                   value={form.date}
                   onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
                 />
               </div>
-              <div className="input-box">
-                <label>Category</label>
+              <div className="input-box full">
+                <label htmlFor="ev-category">Category</label>
                 <select
+                  id="ev-category"
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 >
@@ -506,32 +542,34 @@ export default function AdminEvents() {
                   ))}
                 </select>
               </div>
-              <div className="input-box">
-                <label>Image URL</label>
-                <input
-                  type="text"
-                  placeholder="image/event1.jpg"
-                  value={form.image}
-                  onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+              <div className="input-box full">
+                <label htmlFor="ev-description">Description *</label>
+                <textarea
+                  id="ev-description"
+                  rows={5}
+                  placeholder="Write the event details here…"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 />
               </div>
               <div className="input-box full">
-                <label>Description *</label>
-                <textarea
-                  rows={4}
-                  placeholder="Write the event or festival details…"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                <label>Image</label>
+                <ImagePicker
+                  currentImage={form.image}
+                  file={imageFile}
+                  onFileChange={setImageFile}
+                  onClearCurrent={() => setForm((f) => ({ ...f, image: '' }))}
+                  onError={(m) => showToast(m, true)}
                 />
               </div>
             </div>
 
             <div className="btn-row">
-              <button className="save-btn" onClick={handleSave}>
+              <button className="save-btn" onClick={handleSave} disabled={saving}>
                 <Save size={16} />
-                Save Event
+                {saving ? 'Saving…' : 'Save Event'}
               </button>
-              <button className="save-btn grey" onClick={hideForm}>
+              <button className="save-btn grey" onClick={hideForm} disabled={saving}>
                 <X size={16} />
                 Cancel
               </button>
@@ -591,7 +629,9 @@ export default function AdminEvents() {
                       <span className={tagClass(item.category)}>{item.category || 'General'}</span>
                     </td>
                     <td>{item.date || '—'}</td>
-                    <td className="desc-cell">{item.description || '—'}</td>
+                    <td>
+                      <div className="desc-cell">{item.description || '—'}</div>
+                    </td>
                     <td>
                       <button className="edit" onClick={() => openEditForm(item)}>
                         <Pencil size={12} /> Edit

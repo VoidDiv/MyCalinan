@@ -8,13 +8,13 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/Firebase';
 import useAdminGuard from '@/hooks/useAdminGuard';
 import AdminSidebar from '@/components/AdminSidebar';
+import ImagePicker from '@/components/ImagePicker';
+import { uploadImage } from '@/lib/uploadImage';
 
 /* ── Types ── */
 interface Announcement {
@@ -24,6 +24,7 @@ interface Announcement {
   category: string;
   image: string;
   description: string;
+  _sort: number;
 }
 
 interface AnnouncementFormState {
@@ -35,6 +36,8 @@ interface AnnouncementFormState {
   description: string;
 }
 
+const CATEGORY_OPTIONS = ['General', 'Event', 'Program', 'Advisory', 'Festival'] as const;
+
 const EMPTY_FORM: AnnouncementFormState = {
   editId: '',
   title: '',
@@ -43,6 +46,15 @@ const EMPTY_FORM: AnnouncementFormState = {
   image: '',
   description: '',
 };
+
+function tagClass(category: string): string {
+  const c = (category || '').toLowerCase();
+  if (c.includes('event')) return 'tag event';
+  if (c.includes('advisory')) return 'tag advisory';
+  if (c.includes('program')) return 'tag program';
+  if (c.includes('festival')) return 'tag festival';
+  return 'tag';
+}
 
 export default function AdminAnnouncementsPage() {
   const { user, ready } = useAdminGuard();
@@ -58,6 +70,9 @@ export default function AdminAnnouncementsPage() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+
   /* ── Toast ── */
   function showToast(message: string, isError = false) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -65,31 +80,34 @@ export default function AdminAnnouncementsPage() {
     toastTimer.current = setTimeout(() => setToast(null), 3000);
   }
 
-  /* ── Category tag class ── */
-  function tagClass(category: string): string {
-    const c = (category || '').toLowerCase();
-    if (c.includes('event')) return 'tag event';
-    if (c.includes('advisory')) return 'tag advisory';
-    if (c.includes('program')) return 'tag program';
-    if (c.includes('festival')) return 'tag festival';
-    return 'tag';
-  }
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   /* ── Load announcements (Firestore) ── */
-  async function loadAnnouncements() {
+  async function loadAnnouncements(showSpinner = true) {
     try {
-      setLoadState('loading');
-      const q = query(collection(db, 'announcements'), orderBy('date', 'desc'));
-      const snapshot = await getDocs(q);
+      if (showSpinner) setLoadState('loading');
+      const snapshot = await getDocs(collection(db, 'announcements'));
 
-      const data: Announcement[] = snapshot.docs.map((d) => ({
-        _id: d.id,
-        title: d.data().title || '',
-        date: d.data().date || '',
-        category: d.data().category || 'General',
-        image: d.data().image || '',
-        description: d.data().description || '',
-      }));
+      const data: Announcement[] = snapshot.docs.map((d) => {
+        const v = d.data();
+        const created = v.createdAt?.toMillis?.() as number | undefined;
+        const parsed = Date.parse(v.date || '');
+        return {
+          _id: d.id,
+          title: v.title || '',
+          date: v.date || '',
+          category: v.category || 'General',
+          image: v.image || '',
+          description: v.description || '',
+          _sort: created ?? (Number.isNaN(parsed) ? 0 : parsed),
+        };
+      });
+
+      data.sort((a, b) => b._sort - a._sort);
 
       setAnnouncements(data);
       setLoadState(data.length === 0 ? 'empty' : 'ready');
@@ -106,20 +124,26 @@ export default function AdminAnnouncementsPage() {
   }, [ready]);
 
   /* ── Derived stats ── */
+  const hasCount = loadState === 'ready' || loadState === 'empty';
+  const countBy = (word: string) =>
+    announcements.filter((a) => (a.category || '').toLowerCase().includes(word)).length;
+
   const stats = {
-    total: loadState === 'ready' || loadState === 'empty' ? announcements.length : null,
-    events: announcements.filter((a) => (a.category || '').toLowerCase().includes('event')).length,
-    programs: announcements.filter((a) => (a.category || '').toLowerCase().includes('program')).length,
-    advisories: announcements.filter((a) => (a.category || '').toLowerCase().includes('advisory')).length,
+    total: hasCount ? announcements.length : null,
+    events: countBy('event'),
+    programs: countBy('program'),
+    advisories: countBy('advisory'),
   };
 
   /* ── Form show/hide ── */
   function showForm() {
     setForm(EMPTY_FORM);
+    setImageFile(null);
     setFormOpen(true);
   }
 
   function hideForm() {
+    setImageFile(null);
     setFormOpen(false);
   }
 
@@ -143,13 +167,19 @@ export default function AdminAnnouncementsPage() {
     }
 
     const isEdit = form.editId !== '';
+    setSaving(true);
 
     try {
+      let image = form.image.trim();
+      if (imageFile) {
+        image = await uploadImage(imageFile, 'announcements');
+      }
+
       const payload = {
         title,
         date: form.date.trim(),
         category: form.category,
-        image: form.image.trim(),
+        image,
         description,
         updatedAt: serverTimestamp(),
       };
@@ -165,14 +195,16 @@ export default function AdminAnnouncementsPage() {
 
       showToast(isEdit ? '✅ Announcement updated!' : '✅ Announcement created!');
       hideForm();
-      loadAnnouncements();
+      loadAnnouncements(false);
     } catch (err: any) {
       console.error('Save error:', err);
       if (err?.code === 'permission-denied') {
         showToast('Permission denied. Admin access required.', true);
       } else {
-        showToast('Failed to save announcement.', true);
+        showToast(err?.message || 'Failed to save announcement.', true);
       }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -185,10 +217,13 @@ export default function AdminAnnouncementsPage() {
       editId: id,
       title: item.title || '',
       date: item.date || '',
-      category: item.category || 'General',
+      category:
+        CATEGORY_OPTIONS.find((c) => c.toLowerCase() === (item.category || '').toLowerCase()) ||
+        'General',
       image: item.image || '',
       description: item.description || '',
     });
+    setImageFile(null);
     setFormOpen(true);
   }
 
@@ -214,7 +249,7 @@ export default function AdminAnnouncementsPage() {
     try {
       await deleteDoc(doc(db, 'announcements', id));
       showToast('🗑️ Announcement deleted.');
-      loadAnnouncements();
+      loadAnnouncements(false);
     } catch (err: any) {
       console.error('Delete error:', err);
       if (err?.code === 'permission-denied') {
@@ -279,8 +314,9 @@ export default function AdminAnnouncementsPage() {
 
               <div className="form-grid">
                 <div className="input-box">
-                  <label>Title *</label>
+                  <label htmlFor="ann-title">Title *</label>
                   <input
+                    id="ann-title"
                     type="text"
                     placeholder="Community Clean-Up Drive"
                     value={form.title}
@@ -288,49 +324,54 @@ export default function AdminAnnouncementsPage() {
                   />
                 </div>
                 <div className="input-box">
-                  <label>Date</label>
+                  <label htmlFor="ann-date">Date</label>
                   <input
+                    id="ann-date"
                     type="text"
                     placeholder="June 28, 2026"
                     value={form.date}
                     onChange={(e) => updateField('date', e.target.value)}
                   />
                 </div>
-                <div className="input-box">
-                  <label>Category</label>
-                  <select value={form.category} onChange={(e) => updateField('category', e.target.value)}>
-                    <option>General</option>
-                    <option>Event</option>
-                    <option>Program</option>
-                    <option>Advisory</option>
-                    <option>Festival</option>
+                <div className="input-box full">
+                  <label htmlFor="ann-category">Category</label>
+                  <select
+                    id="ann-category"
+                    value={form.category}
+                    onChange={(e) => updateField('category', e.target.value)}
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt}>{opt}</option>
+                    ))}
                   </select>
                 </div>
-                <div className="input-box">
-                  <label>Image URL</label>
-                  <input
-                    type="text"
-                    placeholder="image/announcement1.jpg"
-                    value={form.image}
-                    onChange={(e) => updateField('image', e.target.value)}
+                <div className="input-box full">
+                  <label htmlFor="ann-description">Description *</label>
+                  <textarea
+                    id="ann-description"
+                    rows={5}
+                    placeholder="Write the announcement details here…"
+                    value={form.description}
+                    onChange={(e) => updateField('description', e.target.value)}
                   />
                 </div>
                 <div className="input-box full">
-                  <label>Description *</label>
-                  <textarea
-                    rows={4}
-                    placeholder="Write the announcement details…"
-                    value={form.description}
-                    onChange={(e) => updateField('description', e.target.value)}
+                  <label>Image</label>
+                  <ImagePicker
+                    currentImage={form.image}
+                    file={imageFile}
+                    onFileChange={setImageFile}
+                    onClearCurrent={() => updateField('image', '')}
+                    onError={(m) => showToast(m, true)}
                   />
                 </div>
               </div>
 
               <div className="btn-row">
-                <button className="save-btn" onClick={saveAnnouncement}>
-                  <i className="fas fa-save" /> Save Announcement
+                <button className="save-btn" onClick={saveAnnouncement} disabled={saving}>
+                  <i className="fas fa-save" /> {saving ? 'Saving…' : 'Save Announcement'}
                 </button>
-                <button className="save-btn grey" onClick={hideForm}>
+                <button className="save-btn grey" onClick={hideForm} disabled={saving}>
                   <i className="fas fa-times" /> Cancel
                 </button>
               </div>
@@ -382,7 +423,9 @@ export default function AdminAnnouncementsPage() {
                         <span className={tagClass(item.category)}>{item.category || 'General'}</span>
                       </td>
                       <td>{item.date || '—'}</td>
-                      <td className="desc-cell">{item.description || '—'}</td>
+                      <td>
+                        <div className="desc-cell">{item.description || '—'}</div>
+                      </td>
                       <td>
                         <button className="edit" onClick={() => editAnnouncement(item._id)}>
                           <i className="fas fa-pen" /> Edit
@@ -555,6 +598,8 @@ export default function AdminAnnouncementsPage() {
           outline: none;
           transition: border 0.2s;
           font-family: inherit;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .input-box input:focus,
@@ -593,6 +638,10 @@ export default function AdminAnnouncementsPage() {
         }
         .save-btn.grey:hover {
           background: #666;
+        }
+        .save-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         #toast {
