@@ -1,22 +1,24 @@
-/* ============================================================
-   FILE: lib/calibotKnowledge.ts   (NEW)
-   Static, code-defined facts Calibot can answer WITHOUT touching
-   Firestore (zero reads). Only included in the prompt when the
-   question looks related, so it costs no tokens otherwise.
-   ============================================================ */
+import { adminDb } from "./firebaseAdmin";
+import { TRICYCLE_FARE, TRICYCLE_FARE_NOTE } from "./tricycleFare";
 
-import {
-  BARANGAY_NAME,
-  CAPTAIN,
-  KAGAWADS,
-  STAFF,
-  SECTORAL,
-  type Official,
-} from "./barangayOfficials";
-import {
-  TRICYCLE_FARE,
-  TRICYCLE_FARE_NOTE,
-} from "./tricycleFare";
+const BARANGAY_NAME = "Barangay Calinan Poblacion";
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const MAX_RULES_IN_PROMPT = 8;
+const MAX_RULE_CHARS = 500;
+
+type Committee = { name: string; members: string[] };
+type BacMember = { role: string; name: string };
+type Official = {
+  id: string;
+  name: string;
+  position: string;
+  group?: "captain" | "kagawad" | "staff" | "sectoral";
+  order?: number;
+  committees?: Committee[];
+  bac?: BacMember[];
+  public?: boolean;
+};
+type Rule = { id: string; title: string; body: string; order?: number; public?: boolean };
 
 const OFFICIAL_KEYWORDS = [
   "official", "officials", "captain", "punong barangay", "kagawad",
@@ -26,20 +28,43 @@ const OFFICIAL_KEYWORDS = [
   "bac", "bids and awards", "who is the", "head of the barangay",
 ];
 
-const FARE_KEYWORDS = [
-  "tricycle", "trike", "fare", "pamasahe", "pasahe", "minimum fare",
+const RULE_KEYWORDS = [
+  "rule", "regulation", "ordinance", "policy", "curfew", "allowed",
+  "prohibited", "bawal", "balaod", "ordinansa", "violation", "penalty", "fine",
 ];
 
-// Surnames (e.g. "angco", "lee") so "who is Kagawad Junsay" also matches.
-const OFFICIAL_SURNAMES: string[] = [
-  ...(CAPTAIN ? [CAPTAIN] : []),
-  ...KAGAWADS,
-  ...STAFF,
-  ...SECTORAL,
-]
-  .map((o) => o.name.split(" ").filter((w) => !/^(jr|sr|ii|iii)\.?$/i.test(w)).pop()!)
-  .map((s) => s.toLowerCase())
-  .filter((s) => s.length >= 4); // skip "lee" -> too generic; "kagawad lee" still matches "kagawad"
+const FARE_KEYWORDS = ["tricycle", "trike", "fare", "pamasahe", "pasahe", "minimum fare"];
+
+const GENERIC_WORDS = new Set([
+  "barangay", "calinan", "poblacion", "rules", "rule", "regulations",
+  "regulation", "what", "does", "about", "there", "tell", "mga", "ang",
+]);
+
+/* ---------- Firestore (cached) ---------- */
+
+const cache = new Map<string, { at: number; docs: unknown[] }>();
+
+async function loadCached<T extends { order?: number; public?: boolean }>(
+  name: string
+): Promise<T[]> {
+  const hit = cache.get(name);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.docs as T[];
+
+  try {
+    const snap = await adminDb.collection(name).limit(200).get();
+    const docs = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }) as unknown as T)
+      .filter((d) => d.public !== false)
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+    cache.set(name, { at: Date.now(), docs });
+    return docs;
+  } catch (error) {
+    console.error(`Firestore read failed for ${name}:`, error);
+    return (hit?.docs as T[]) ?? []; // serve stale rather than nothing
+  }
+}
+
+/* ---------- Helpers ---------- */
 
 function padded(text: string): string {
   return ` ${text.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim()} `;
@@ -49,35 +74,70 @@ function hasAny(q: string, keywords: string[]): boolean {
   return keywords.some((k) => q.includes(` ${k} `) || q.includes(` ${k}s `));
 }
 
+function surnameOf(name: string): string {
+  const parts = name.split(" ").filter((w) => !/^(jr|sr|ii|iii)\.?$/i.test(w));
+  return (parts[parts.length - 1] ?? "").toLowerCase();
+}
+
 function officialLine(o: Official): string {
   const committees = o.committees?.length
     ? " | Committees: " +
-      o.committees
-        .map((c) => `${c.name} (with ${c.members.join(", ")})`)
-        .join("; ")
+      o.committees.map((c) => `${c.name} (with ${c.members.join(", ")})`).join("; ")
     : "";
   return `- ${o.name} - ${o.position}${committees}`;
 }
 
-function officialsText(): string {
-  const bac = KAGAWADS.find((k) => k.bac)?.bac;
+function officialsText(officials: Official[]): string {
+  const by = (g: Official["group"]) => officials.filter((o) => o.group === g);
+  const bac = officials.find((o) => o.bac?.length)?.bac;
+
   const lines = [
     `BARANGAY OFFICIALS OF ${BARANGAY_NAME.toUpperCase()}:`,
-    ...(CAPTAIN ? [officialLine(CAPTAIN)] : []),
+    ...by("captain").map(officialLine),
     "Sangguniang Barangay (Kagawads):",
-    ...KAGAWADS.map(officialLine),
+    ...by("kagawad").map(officialLine),
     "Barangay staff:",
-    ...STAFF.map(officialLine),
+    ...by("staff").map(officialLine),
     "Sectoral representatives:",
-    ...SECTORAL.map(officialLine),
+    ...by("sectoral").map(officialLine),
   ];
   if (bac?.length) {
-    lines.push(
-      "Bids and Awards Committee (BAC): " +
-        bac.map((m) => `${m.role}: ${m.name}`).join("; ")
-    );
+    lines.push("Bids and Awards Committee (BAC): " + bac.map((m) => `${m.role}: ${m.name}`).join("; "));
   }
   return lines.join("\n");
+}
+
+function rulesText(rules: Rule[], query: string): string {
+  const words = padded(query)
+    .trim()
+    .split(" ")
+    .filter((w) => w.length >= 4 && !GENERIC_WORDS.has(w));
+
+  const scored = rules.map((r) => {
+    const hay = padded(`${r.title} ${r.body}`);
+    const score = words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0);
+    return { r, score };
+  });
+
+  // Specific question: best matches first. Generic question: show the first rules.
+  const anyMatch = scored.some((s) => s.score > 0);
+  const picked = (anyMatch ? scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score) : scored)
+    .slice(0, MAX_RULES_IN_PROMPT)
+    .map((s) => s.r);
+
+  if (picked.length === 0) return "";
+
+  const lines = picked.map((r) => {
+    const body = r.body.length > MAX_RULE_CHARS ? r.body.slice(0, MAX_RULE_CHARS) + "..." : r.body;
+    return `- ${r.title}: ${body}`;
+  });
+  const note =
+    rules.length > picked.length
+      ? `(Showing ${picked.length} of ${rules.length} rules. Tell the user more are listed in the Rules and Regulations section of MyCalinan.)`
+      : "";
+  return [`RULES AND REGULATIONS OF ${BARANGAY_NAME.toUpperCase()}:`, ...lines, note]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function fareText(): string {
@@ -89,20 +149,32 @@ function fareText(): string {
   ].join("\n");
 }
 
+/* ---------- Public API ---------- */
+
 export type StaticKnowledge = {
   text: string;
-  matched: { officials: boolean; fare: boolean };
+  matched: { officials: boolean; rules: boolean; fare: boolean };
 };
 
-export function getStaticKnowledge(query: string): StaticKnowledge {
+export async function getStaticKnowledge(query: string): Promise<StaticKnowledge> {
   const q = padded(query);
-  const officials =
-    hasAny(q, OFFICIAL_KEYWORDS) || OFFICIAL_SURNAMES.some((s) => q.includes(` ${s} `));
+
+  // Officials are cached, so loading them to check surnames is cheap.
+  const officialsData = await loadCached<Official>("barangayOfficials");
+  const surnames = officialsData.map((o) => surnameOf(o.name)).filter((s) => s.length >= 4);
+
+  const officials = hasAny(q, OFFICIAL_KEYWORDS) || surnames.some((s) => q.includes(` ${s} `));
+  const rules = hasAny(q, RULE_KEYWORDS);
   const fare = hasAny(q, FARE_KEYWORDS);
 
   const parts: string[] = [];
-  if (officials) parts.push(officialsText());
+  if (officials) parts.push(officialsText(officialsData));
+  if (rules) {
+    const rulesData = await loadCached<Rule>("barangayRules");
+    const text = rulesText(rulesData, query);
+    if (text) parts.push(text);
+  }
   if (fare) parts.push(fareText());
 
-  return { text: parts.join("\n\n"), matched: { officials, fare } };
+  return { text: parts.join("\n\n"), matched: { officials, rules, fare } };
 }

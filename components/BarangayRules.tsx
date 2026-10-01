@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
 import WovenDivider from "./WovenDivider";
 
 type Rule = {
+  id: string;
   title: string;
   body: string;
+  order?: number;
+  public?: boolean;
 };
 
 export default function BarangayRules() {
@@ -18,12 +21,16 @@ export default function BarangayRules() {
   useEffect(() => {
     let cancelled = false;
 
-    getDoc(doc(db, "settings", "rules"))
+    getDocs(collection(db, "barangayRules"))
       .then((snap) => {
-        const items = snap.exists() ? snap.data().items : [];
-        if (!cancelled) setRules(Array.isArray(items) ? items : []);
+        const items = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }) as Rule)
+          .filter((r) => r.public !== false)
+          .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+        if (!cancelled) setRules(items);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to load barangay rules:", err);
         if (!cancelled) setError(true);
       })
       .finally(() => {
@@ -68,7 +75,7 @@ export default function BarangayRules() {
           <ol className="mt-5 space-y-3 sm:mt-8 sm:space-y-4">
             {rules.map((rule, i) => (
               <li
-                key={`${rule.title}-${i}`}
+                key={rule.id}
                 className="flex gap-4 rounded-[var(--radius-stall)] border border-canopy-600/25 bg-white p-4 shadow-sm sm:p-5"
               >
                 <span className="font-mono text-xs text-durian-500">

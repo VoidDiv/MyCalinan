@@ -21,6 +21,7 @@ type CachedDoc = { id: string; data: Doc; haystack: string };
 // Set CALIBOT_MODEL in .env to switch models (e.g. a Haiku model for lower cost).
 const MODEL = process.env.CALIBOT_MODEL || "claude-sonnet-5-5";
 const MAX_TOKENS = 600;
+const API_TIMEOUT_MS = 20000;
 
 const HISTORY_LIMIT = 6; // fewer turns = fewer tokens
 const MAX_MESSAGE_CHARS = 500;
@@ -36,6 +37,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000; // re-read a collection at most every 10 mi
 const RATE_LIMIT_MAX = 12;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
+// NOTE: "barangayOfficials" and "barangayRules" are intentionally NOT here.
+// They are handled by getStaticKnowledge() in lib/calibotKnowledge.ts.
 const SEARCHABLE_COLLECTIONS = [
   "documents", "hotspots", "history", "community", "education", "finance",
   "food", "healthcare", "lifestyle", "shopping", "transportation",
@@ -76,9 +79,11 @@ const STOPWORDS = new Set([
 ]);
 
 // Fields the model never needs. Saves tokens (and avoids leaking internals).
+// Add any other private field names your collections use.
 const DROP_FIELDS = new Set([
   "createdAt", "updatedAt", "imageUrl", "imagePath", "image", "images",
   "photo", "photos", "lat", "lng", "public",
+  "ownerId", "ownerEmail", "uid", "submittedBy",
 ]);
 
 /* ------------------------- Text helpers ------------------------- */
@@ -130,6 +135,16 @@ function getMatchedCollections(query: string): string[] {
       })
     )
     .map(([collection]) => collection);
+}
+
+/*
+ * Whole-word check used for relevance scoring. `text` must already be
+ * normalized and padded with a space on both ends. Handles simple plurals
+ * in both directions ("clinics" <-> "clinic").
+ */
+function hasWord(text: string, word: string): boolean {
+  const alt = word.endsWith("s") && word.length > 3 ? word.slice(0, -1) : `${word}s`;
+  return text.includes(` ${word} `) || text.includes(` ${alt} `);
 }
 
 function truncateFields(data: Doc): Doc {
@@ -188,7 +203,8 @@ async function loadCollection(name: string): Promise<CachedDoc[]> {
       docs.push({
         id: doc.id,
         data,
-        haystack: normalizeText(JSON.stringify(truncateFields(data))),
+        // Padded so whole-word matching works on the full haystack too.
+        haystack: ` ${normalizeText(JSON.stringify(truncateFields(data)))} `,
       });
     }
 
@@ -204,7 +220,9 @@ async function loadCollection(name: string): Promise<CachedDoc[]> {
 function calculateRelevance(words: string[], doc: CachedDoc): number {
   if (words.length === 0) return 0;
 
-  const str = (v: unknown) => (typeof v === "string" ? normalizeText(v) : "");
+  // Normalized and padded so hasWord() does whole-word matching.
+  const str = (v: unknown) =>
+    typeof v === "string" ? ` ${normalizeText(v)} ` : "";
   const name = str(doc.data.name);
   const category = str(doc.data.category);
   const tag = str(doc.data.tag);
@@ -214,12 +232,12 @@ function calculateRelevance(words: string[], doc: CachedDoc): number {
   let score = 0;
   for (const word of words) {
     let hit = false;
-    if (name.includes(word)) { score += 8; hit = true; }
-    if (category.includes(word)) { score += 6; hit = true; }
-    if (tag.includes(word)) { score += 5; hit = true; }
-    if (address.includes(word)) { score += 4; hit = true; }
-    if (description.includes(word)) { score += 3; hit = true; }
-    if (!hit && doc.haystack.includes(word)) score += 1;
+    if (name && hasWord(name, word)) { score += 8; hit = true; }
+    if (category && hasWord(category, word)) { score += 6; hit = true; }
+    if (tag && hasWord(tag, word)) { score += 5; hit = true; }
+    if (address && hasWord(address, word)) { score += 4; hit = true; }
+    if (description && hasWord(description, word)) { score += 3; hit = true; }
+    if (!hit && hasWord(doc.haystack, word)) score += 1;
   }
   return score;
 }
@@ -347,11 +365,11 @@ function isRateLimited(ip: string): boolean {
 
 const BASE_PROMPT = `You are Calibot, the official AI assistant of MyCalinan, a Smart Tourism and Community Information System for Calinan, Davao City.
 
-Help the public find useful information about Calinan: healthcare, schools, food, transportation, barangay services and officials, community information, local history, tourism, establishments, public documents, and local services.
+Help the public find useful information about Calinan: healthcare, schools, food, transportation, barangay services, officials, rules and regulations, community information, local history, tourism, establishments, public documents, and local services.
 
 RULES:
 1. Use the data below whenever it is relevant. Data marked VERIFIED MYCALINAN DATA is authoritative.
-2. Never invent addresses, phone numbers, prices, fares, schedules, hours, services, businesses, officials, or locations.
+2. Never invent addresses, phone numbers, prices, fares, schedules, hours, services, businesses, officials, rules, penalties, or locations.
 3. If the data does not fully answer the question, briefly say the exact detail is not in MyCalinan yet, then offer the closest useful next step: related places in the data, a nearby category, a section of MyCalinan to browse, or verifying with the establishment or barangay. Never end with only an apology.
 4. Do not present information as current unless the data establishes that. Encourage users to verify important details directly.
 5. Keep answers short, friendly, and easy to understand. When several places match, give a short list. If an exact place is asked for, put it first.
@@ -378,7 +396,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body: { message?: unknown; history?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    }
+
     const message =
       typeof body.message === "string" ? body.message.trim().slice(0, MAX_MESSAGE_CHARS) : "";
 
@@ -394,14 +418,17 @@ export async function POST(request: NextRequest) {
 
     const history = cleanHistory(body.history);
 
-    // 1) Code-defined facts (officials, tricycle fare): ZERO Firestore reads.
-    const staticKnowledge = getStaticKnowledge(message);
+    // 1) Officials and rules now come from Firestore (cached, 10 min TTL);
+    //    the tricycle fare stays in code.
+    const staticKnowledge = await getStaticKnowledge(message);
 
     // 2) Decide which collections (if any) to read.
     const keywordCollections = getMatchedCollections(message);
     const staticOnly =
       keywordCollections.length === 0 &&
-      (staticKnowledge.matched.officials || staticKnowledge.matched.fare);
+      (staticKnowledge.matched.officials ||
+        staticKnowledge.matched.rules ||
+        staticKnowledge.matched.fare);
 
     let context = "";
     let sources: RetrievedSource[] = [];
@@ -429,6 +456,7 @@ export async function POST(request: NextRequest) {
 
     const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
@@ -475,7 +503,12 @@ export async function POST(request: NextRequest) {
 
     // If the reply hit the token cap, don't leave a half sentence hanging.
     if (data.stop_reason === "max_tokens") {
-      const lastEnd = Math.max(reply.lastIndexOf("."), reply.lastIndexOf("!"), reply.lastIndexOf("?"), reply.lastIndexOf("\n"));
+      const lastEnd = Math.max(
+        reply.lastIndexOf("."),
+        reply.lastIndexOf("!"),
+        reply.lastIndexOf("?"),
+        reply.lastIndexOf("\n")
+      );
       if (lastEnd > reply.length * 0.5) reply = reply.slice(0, lastEnd + 1);
     }
 
