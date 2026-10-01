@@ -11,17 +11,6 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-// Debug helper — tells you in the browser console whether the token
-// actually loaded from .env.local or fell back to the hardcoded one.
-if (typeof window !== 'undefined') {
-  if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
-    console.warn(
-      '[BarangayMap] NEXT_PUBLIC_MAPBOX_TOKEN wala ma-detect gikan sa .env.local — gigamit ang fallback token. ' +
-        'Kung na-edit nimo ang .env.local, i-restart ang dev server (Ctrl+C, then npm run dev).'
-    );
-  }
-}
-
 // ══════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════
@@ -62,6 +51,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
 
 // ══════════════════════════════════════════
 // DATA
+// Tip: to get exact coordinates, run the app in development, zoom in,
+// click the exact spot, and copy the lat/lng printed in the browser console.
 // ══════════════════════════════════════════
 const CALINAN_PLACES: Place[] = [
   { id: '1', name: 'Philippine Eagle Center', category: 'tourist', lat: 7.1824, lng: 125.4093, address: 'Malagos, Calinan, Davao City', icon: '🦅' },
@@ -75,6 +66,9 @@ const CALINAN_PLACES: Place[] = [
   { id: '9', name: 'Calinan Fire Station', category: 'fire', lat: 7.1630, lng: 125.4610, address: 'Central Calinan', icon: '🚒' },
   { id: '10', name: 'Calinan District Hall', category: 'government', lat: 7.1648, lng: 125.4602, address: 'District Center, Calinan', icon: '🏛️' },
 ];
+
+// GPS fixes worse than this (in meters) are ignored once we already have a position
+const MAX_ACCEPTED_ACCURACY_M = 150;
 
 // ══════════════════════════════════════════
 // HELPERS
@@ -94,6 +88,10 @@ export default function BarangayMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const placeMarkersRef = useRef<mapboxgl.Marker[]>([]);
+
+  // Always holds the latest GPS position. Popup buttons and routing read from
+  // here, so they never use a stale (null) position captured at map load.
+  const userPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -121,20 +119,31 @@ export default function BarangayMap() {
   }, []);
 
   // ══════════════════════════════════════════
-  // DIRECT ROUTE (declared early so it's safe to
-  // reference from renderPlacesOnMap's popup buttons)
+  // DIRECT ROUTE
   // ══════════════════════════════════════════
   const drawRoute = useCallback(
     async (destLat: number, destLng: number, label: string) => {
-      if (userLat === null || userLng === null || !mapRef.current) return;
+      const pos = userPosRef.current;
+      if (!pos || !mapRef.current) {
+        showToast('Waiting for your GPS location...');
+        return;
+      }
 
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${userLng},${userLat};${destLng},${destLat}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+      // overview=full returns the detailed route line (the default is
+      // simplified and can cut corners on curvy roads).
+      const url =
+        `https://api.mapbox.com/directions/v5/mapbox/driving/` +
+        `${pos.lng},${pos.lat};${destLng},${destLat}` +
+        `?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`;
 
       try {
         const res = await fetch(url);
         const data = await res.json();
         const route = data.routes?.[0]?.geometry;
-        if (!route || !mapRef.current) return;
+        if (!route || !mapRef.current) {
+          showToast('No route found');
+          return;
+        }
 
         const geojsonData = { type: 'Feature' as const, properties: {}, geometry: route };
         const existingSource = mapRef.current.getSource('route') as mapboxgl.GeoJSONSource | undefined;
@@ -162,7 +171,7 @@ export default function BarangayMap() {
         showToast('Could not calculate route');
       }
     },
-    [userLat, userLng, showToast]
+    [showToast]
   );
 
   const directRouteTo = useCallback(
@@ -196,16 +205,19 @@ export default function BarangayMap() {
       placeMarkersRef.current = [];
 
       places.forEach((place) => {
+        // Built with textContent (not innerHTML) so place names can never inject HTML.
         const popupNode = document.createElement('div');
         popupNode.className = 'popup-content';
-        popupNode.innerHTML = `
-          <h4>${place.icon} ${place.name}</h4>
-          <p>${place.address}</p>
-        `;
+
+        const title = document.createElement('h4');
+        title.textContent = `${place.icon} ${place.name}`;
+        const addr = document.createElement('p');
+        addr.textContent = place.address;
         const btn = document.createElement('button');
         btn.textContent = 'Directions';
         btn.onclick = () => directRouteTo(place.name);
-        popupNode.appendChild(btn);
+
+        popupNode.append(title, addr, btn);
 
         const popup = new mapboxgl.Popup({ offset: 25 }).setDOMContent(popupNode);
 
@@ -251,22 +263,29 @@ export default function BarangayMap() {
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [125.46, 7.1648],
       zoom: 13,
+      // Compact attribution: Mapbox/OpenStreetMap credit stays (required),
+      // but collapses into a small "i" button.
+      attributionControl: false,
     });
 
     mapRef.current = map;
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }));
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     map.on('load', () => {
       setMapLoaded(true);
       renderPlacesOnMap(CALINAN_PLACES);
-      // Force a resize in case the container's real dimensions
-      // weren't final yet when the map first painted.
       requestAnimationFrame(() => map.resize());
+
+      // Development only: click the map to print exact coordinates in the
+      // browser console, for fixing place positions in CALINAN_PLACES.
+      if (process.env.NODE_ENV === 'development') {
+        map.on('click', (e) => {
+          console.log(`lat: ${e.lngLat.lat.toFixed(6)}, lng: ${e.lngLat.lng.toFixed(6)}`);
+        });
+      }
     });
 
-    // This is the important part for debugging a blank map:
-    // any style/network/token failure will show up here instead
-    // of failing silently.
     map.on('error', (e) => {
       console.error('[Mapbox error]', e?.error?.message || e);
       setMapError(e?.error?.message || 'Unknown Mapbox error');
@@ -292,9 +311,15 @@ export default function BarangayMap() {
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+        const acc = pos.coords.accuracy;
+
+        // Ignore sudden low-quality fixes once we already have a position
+        if (acc > MAX_ACCEPTED_ACCURACY_M && userPosRef.current) return;
+
+        userPosRef.current = { lat, lng };
         setUserLat(lat);
         setUserLng(lng);
-        setAccuracy(Math.round(pos.coords.accuracy));
+        setAccuracy(Math.round(acc));
         setGpsStatus('ok');
 
         if (!mapRef.current) return;
@@ -317,7 +342,8 @@ export default function BarangayMap() {
         console.warn(`GPS Error: ${err.message}`);
         setGpsStatus('denied');
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      // maximumAge: 0 means it never reuses an old cached position
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
@@ -333,8 +359,9 @@ export default function BarangayMap() {
   // RECENTER
   // ══════════════════════════════════════════
   const recenterMap = () => {
-    if (userLat !== null && userLng !== null && mapRef.current) {
-      mapRef.current.flyTo({ center: [userLng, userLat], zoom: 15 });
+    const pos = userPosRef.current;
+    if (pos && mapRef.current) {
+      mapRef.current.flyTo({ center: [pos.lng, pos.lat], zoom: 15 });
       showToast('Recentered to your location');
     } else {
       showToast('GPS position not acquired yet');
@@ -405,7 +432,7 @@ export default function BarangayMap() {
   };
 
   // ══════════════════════════════════════════
-  // ROUTING — clear
+  // ROUTING — clear and get directions
   // ══════════════════════════════════════════
   const clearRoute = useCallback(() => {
     if (!mapRef.current) return;
@@ -419,7 +446,7 @@ export default function BarangayMap() {
   }, [showToast]);
 
   const getDirections = useCallback(() => {
-    if (userLat === null || userLng === null) {
+    if (!userPosRef.current) {
       showToast('Waiting for your GPS location...');
       return;
     }
@@ -431,22 +458,33 @@ export default function BarangayMap() {
     if (!target) return;
 
     drawRoute(target.lat, target.lng, target.name);
-  }, [userLat, userLng, selectedDestination, drawRoute, showToast]);
+  }, [selectedDestination, drawRoute, showToast]);
 
   // ══════════════════════════════════════════
   // EMERGENCY SEARCH
+  // Picks the nearest place of that type when GPS is available,
+  // otherwise the first one in the list.
   // ══════════════════════════════════════════
   const findNearest = (type: Category) => {
     const matches = CALINAN_PLACES.filter((p) => p.category === type);
-    if (matches.length > 0) {
-      const target = matches[0];
-      renderPlacesOnMap(matches);
-      mapRef.current?.flyTo({ center: [target.lng, target.lat], zoom: 16 });
-      directRouteTo(target.name);
-      showToast(`Found nearest ${type}: ${target.name}`);
-    } else {
+    if (matches.length === 0) {
       showToast(`No ${type} services found in database`);
+      return;
     }
+
+    const pos = userPosRef.current;
+    const target = pos
+      ? [...matches].sort(
+          (a, b) =>
+            calculateDistance(pos.lat, pos.lng, a.lat, a.lng) -
+            calculateDistance(pos.lat, pos.lng, b.lat, b.lng)
+        )[0]
+      : matches[0];
+
+    renderPlacesOnMap(matches);
+    mapRef.current?.flyTo({ center: [target.lng, target.lat], zoom: 16 });
+    directRouteTo(target.name);
+    showToast(`Found nearest ${type}: ${target.name}`);
   };
 
   // ══════════════════════════════════════════
@@ -518,6 +556,7 @@ export default function BarangayMap() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && doSearch()}
                 placeholder="Search places..."
                 className="flex-1 rounded-md px-3 py-1.5 border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-green-700/40"
               />
@@ -641,8 +680,6 @@ export default function BarangayMap() {
       <div className="relative flex-1 min-h-0" style={{ height: '100vh' }}>
         <div ref={mapContainerRef} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
 
-        {/* Loading / error overlay — this is the part that will
-            actually tell you WHY the map looks blank */}
         {!mapLoaded && !mapError && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 text-neutral-500 text-sm">
             Loading map…

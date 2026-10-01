@@ -4,6 +4,20 @@
 
    ADDED IN THIS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The destination pin is now placed by an effect that only runs when
+     you choose a hotspot (View on Map / Get Directions). It used to be
+     placed inside a 100 ms setTimeout, which could silently fail if the
+     map wasn't ready yet, and whose "fly to zoom 15" could fire AFTER
+     the route was drawn and pull the camera back to the pin.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin. If the route can't be loaded, it flies to the
+     pin instead.
+   - The user dot is moved with setLngLat instead of being re-created on
+     every GPS update.
+   - "Get Directions" is only shown once "Locate Me" is active.
    ============================================================ */
 
 "use client";
@@ -175,6 +189,10 @@ export default function HotspotPage() {
   const mapLoadedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When true, the next hotspot selection will NOT fly to zoom 15
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
 
   /* ---------- live listings from admin (Firestore) ---------- */
 
@@ -385,13 +403,14 @@ export default function HotspotPage() {
     }
   }, [isMapPanelOpen]);
 
-  // Sync user location marker (independent of which hotspot is selected)
+  // Sync user location marker (moved, NOT re-created, on every GPS update)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLoc) return;
 
     if (userMarkerRef.current) {
-      userMarkerRef.current.remove();
+      userMarkerRef.current.setLngLat([userLoc.lng, userLoc.lat]);
+      return;
     }
 
     const el = document.createElement("div");
@@ -408,45 +427,56 @@ export default function HotspotPage() {
       .addTo(map);
   }, [userLoc, isMapPanelOpen]);
 
-  function showOnMap(hotspot: Hotspot) {
-    setSelectedHotspot(hotspot);
+  /* ---------- destination pin ----------
+     Only runs when a hotspot is chosen (View on Map / Get Directions) or the
+     panel opens. It does NOT depend on userLoc, so GPS updates can't remove
+     the pin or move the camera. Runs after the map-init effect above, so the
+     map always exists by the time the pin is added. ---------- */
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedHotspot) return;
+
+    if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+    const popupHtml = `
+      <div class="place-popup">
+        <span class="popup-tag">${escapeHtml(selectedHotspot.tag)}</span>
+        <h4>${escapeHtml(selectedHotspot.name)}</h4>
+        <p>${escapeHtml(selectedHotspot.description)}</p>
+        <a href="${googleMapsSearchUrl(selectedHotspot.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+      </div>
+    `;
+
+    activeMarkerRef.current = new mapboxgl.Marker({ color: "#2e8b57" })
+      .setLngLat([selectedHotspot.lng, selectedHotspot.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
+      .addTo(map);
+    activeMarkerRef.current.togglePopup();
+
+    // "Get Directions" fits the whole route itself, so skip the fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedHotspot.lng, selectedHotspot.lat], zoom: 15, duration: 1000 });
+    }
+    setTimeout(() => map.resize(), 320);
+  }, [selectedHotspot, isMapPanelOpen]);
+
+  function clearRouteLayer() {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+    source?.setData(EMPTY_ROUTE_GEOJSON);
+  }
+
+  function showOnMap(hotspot: Hotspot, skipFly = false) {
+    skipFlyRef.current = skipFly;
+    // new object each time so the pin effect always re-runs (re-centers on tap)
+    setSelectedHotspot({ ...hotspot });
     setIsMapPanelOpen(true);
     setRouteInfo(null);
-
-    setTimeout(() => {
-      const map = mapRef.current;
-      if (!map) return;
-
-      if (activeMarkerRef.current) activeMarkerRef.current.remove();
-
-      const clearRoute = () => {
-        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
-        source?.setData(EMPTY_ROUTE_GEOJSON);
-      };
-      if (mapLoadedRef.current) {
-        clearRoute();
-      } else {
-        map.once("load", clearRoute);
-      }
-
-      const popupHtml = `
-        <div class="place-popup">
-          <span class="popup-tag">${escapeHtml(hotspot.tag)}</span>
-          <h4>${escapeHtml(hotspot.name)}</h4>
-          <p>${escapeHtml(hotspot.description)}</p>
-          <a href="${googleMapsSearchUrl(hotspot.mapsQuery)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-        </div>
-      `;
-
-      activeMarkerRef.current = new mapboxgl.Marker({ color: "#2e8b57" })
-        .setLngLat([hotspot.lng, hotspot.lat])
-        .setPopup(new mapboxgl.Popup({ offset: 24 }).setHTML(popupHtml))
-        .addTo(map);
-      activeMarkerRef.current.togglePopup();
-
-      map.flyTo({ center: [hotspot.lng, hotspot.lat], zoom: 15, duration: 1000 });
-      map.resize();
-    }, 100);
+    clearRouteLayer();
   }
 
   function closeMap() {
@@ -464,9 +494,14 @@ export default function HotspotPage() {
     }
 
     setRoutingId(hotspot.id);
-    showOnMap(hotspot);
+    // Show the destination icon automatically, but let the route fit the view
+    showOnMap(hotspot, true);
 
     const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${hotspot.lng},${hotspot.lat}?overview=full&geometries=geojson`;
+
+    // If we can't get a route, at least bring the camera to the destination pin
+    const flyToPin = () =>
+      mapRef.current?.flyTo({ center: [hotspot.lng, hotspot.lat], zoom: 15, duration: 1000 });
 
     try {
       const res = await fetch(url);
@@ -474,6 +509,7 @@ export default function HotspotPage() {
       const route = data?.routes?.[0];
 
       if (!route) {
+        flyToPin();
         showToast("⚠️ Couldn't calculate a route.");
         return;
       }
@@ -493,11 +529,12 @@ export default function HotspotPage() {
         };
         source?.setData(geojson);
 
-        const bounds = coordinates.reduce(
-          (b, c) => b.extend(c as [number, number]),
-          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
-        );
-        map.fitBounds(bounds, { padding: 40 });
+        // Fit the camera to the route + both ends (you and the destination pin)
+        const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
+        coordinates.forEach((c) => bounds.extend(c));
+        bounds.extend([userLoc.lng, userLoc.lat]);
+        bounds.extend([hotspot.lng, hotspot.lat]);
+        map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
       };
 
       if (mapLoadedRef.current) {
@@ -510,8 +547,10 @@ export default function HotspotPage() {
       setRouteInfo({ distance: formatDistance(km), time: timeStr });
       showToast(`🧭 Route to ${hotspot.name}: ${formatDistance(km)} · ${timeStr}`);
     } catch {
+      flyToPin();
       showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
+      skipFlyRef.current = false;
       setRoutingId(null);
     }
   }
@@ -712,14 +751,17 @@ export default function HotspotPage() {
                   >
                     📍 View on Map
                   </button>
-                  <button
-                    className={`route-btn ${userLoc ? "visible" : ""} ${
-                      routingId === hotspot.id ? "loading" : ""
-                    }`}
-                    onClick={() => getRoute(hotspot)}
-                  >
-                    {routingId === hotspot.id ? "⏳ Loading route…" : "🧭 Get Directions"}
-                  </button>
+                  {/* Only shown once the user has tapped "Locate Me" and we have their position */}
+                  {userLoc && (
+                    <button
+                      className={`route-btn visible ${
+                        routingId === hotspot.id ? "loading" : ""
+                      }`}
+                      onClick={() => getRoute(hotspot)}
+                    >
+                      {routingId === hotspot.id ? "⏳ Loading route…" : "🧭 Get Directions"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

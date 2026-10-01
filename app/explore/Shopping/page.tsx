@@ -4,6 +4,25 @@
 
    ADDED IN THIS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The pin's rotated teardrop styling was set directly on the marker
+     element. Mapbox positions a marker by writing its own `transform`
+     onto that same element, which overwrote the rotation and left the
+     pin misshapen/misaligned. The teardrop is now an inner element (so
+     Mapbox's positioning can't touch it) and its tip sits exactly on the
+     coordinates.
+   - The pin is now placed by an effect that only runs when you choose a
+     store (View on Map / Get Directions). It used to be placed inside a
+     100 ms setTimeout, which could silently fail if the map wasn't ready
+     yet, and whose "fly to zoom 17" could fire AFTER the route was drawn
+     and pull the camera back to the pin.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination). If the route
+     can't be loaded, it flies to the pin instead.
+   - The user dot is moved with setLngLat instead of being re-created on
+     every GPS update.
+   - "Get Directions" is only shown once "Locate Me" is active.
    ============================================================ */
 
 "use client";
@@ -127,6 +146,26 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+// Builds the popup shown above the destination pin
+function buildStorePopupHtml(
+  item: StoreItem,
+  user: { lat: number; lng: number } | null
+): string {
+  const distText = user
+    ? `<br><strong>${formatDist(
+        haversine(user.lat, user.lng, item.lat, item.lng)
+      )}</strong> straight-line from you`
+    : "";
+
+  return `
+    <div class="place-popup">
+      <h4>${escapeHtml(item.name)}</h4>
+      <div class="popup-tag">${escapeHtml(item.tag)}</div>
+      <p>${distText}</p>
+      <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+    </div>`;
+}
+
 const EMPTY_ROUTE_GEOJSON: Feature<LineString> = {
   type: "Feature",
   properties: {},
@@ -138,7 +177,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 // ----------------------------------------------------------------------
 // Main Component
 // ----------------------------------------------------------------------
- const ShoppingStorePage: React.FC = () => {
+const ShoppingStorePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [sortByNearest, setSortByNearest] = useState<boolean>(false);
@@ -169,6 +208,17 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
   const mapLoadedRef = useRef<boolean>(false);
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Always holds the latest GPS fix, so effects can read it WITHOUT
+  // re-running every time the GPS updates.
+  const userLocRef = useRef<UserLocation | null>(null);
+  // When true, the next store selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    userLocRef.current = userLoc;
+  }, [userLoc]);
 
   /* ── LIVE LISTINGS FROM ADMIN (Firestore) ── */
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
@@ -318,13 +368,14 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
     }
   }, [isMapPanelOpen]);
 
-  // Sync user location marker
+  // Sync user location marker (moved, NOT re-created, on every GPS update)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLoc) return;
 
     if (userMarkerRef.current) {
-      userMarkerRef.current.remove();
+      userMarkerRef.current.setLngLat([userLoc.lng, userLoc.lat]);
+      return;
     }
 
     const el = document.createElement("div");
@@ -341,59 +392,68 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       .addTo(map);
   }, [userLoc, isMapPanelOpen]);
 
+  // Destination pin.
+  // Only runs when a store is chosen (View on Map / Get Directions) or the panel
+  // opens. It does NOT depend on userLoc, so GPS updates can't remove the pin or
+  // move the camera. Runs after the map-init effect above, so the map always
+  // exists by the time the pin is added.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedStore) return;
+
+    if (activeMarkerRef.current) activeMarkerRef.current.remove();
+
+    // The teardrop is an INNER element: Mapbox writes its own `transform` onto the
+    // marker element to position it, which would overwrite a rotation set on that same element.
+    const el = document.createElement("div");
+    el.innerHTML = `<div style="background:#2e8b57;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${escapeHtml(selectedStore.pin)}</span></div>`;
+
+    const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
+      buildStorePopupHtml(selectedStore, userLocRef.current)
+    );
+
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    activeMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
+      .setLngLat([selectedStore.lng, selectedStore.lat])
+      .setPopup(popup)
+      .addTo(map);
+    activeMarkerRef.current.togglePopup();
+
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedStore.lng, selectedStore.lat], zoom: 17, duration: 1000 });
+    }
+    setTimeout(() => map.resize(), 320);
+  }, [selectedStore, isMapPanelOpen]);
+
+  // Refresh the popup's distance text when GPS updates (pin stays put)
+  useEffect(() => {
+    if (!selectedStore || !userLoc) return;
+    activeMarkerRef.current?.getPopup()?.setHTML(buildStorePopupHtml(selectedStore, userLoc));
+  }, [userLoc, selectedStore]);
+
+  const clearRouteLayer = () => {
+    const map = mapRef.current;
+    if (!map || !mapLoadedRef.current) return;
+    const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
+    source?.setData(EMPTY_ROUTE_GEOJSON);
+  };
+
   // Map View Pin
-  const handleShowOnMap = (item: StoreItem) => {
-    setSelectedStore(item);
+  const handleShowOnMap = (item: StoreItem, skipFly = false) => {
+    skipFlyRef.current = skipFly;
+    // new object each time so the pin effect always re-runs (re-centers on tap)
+    setSelectedStore({ ...item });
     setIsMapPanelOpen(true);
     setRouteInfo(null);
-
-    setTimeout(() => {
-      const map = mapRef.current;
-      if (!map) return;
-
-      if (activeMarkerRef.current) activeMarkerRef.current.remove();
-
-      const clearRoute = () => {
-        const source = map.getSource("route") as mapboxgl.GeoJSONSource | undefined;
-        source?.setData(EMPTY_ROUTE_GEOJSON);
-      };
-      if (mapLoadedRef.current) {
-        clearRoute();
-      } else {
-        map.once("load", clearRoute);
-      }
-
-      const el = document.createElement("div");
-      el.style.cssText =
-        "background:#2e8b57;color:white;font-size:16px;width:36px;height:36px;" +
-        "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
-        "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
-        "border:2px solid white;";
-      el.innerHTML = `<span style="transform:rotate(45deg)">${escapeHtml(item.pin)}</span>`;
-
-      const distText = userLoc
-        ? `<br><strong>${formatDist(
-            haversine(userLoc.lat, userLoc.lng, item.lat, item.lng)
-          )}</strong> straight-line from you`
-        : "";
-
-      const popupHtml = `
-        <div class="place-popup">
-          <h4>${escapeHtml(item.name)}</h4>
-          <div class="popup-tag">${escapeHtml(item.tag)}</div>
-          <p>${distText}</p>
-          <a href="${googleMapsSearchUrl(item.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-        </div>`;
-
-      activeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([item.lng, item.lat])
-        .setPopup(new mapboxgl.Popup({ offset: 24, maxWidth: "250px" }).setHTML(popupHtml))
-        .addTo(map);
-      activeMarkerRef.current.togglePopup();
-
-      map.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
-      map.resize();
-    }, 100);
+    clearRouteLayer();
   };
 
   // Route calculation using OSRM
@@ -404,9 +464,14 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
     }
 
     setRoutingStoreId(item.id);
-    handleShowOnMap(item);
+    // Show the destination icon automatically, but let the route fit the view
+    handleShowOnMap(item, true);
 
     const url = `https://router.project-osrm.org/route/v1/driving/${userLoc.lng},${userLoc.lat};${item.lng},${item.lat}?overview=full&geometries=geojson`;
+
+    // If we can't get a route, at least bring the camera to the destination pin
+    const flyToPin = () =>
+      mapRef.current?.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
 
     try {
       const res = await fetch(url);
@@ -433,11 +498,12 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
         };
         source?.setData(geojson);
 
-        const bounds = coordinates.reduce(
-          (b, c) => b.extend(c as [number, number]),
-          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
-        );
-        map.fitBounds(bounds, { padding: 40 });
+        // Fit the camera to the route + both ends (you and the destination pin)
+        const bounds = new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]);
+        coordinates.forEach((c) => bounds.extend(c));
+        bounds.extend([userLoc.lng, userLoc.lat]);
+        bounds.extend([item.lng, item.lat]);
+        map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
       };
 
       if (mapLoadedRef.current) {
@@ -449,8 +515,10 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
       setRouteInfo({ distKm, timeStr });
       showToast(`🧭 Route to ${item.name}: ${distKm} km · ${timeStr}`);
     } catch {
+      flyToPin();
       showToast("⚠️ Could not load route. Check your internet connection.");
     } finally {
+      skipFlyRef.current = false;
       setRoutingStoreId(null);
     }
   };
@@ -661,14 +729,17 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
                 <button className="view-map-btn" onClick={() => handleShowOnMap(item)}>
                   📍 View on Map
                 </button>
-                <button
-                  className={`route-btn ${userLoc ? "visible" : ""} ${
-                    routingStoreId === item.id ? "loading" : ""
-                  }`}
-                  onClick={() => handleGetDirections(item)}
-                >
-                  {routingStoreId === item.id ? "⏳ Loading route…" : "🧭 Get Directions"}
-                </button>
+                {/* Only shown once the user has tapped "Locate Me" and we have their position */}
+                {userLoc && (
+                  <button
+                    className={`route-btn visible ${
+                      routingStoreId === item.id ? "loading" : ""
+                    }`}
+                    onClick={() => handleGetDirections(item)}
+                  >
+                    {routingStoreId === item.id ? "⏳ Loading route…" : "🧭 Get Directions"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -718,7 +789,8 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
         <div id="route-info" className={routeInfo ? "visible" : ""}>
           <span>
-            🛣️ Road distance: <strong id="route-dist">{routeInfo?.distKm || "–"} km</strong>
+            🛣️ Road distance:{" "}
+            <strong id="route-dist">{routeInfo ? `${routeInfo.distKm} km` : "–"}</strong>
           </span>
           <span>
             ⏱️ Estimated time: <strong id="route-time">{routeInfo?.timeStr || "–"}</strong>

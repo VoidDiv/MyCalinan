@@ -6,6 +6,18 @@
 
    ADDED IN THIS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The destination pin used to be removed and re-created, and the
+     map re-flown to zoom 17, on EVERY GPS update (because userLocation
+     was a dependency of the marker effect). That made the pin jump and
+     wiped out the route view. Now the pin is only placed when you
+     choose a location (View on Map / Get Directions) and stays put.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin.
+   - The user dot is moved with setLngLat instead of being re-created.
+   - The pin tip now sits exactly on the coordinates (offset fix).
    ============================================================ */
 
 "use client";
@@ -130,6 +142,25 @@ function sortCategories(cats: string[]): string[] {
   });
 }
 
+// Builds the popup shown above the destination pin
+function buildLocationPopupHtml(
+  loc: FinanceLocation,
+  user: { lat: number; lng: number } | null
+): string {
+  const distText = user
+    ? `<br><strong>${formatDist(
+        haversineKm(user.lat, user.lng, loc.lat, loc.lng)
+      )}</strong> straight-line from you`
+    : "";
+
+  return `<div class="finance-popup">
+    <h4>${loc.name}</h4>
+    <div class="popup-tag">${loc.tag}</div>
+    <p>${distText}</p>
+    <a href="${googleMapsSearchUrl(loc.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+  </div>`;
+}
+
 const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
   1: "Location access denied. Please allow it in your browser settings.",
   2: "Location unavailable. Check your GPS or network.",
@@ -173,6 +204,13 @@ export default function FinancePage() {
   const mapLoadedRef = useRef(false);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const placeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  // Always holds the latest GPS fix, so effects can read it WITHOUT
+  // re-running every time the GPS updates.
+  const userLocationRef = useRef<UserLocation | null>(null);
+  // When true, the next location selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
 
   /* ── LIVE LISTINGS FROM ADMIN (Explore > "finance") ── */
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
@@ -238,6 +276,11 @@ export default function FinancePage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  /* ── KEEP LATEST GPS FIX IN A REF ── */
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   /* ── GEOLOCATION ── */
   const startLocating = useCallback(() => {
@@ -340,12 +383,15 @@ export default function FinancePage() {
     };
   }, [mapPanelOpen]);
 
-  /* ── MAP: keep the user marker in sync ── */
+  /* ── MAP: keep the user marker in sync (moved, NOT re-created, on every GPS update) ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      return;
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
@@ -361,7 +407,10 @@ export default function FinancePage() {
       .addTo(map);
   }, [userLocation, mapPanelOpen]);
 
-  /* ── MAP: place/refresh the finance marker and fly to it ── */
+  /* ── MAP: destination pin ──
+     Only runs when a location is chosen (View on Map / Get Directions) or the
+     panel opens. It does NOT depend on userLocation, so GPS updates can no
+     longer remove the pin or fly the camera away. ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedLocation) return;
@@ -371,30 +420,37 @@ export default function FinancePage() {
     const el = document.createElement("div");
     el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${selectedLocation.pin}</span></div>`;
 
-    const distText = userLocation
-      ? `<br><strong>${formatDist(
-          haversineKm(userLocation.lat, userLocation.lng, selectedLocation.lat, selectedLocation.lng)
-        )}</strong> straight-line from you`
-      : "";
-
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
-      `<div class="finance-popup">
-        <h4>${selectedLocation.name}</h4>
-        <div class="popup-tag">${selectedLocation.tag}</div>
-        <p>${distText}</p>
-        <a href="${googleMapsSearchUrl(selectedLocation.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-      </div>`
+      buildLocationPopupHtml(selectedLocation, userLocationRef.current)
     );
 
-    placeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    placeMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
       .setLngLat([selectedLocation.lng, selectedLocation.lat])
       .setPopup(popup)
       .addTo(map)
       .togglePopup();
 
-    map.flyTo({ center: [selectedLocation.lng, selectedLocation.lat], zoom: 17, duration: 1000 });
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedLocation.lng, selectedLocation.lat], zoom: 17, duration: 1000 });
+    }
     setTimeout(() => map.resize(), 320);
-  }, [selectedLocation, userLocation, mapPanelOpen]);
+  }, [selectedLocation, mapPanelOpen]);
+
+  /* ── MAP: refresh the popup's distance text when GPS updates (pin stays put) ── */
+  useEffect(() => {
+    if (!selectedLocation || !userLocation) return;
+    const popup = placeMarkerRef.current?.getPopup();
+    popup?.setHTML(buildLocationPopupHtml(selectedLocation, userLocation));
+  }, [userLocation, selectedLocation]);
 
   /* ── ACTIONS ── */
 
@@ -406,8 +462,10 @@ export default function FinancePage() {
   }, []);
 
   const showOnMap = useCallback(
-    (loc: FinanceLocation) => {
-      setSelectedLocation(loc);
+    (loc: FinanceLocation, skipFly = false) => {
+      skipFlyRef.current = skipFly;
+      // new object each time so the pin effect always re-runs (re-centers on tap)
+      setSelectedLocation({ ...loc });
       setRouteInfo(null);
       clearRouteLayer();
       setMapPanelOpen(true);
@@ -432,7 +490,8 @@ export default function FinancePage() {
         return;
       }
 
-      showOnMap(loc);
+      // Show the destination icon automatically, but let the route fit the view
+      showOnMap(loc, true);
       setRoutingId(loc.id);
 
       try {
@@ -451,12 +510,14 @@ export default function FinancePage() {
           const applyRoute = () => {
             const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
             source?.setData({ type: "Feature", properties: {}, geometry: route.geometry });
+
+            // Fit the camera to the route + both ends (you and the destination pin)
             const coords: [number, number][] = route.geometry.coordinates;
-            const bounds = coords.reduce(
-              (b, c) => b.extend(c as [number, number]),
-              new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
-            map.fitBounds(bounds, { padding: 40 });
+            const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+            coords.forEach((c) => bounds.extend(c));
+            bounds.extend([userLocation.lng, userLocation.lat]);
+            bounds.extend([loc.lng, loc.lat]);
+            map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
           };
           if (mapLoadedRef.current) applyRoute();
           else map.once("load", applyRoute);
@@ -465,8 +526,11 @@ export default function FinancePage() {
         setRouteInfo({ distanceKm: Math.round(distanceKm * 10) / 10, minutes });
         showToast(`🧭 Route to ${loc.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`);
       } catch {
+        // No route? At least bring the camera to the destination pin
+        mapRef.current?.flyTo({ center: [loc.lng, loc.lat], zoom: 17, duration: 1000 });
         showToast("⚠️ Could not load route. Check your internet connection.");
       } finally {
+        skipFlyRef.current = false;
         setRoutingId(null);
       }
     },

@@ -8,6 +8,18 @@
    panel, and star ratings/reviews on every card (see
    lib/tricycleFare.ts, lib/reviews.ts, components/StarRating.tsx,
    components/ReviewsModal.tsx).
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The destination pin used to be removed and re-created, and the
+     map re-flown to zoom 17, on EVERY GPS update (because userLocation
+     was a dependency of the marker effect). That made the pin jump and
+     wiped out the route view. Now the pin is only placed when you
+     choose a school (View on Map / Get Directions) and stays put.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin.
+   - The user dot is moved with setLngLat instead of being re-created.
+   - The pin tip now sits exactly on the coordinates (offset fix).
    ============================================================ */
 
 "use client";
@@ -128,6 +140,25 @@ function sortTags(tags: string[]): string[] {
   });
 }
 
+// Builds the popup shown above the destination pin
+function buildSchoolPopupHtml(
+  school: School,
+  user: { lat: number; lng: number } | null
+): string {
+  const distText = user
+    ? `<br><strong>${formatDist(
+        haversineKm(user.lat, user.lng, school.lat, school.lng)
+      )}</strong> straight-line from you`
+    : "";
+
+  return `<div class="place-popup">
+    <h4>${school.name}</h4>
+    <div class="popup-tag">${school.displayTag}</div>
+    <p>${distText}</p>
+    <a href="${googleMapsSearchUrl(school.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+  </div>`;
+}
+
 const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
   1: "Location access denied. Please allow it in your browser settings.",
   2: "Location unavailable. Check your GPS or network.",
@@ -171,6 +202,13 @@ export default function EducationPage() {
   const mapLoadedRef = useRef(false);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const schoolMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  // Always holds the latest GPS fix, so effects can read it WITHOUT
+  // re-running every time the GPS updates.
+  const userLocationRef = useRef<UserLocation | null>(null);
+  // When true, the next school selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
 
   /* ── LIVE LISTINGS FROM ADMIN (Explore > "education") ── */
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
@@ -233,6 +271,11 @@ export default function EducationPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  /* ── KEEP LATEST GPS FIX IN A REF ── */
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   /* ── GEOLOCATION ── */
   const startLocating = useCallback(() => {
@@ -335,12 +378,15 @@ export default function EducationPage() {
     };
   }, [mapPanelOpen]);
 
-  /* ── MAP: keep the user marker in sync ── */
+  /* ── MAP: keep the user marker in sync (moved, NOT re-created, on every GPS update) ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      return;
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
@@ -356,7 +402,10 @@ export default function EducationPage() {
       .addTo(map);
   }, [userLocation, mapPanelOpen]);
 
-  /* ── MAP: place/refresh the school marker and fly to it ── */
+  /* ── MAP: destination pin ──
+     Only runs when a school is chosen (View on Map / Get Directions) or the
+     panel opens. It does NOT depend on userLocation, so GPS updates can no
+     longer remove the pin or fly the camera away. ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedSchool) return;
@@ -366,30 +415,37 @@ export default function EducationPage() {
     const el = document.createElement("div");
     el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">🎓</span></div>`;
 
-    const distText = userLocation
-      ? `<br><strong>${formatDist(
-          haversineKm(userLocation.lat, userLocation.lng, selectedSchool.lat, selectedSchool.lng)
-        )}</strong> straight-line from you`
-      : "";
-
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
-      `<div class="place-popup">
-        <h4>${selectedSchool.name}</h4>
-        <div class="popup-tag">${selectedSchool.displayTag}</div>
-        <p>${distText}</p>
-        <a href="${googleMapsSearchUrl(selectedSchool.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-      </div>`
+      buildSchoolPopupHtml(selectedSchool, userLocationRef.current)
     );
 
-    schoolMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    schoolMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
       .setLngLat([selectedSchool.lng, selectedSchool.lat])
       .setPopup(popup)
       .addTo(map)
       .togglePopup();
 
-    map.flyTo({ center: [selectedSchool.lng, selectedSchool.lat], zoom: 17, duration: 1000 });
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedSchool.lng, selectedSchool.lat], zoom: 17, duration: 1000 });
+    }
     setTimeout(() => map.resize(), 320);
-  }, [selectedSchool, userLocation, mapPanelOpen]);
+  }, [selectedSchool, mapPanelOpen]);
+
+  /* ── MAP: refresh the popup's distance text when GPS updates (pin stays put) ── */
+  useEffect(() => {
+    if (!selectedSchool || !userLocation) return;
+    const popup = schoolMarkerRef.current?.getPopup();
+    popup?.setHTML(buildSchoolPopupHtml(selectedSchool, userLocation));
+  }, [userLocation, selectedSchool]);
 
   /* ── ACTIONS ── */
 
@@ -401,8 +457,10 @@ export default function EducationPage() {
   }, []);
 
   const showOnMap = useCallback(
-    (school: School) => {
-      setSelectedSchool(school);
+    (school: School, skipFly = false) => {
+      skipFlyRef.current = skipFly;
+      // new object each time so the pin effect always re-runs (re-centers on tap)
+      setSelectedSchool({ ...school });
       setRouteInfo(null);
       clearRouteLayer();
       setMapPanelOpen(true);
@@ -427,7 +485,8 @@ export default function EducationPage() {
         return;
       }
 
-      showOnMap(school);
+      // Show the destination icon automatically, but let the route fit the view
+      showOnMap(school, true);
       setRoutingId(school.id);
 
       try {
@@ -446,12 +505,14 @@ export default function EducationPage() {
           const applyRoute = () => {
             const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
             source?.setData({ type: "Feature", properties: {}, geometry: route.geometry });
+
+            // Fit the camera to the route + both ends (you and the destination pin)
             const coords: [number, number][] = route.geometry.coordinates;
-            const bounds = coords.reduce(
-              (b, c) => b.extend(c as [number, number]),
-              new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
-            map.fitBounds(bounds, { padding: 40 });
+            const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+            coords.forEach((c) => bounds.extend(c));
+            bounds.extend([userLocation.lng, userLocation.lat]);
+            bounds.extend([school.lng, school.lat]);
+            map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
           };
           if (mapLoadedRef.current) applyRoute();
           else map.once("load", applyRoute);
@@ -460,8 +521,11 @@ export default function EducationPage() {
         setRouteInfo({ distanceKm: Math.round(distanceKm * 10) / 10, minutes });
         showToast(`🧭 Route to ${school.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`);
       } catch {
+        // No route? At least bring the camera to the destination pin
+        mapRef.current?.flyTo({ center: [school.lng, school.lat], zoom: 17, duration: 1000 });
         showToast("⚠️ Could not load route. Check your internet connection.");
       } finally {
+        skipFlyRef.current = false;
         setRoutingId(null);
       }
     },

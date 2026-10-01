@@ -11,6 +11,18 @@
      a shared ReviewsModal to browse, submit, or edit a review
      (see lib/reviews.ts, components/StarRating.tsx,
      components/ReviewsModal.tsx).
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The destination pin used to be removed and re-created, and the
+     map re-flown to zoom 17, on EVERY GPS update (because userLocation
+     was a dependency of the marker effect). That made the pin jump and
+     wiped out the route view. Now the pin is only placed when you
+     choose a place (View on Map / Get Directions) and stays put.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin.
+   - The user dot is moved with setLngLat instead of being re-created.
+   - The pin tip now sits exactly on the coordinates (offset fix).
    ============================================================ */
 
 "use client";
@@ -148,6 +160,25 @@ function sortCategories(cats: string[]): string[] {
   });
 }
 
+// Builds the popup shown above the destination pin
+function buildPlacePopupHtml(
+  place: CommunityPlace,
+  user: { lat: number; lng: number } | null
+): string {
+  const distText = user
+    ? `<br><strong>${formatDist(
+        haversineKm(user.lat, user.lng, place.lat, place.lng)
+      )}</strong> straight-line from you`
+    : "";
+
+  return `<div class="place-popup">
+    <span class="popup-tag">${place.tag}</span>
+    <h4>${place.pin} ${place.name}</h4>
+    <p>${place.description}${distText}</p>
+    <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+  </div>`;
+}
+
 const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
   1: "Location access denied. Please allow it in your browser settings.",
   2: "Location unavailable. Check your GPS or network.",
@@ -193,6 +224,13 @@ export default function CommunityPage() {
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const placeMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
+  // Always holds the latest GPS fix, so effects can read it WITHOUT
+  // re-running every time the GPS updates.
+  const userLocationRef = useRef<UserLocation | null>(null);
+  // When true, the next place selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
+
   /* ── LIVE LISTINGS FROM ADMIN (Explore > "community") ── */
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
   const allPlaces = useMemo<CommunityPlace[]>(
@@ -201,7 +239,7 @@ export default function CommunityPage() {
         // ratingAvg/ratingCount are denormalized onto the listing doc by lib/reviews.ts
         const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
         return {
-          id: l.docId,         
+          id: l.docId,
           name: l.name,
           category: l.category as Category,
           lat: l.lat,
@@ -258,6 +296,11 @@ export default function CommunityPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  /* ── KEEP LATEST GPS FIX IN A REF ── */
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   /* ── GEOLOCATION ── */
   const startLocating = useCallback(() => {
@@ -361,12 +404,15 @@ export default function CommunityPage() {
     };
   }, [mapPanelOpen]);
 
-  /* ── MAP: keep the user marker in sync ── */
+  /* ── MAP: keep the user marker in sync (moved, NOT re-created, on every GPS update) ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      return;
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
@@ -382,7 +428,10 @@ export default function CommunityPage() {
       .addTo(map);
   }, [userLocation, mapPanelOpen]);
 
-  /* ── MAP: place/refresh the community marker and fly to it ── */
+  /* ── MAP: destination pin ──
+     Only runs when a place is chosen (View on Map / Get Directions) or the
+     panel opens. It does NOT depend on userLocation, so GPS updates can no
+     longer remove the pin or fly the camera away. ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedPlace) return;
@@ -392,30 +441,37 @@ export default function CommunityPage() {
     const el = document.createElement("div");
     el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${selectedPlace.pin}</span></div>`;
 
-    const distText = userLocation
-      ? `<br><strong>${formatDist(
-          haversineKm(userLocation.lat, userLocation.lng, selectedPlace.lat, selectedPlace.lng)
-        )}</strong> straight-line from you`
-      : "";
-
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "260px" }).setHTML(
-      `<div class="place-popup">
-        <span class="popup-tag">${selectedPlace.tag}</span>
-        <h4>${selectedPlace.pin} ${selectedPlace.name}</h4>
-        <p>${selectedPlace.description}${distText}</p>
-        <a href="${googleMapsSearchUrl(selectedPlace.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-      </div>`
+      buildPlacePopupHtml(selectedPlace, userLocationRef.current)
     );
 
-    placeMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    placeMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
       .setLngLat([selectedPlace.lng, selectedPlace.lat])
       .setPopup(popup)
       .addTo(map)
       .togglePopup();
 
-    map.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 17, duration: 1000 });
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedPlace.lng, selectedPlace.lat], zoom: 17, duration: 1000 });
+    }
     setTimeout(() => map.resize(), 320);
-  }, [selectedPlace, userLocation, mapPanelOpen]);
+  }, [selectedPlace, mapPanelOpen]);
+
+  /* ── MAP: refresh the popup's distance text when GPS updates (pin stays put) ── */
+  useEffect(() => {
+    if (!selectedPlace || !userLocation) return;
+    const popup = placeMarkerRef.current?.getPopup();
+    popup?.setHTML(buildPlacePopupHtml(selectedPlace, userLocation));
+  }, [userLocation, selectedPlace]);
 
   /* ── ACTIONS ── */
 
@@ -427,8 +483,10 @@ export default function CommunityPage() {
   }, []);
 
   const showOnMap = useCallback(
-    (place: CommunityPlace) => {
-      setSelectedPlace(place);
+    (place: CommunityPlace, skipFly = false) => {
+      skipFlyRef.current = skipFly;
+      // new object each time so the pin effect always re-runs (re-centers on tap)
+      setSelectedPlace({ ...place });
       setRouteInfo(null);
       clearRouteLayer();
       setMapPanelOpen(true);
@@ -453,7 +511,8 @@ export default function CommunityPage() {
         return;
       }
 
-      showOnMap(place);
+      // Show the destination icon automatically, but let the route fit the view
+      showOnMap(place, true);
       setRoutingId(place.id);
 
       try {
@@ -472,12 +531,14 @@ export default function CommunityPage() {
           const applyRoute = () => {
             const source = map.getSource(ROUTE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
             source?.setData({ type: "Feature", properties: {}, geometry: route.geometry });
+
+            // Fit the camera to the route + both ends (you and the destination pin)
             const coords: [number, number][] = route.geometry.coordinates;
-            const bounds = coords.reduce(
-              (b, c) => b.extend(c as [number, number]),
-              new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
-            map.fitBounds(bounds, { padding: 40 });
+            const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+            coords.forEach((c) => bounds.extend(c));
+            bounds.extend([userLocation.lng, userLocation.lat]);
+            bounds.extend([place.lng, place.lat]);
+            map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
           };
           if (mapLoadedRef.current) applyRoute();
           else map.once("load", applyRoute);
@@ -486,8 +547,11 @@ export default function CommunityPage() {
         setRouteInfo({ distanceKm: Math.round(distanceKm * 10) / 10, minutes });
         showToast(`🧭 Route to ${place.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`);
       } catch {
+        // No route? At least bring the camera to the destination pin
+        mapRef.current?.flyTo({ center: [place.lng, place.lat], zoom: 17, duration: 1000 });
         showToast("⚠️ Could not load route. Check your internet connection.");
       } finally {
+        skipFlyRef.current = false;
         setRoutingId(null);
       }
     },

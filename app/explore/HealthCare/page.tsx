@@ -4,6 +4,18 @@
 
    ADDED IN THIS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The destination pin used to be removed and re-created, and the
+     map re-flown to zoom 17, on EVERY GPS update (because userLocation
+     was a dependency of the marker effect). That made the pin jump and
+     wiped out the route view. Now the pin is only placed when you
+     choose a facility (View on Map / Get Directions) and stays put.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin.
+   - The user dot is moved with setLngLat instead of being re-created.
+   - The pin tip now sits exactly on the coordinates (offset fix).
    ============================================================ */
 
 "use client";
@@ -17,6 +29,7 @@ import {
   type ChangeEvent,
 } from "react";
 import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
@@ -107,6 +120,25 @@ function formatDuration(mins: number): string {
   return mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+// Builds the popup shown above the destination pin
+function buildClinicPopupHtml(
+  clinic: Clinic,
+  user: { lat: number; lng: number } | null
+): string {
+  const distText = user
+    ? `<br><strong>${formatDist(
+        haversineKm(user.lat, user.lng, clinic.lat, clinic.lng)
+      )}</strong> straight-line from you`
+    : "";
+
+  return `<div class="health-popup">
+    <h4>${clinic.name}</h4>
+    <div class="popup-tag">${clinic.tag}</div>
+    <p>${distText}</p>
+    <a href="https://www.google.com/maps/search/?api=1&query=${clinic.mapsQuery}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
+  </div>`;
+}
+
 const GEOLOCATION_ERROR_MESSAGES: Record<number, string> = {
   1: "Location access denied. Please allow it in your browser settings.",
   2: "Location unavailable. Check your GPS or network.",
@@ -144,6 +176,13 @@ export default function HealthcarePage() {
   const mapLoadedRef = useRef(false);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const clinicMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  // Always holds the latest GPS fix, so effects can read it WITHOUT
+  // re-running every time the GPS updates.
+  const userLocationRef = useRef<UserLocation | null>(null);
+  // When true, the next facility selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
 
   /* ── LIVE LISTINGS FROM ADMIN ── */
   const { listings: live, loading } = useExploreListings(EXPLORE_SECTION);
@@ -203,6 +242,11 @@ export default function HealthcarePage() {
       }
     };
   }, []);
+
+  /* ── KEEP LATEST GPS FIX IN A REF ── */
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
 
   /* ── GEOLOCATION ── */
   const startLocating = useCallback(() => {
@@ -312,12 +356,15 @@ export default function HealthcarePage() {
     };
   }, [mapPanelOpen]);
 
-  /* ── MAP: keep the user marker in sync ── */
+  /* ── MAP: keep the user marker in sync (moved, NOT re-created, on every GPS update) ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      return;
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
@@ -333,7 +380,10 @@ export default function HealthcarePage() {
       .addTo(map);
   }, [userLocation, mapPanelOpen]);
 
-  /* ── MAP: place/refresh the clinic marker and fly to it ── */
+  /* ── MAP: destination pin ──
+     Only runs when a facility is chosen (View on Map / Get Directions) or the
+     panel opens. It does NOT depend on userLocation, so GPS updates can no
+     longer remove the pin or fly the camera away. ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedClinic) return;
@@ -343,30 +393,37 @@ export default function HealthcarePage() {
     const el = document.createElement("div");
     el.innerHTML = `<div style="background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">🏥</span></div>`;
 
-    const distText = userLocation
-      ? `<br><strong>${formatDist(
-          haversineKm(userLocation.lat, userLocation.lng, selectedClinic.lat, selectedClinic.lng)
-        )}</strong> straight-line from you`
-      : "";
-
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
-      `<div class="health-popup">
-        <h4>${selectedClinic.name}</h4>
-        <div class="popup-tag">${selectedClinic.tag}</div>
-        <p>${distText}</p>
-        <a href="https://www.google.com/maps/search/?api=1&query=${selectedClinic.mapsQuery}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
-      </div>`
+      buildClinicPopupHtml(selectedClinic, userLocationRef.current)
     );
 
-    clinicMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    clinicMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
       .setLngLat([selectedClinic.lng, selectedClinic.lat])
       .setPopup(popup)
       .addTo(map)
       .togglePopup();
 
-    map.flyTo({ center: [selectedClinic.lng, selectedClinic.lat], zoom: 17, duration: 1000 });
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedClinic.lng, selectedClinic.lat], zoom: 17, duration: 1000 });
+    }
     setTimeout(() => map.resize(), 320);
-  }, [selectedClinic, userLocation, mapPanelOpen]);
+  }, [selectedClinic, mapPanelOpen]);
+
+  /* ── MAP: refresh the popup's distance text when GPS updates (pin stays put) ── */
+  useEffect(() => {
+    if (!selectedClinic || !userLocation) return;
+    const popup = clinicMarkerRef.current?.getPopup();
+    popup?.setHTML(buildClinicPopupHtml(selectedClinic, userLocation));
+  }, [userLocation, selectedClinic]);
 
   /* ── ACTIONS ── */
 
@@ -378,8 +435,10 @@ export default function HealthcarePage() {
   }, []);
 
   const showOnMap = useCallback(
-    (clinic: Clinic) => {
-      setSelectedClinic(clinic);
+    (clinic: Clinic, skipFly = false) => {
+      skipFlyRef.current = skipFly;
+      // new object each time so the pin effect always re-runs (re-centers on tap)
+      setSelectedClinic({ ...clinic });
       setRouteInfo(null);
       clearRouteLayer();
       setMapPanelOpen(true);
@@ -404,7 +463,8 @@ export default function HealthcarePage() {
         return;
       }
 
-      showOnMap(clinic);
+      // Show the destination icon automatically, but let the route fit the view
+      showOnMap(clinic, true);
       setRouting(true);
 
       try {
@@ -427,12 +487,14 @@ export default function HealthcarePage() {
               properties: {},
               geometry: route.geometry,
             });
+
+            // Fit the camera to the route + both ends (you and the destination pin)
             const coords: [number, number][] = route.geometry.coordinates;
-            const bounds = coords.reduce(
-              (b, c) => b.extend(c as [number, number]),
-              new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
-            map.fitBounds(bounds, { padding: 40 });
+            const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+            coords.forEach((c) => bounds.extend(c));
+            bounds.extend([userLocation.lng, userLocation.lat]);
+            bounds.extend([clinic.lng, clinic.lat]);
+            map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
           };
           if (mapLoadedRef.current) applyRoute();
           else map.once("load", applyRoute);
@@ -443,8 +505,11 @@ export default function HealthcarePage() {
           `🧭 Route to ${clinic.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`
         );
       } catch {
+        // No route? At least bring the camera to the destination pin
+        mapRef.current?.flyTo({ center: [clinic.lng, clinic.lat], zoom: 17, duration: 1000 });
         showToast("⚠️ Could not load route. Check your internet connection.");
       } finally {
+        skipFlyRef.current = false;
         setRouting(false);
       }
     },

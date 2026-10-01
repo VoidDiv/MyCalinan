@@ -4,6 +4,21 @@
 
    ADDED IN THIS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
+
+   FIXED IN THIS VERSION (destination icon "moving"):
+   - The pin's rotated teardrop styling was set directly on the marker
+     element. Mapbox positions a marker by writing its own `transform`
+     onto that same element, which overwrote the rotation and left the
+     pin misshapen/misaligned. The teardrop is now an inner element (so
+     Mapbox's positioning can't touch it) and its tip sits exactly on the
+     coordinates.
+   - "Get Directions" now shows the destination icon automatically and
+     fits the map to the whole route (you + destination) instead of
+     zooming to the pin first. If the route can't be loaded, it flies to
+     the pin instead.
+   - The user dot is moved with setLngLat instead of being re-created on
+     every GPS update.
+   - "Get Directions" is only shown once "Locate Me" is active.
    ============================================================ */
 
 "use client";
@@ -173,6 +188,10 @@ export default function LifestylePage() {
   const watchIdRef = useRef<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userLocationRef = useRef<UserLocation | null>(null);
+
+  // When true, the next item selection will NOT fly to zoom 17
+  // (used by "Get Directions", which fits the whole route instead).
+  const skipFlyRef = useRef(false);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -368,12 +387,15 @@ export default function LifestylePage() {
     };
   }, [mapPanelOpen, showToast]);
 
-  /* ── MAP: keep the user marker in sync ── */
+  /* ── MAP: keep the user marker in sync (moved, NOT re-created, on every GPS update) ── */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
 
-    if (userMarkerRef.current) userMarkerRef.current.remove();
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+      return;
+    }
 
     const el = document.createElement("div");
     el.className = "user-dot-wrapper";
@@ -389,22 +411,19 @@ export default function LifestylePage() {
       .addTo(map);
   }, [userLocation, mapPanelOpen]);
 
-  /* ── MAP: place the item marker and fly to it ──
+  /* ── MAP: destination pin ──
      Deliberately does NOT depend on userLocation, so GPS updates
-     don't keep re-centering the map and undoing the route view. */
+     don't remove the pin or re-center the map and undo the route view. */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedItem) return;
 
     if (itemMarkerRef.current) itemMarkerRef.current.remove();
 
+    // The teardrop is an INNER element: Mapbox writes its own `transform` onto the
+    // marker element to position it, which would overwrite a rotation set on that same element.
     const el = document.createElement("div");
-    el.style.cssText =
-      "background:#2e8b57;color:white;font-size:16px;width:36px;height:36px;" +
-      "border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;" +
-      "align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);" +
-      "border:2px solid white;";
-    el.innerHTML = `<span style="transform:rotate(45deg)">${escapeHtml(selectedItem.pin)}</span>`;
+    el.innerHTML = `<div style="background:#2e8b57;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${escapeHtml(selectedItem.pin)}</span></div>`;
 
     const loc = userLocationRef.current;
     const distText = loc
@@ -422,13 +441,24 @@ export default function LifestylePage() {
       </div>`
     );
 
-    itemMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+    // offset [0,-7]: the rotated square's tip sticks out ~7px below the element,
+    // so lift it by 7px to make the tip land exactly on the coordinates.
+    itemMarkerRef.current = new mapboxgl.Marker({
+      element: el,
+      anchor: "bottom",
+      offset: [0, -7],
+    })
       .setLngLat([selectedItem.lng, selectedItem.lat])
       .setPopup(popup)
       .addTo(map)
       .togglePopup();
 
-    map.flyTo({ center: [selectedItem.lng, selectedItem.lat], zoom: 17, duration: 1000 });
+    // "Get Directions" fits the whole route itself, so skip the zoom-17 fly in that case
+    if (skipFlyRef.current) {
+      skipFlyRef.current = false;
+    } else {
+      map.flyTo({ center: [selectedItem.lng, selectedItem.lat], zoom: 17, duration: 1000 });
+    }
     setTimeout(() => map.resize(), 320);
   }, [selectedItem, focusNonce, mapPanelOpen]);
 
@@ -442,7 +472,8 @@ export default function LifestylePage() {
   }, []);
 
   const showOnMap = useCallback(
-    (item: LocationItem) => {
+    (item: LocationItem, skipFly = false) => {
+      skipFlyRef.current = skipFly;
       setSelectedItem(item);
       setFocusNonce((n) => n + 1);
       setRouteInfo(null);
@@ -469,7 +500,8 @@ export default function LifestylePage() {
         return;
       }
 
-      showOnMap(item);
+      // Show the destination icon automatically, but let the route fit the view
+      showOnMap(item, true);
       setRouting(true);
 
       try {
@@ -492,12 +524,14 @@ export default function LifestylePage() {
               properties: {},
               geometry: route.geometry,
             });
+
+            // Fit the camera to the route + both ends (you and the destination pin)
             const coords: [number, number][] = route.geometry.coordinates;
-            const bounds = coords.reduce(
-              (b, c) => b.extend(c as [number, number]),
-              new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
-            map.fitBounds(bounds, { padding: 40 });
+            const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+            coords.forEach((c) => bounds.extend(c));
+            bounds.extend([userLocation.lng, userLocation.lat]);
+            bounds.extend([item.lng, item.lat]);
+            map.fitBounds(bounds, { padding: 60, maxZoom: 17 });
           };
           if (mapLoadedRef.current) applyRoute();
           else map.once("load", applyRoute);
@@ -508,8 +542,11 @@ export default function LifestylePage() {
           `🧭 Route to ${item.name}: ${distanceKm.toFixed(1)} km · ${formatDuration(minutes)}`
         );
       } catch {
+        // No route? At least bring the camera to the destination pin
+        mapRef.current?.flyTo({ center: [item.lng, item.lat], zoom: 17, duration: 1000 });
         showToast("⚠️ Could not load route. Check your internet connection.");
       } finally {
+        skipFlyRef.current = false;
         setRouting(false);
       }
     },
@@ -708,16 +745,19 @@ export default function LifestylePage() {
                 <button className="view-map-btn" onClick={() => showOnMap(item)}>
                   📍 View on Map
                 </button>
-                <button
-                  className={`route-btn${userLocation ? " visible" : ""}${
-                    routing && selectedItem?.id === item.id ? " loading" : ""
-                  }`}
-                  onClick={() => getRoute(item)}
-                >
-                  {routing && selectedItem?.id === item.id
-                    ? "⏳ Loading route…"
-                    : "🧭 Get Directions"}
-                </button>
+                {/* Only shown once the user has tapped "Locate Me" and we have their position */}
+                {userLocation && (
+                  <button
+                    className={`route-btn visible${
+                      routing && selectedItem?.id === item.id ? " loading" : ""
+                    }`}
+                    onClick={() => getRoute(item)}
+                  >
+                    {routing && selectedItem?.id === item.id
+                      ? "⏳ Loading route…"
+                      : "🧭 Get Directions"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
