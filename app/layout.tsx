@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
+import LanguageProvider from "@/components/LanguageProvider";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -57,7 +58,7 @@ export default function RootLayout({
       <body
         className={`${fraunces.variable} ${inter.variable} ${plexMono.variable} antialiased`}
       >
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <PwaRegister />
       </body>
     </html>

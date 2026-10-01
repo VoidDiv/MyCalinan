@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { fullLogout } from "../lib/session"; // adjust path to match your project structure
+import { useLanguage, type Lang } from "./LanguageProvider";
 
 const EXPLORE_LINKS = [
   { label: "Health", href: "/explore/HealthCare" },
@@ -207,7 +208,8 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [lang, setLang] = useState<"en" | "ceb">("en");
+  // ENG / CEB — saved on the device; Cebuano translates the page (see LanguageProvider)
+  const { lang, setLang } = useLanguage();
   const [authState, setAuthState] = useState<AuthState>("none");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -263,6 +265,7 @@ export default function Navbar() {
     router.push("/login");
   }
 
+  /* translate="no": the ENG / CEB labels must never be translated */
   const langSelect = (
     <>
       <label className="sr-only" htmlFor="lang-switch">
@@ -270,8 +273,9 @@ export default function Navbar() {
       </label>
       <select
         id="lang-switch"
+        translate="no"
         value={lang}
-        onChange={(e) => setLang(e.target.value as "en" | "ceb")}
+        onChange={(e) => setLang(e.target.value as Lang)}
         className="rounded-full border border-white/30 bg-transparent px-3 py-1 text-sm font-medium text-white"
       >
         <option className="text-ink-900" value="en">ENG</option>
@@ -313,6 +317,7 @@ export default function Navbar() {
 
         <Link href="/" className="flex items-center justify-center justify-self-center gap-3">
           <span
+            translate="no"
             className="font-display text-xl font-semibold tracking-wide text-white sm:text-2xl md:text-3xl"
             style={{ textShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
           >

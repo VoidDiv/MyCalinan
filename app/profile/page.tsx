@@ -51,6 +51,12 @@ export default function ProfilePage() {
   const [businessesLoading, setBusinessesLoading] = useState(true);
   const [businessesError, setBusinessesError] = useState("");
 
+  // Delete flow: which business is being confirmed, request state, messages
+  const [deleteTarget, setDeleteTarget] = useState<BusinessSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [notice, setNotice] = useState("");
+
   // Personal profile picture — separate from any business's photos.
   // Stored at users/{uid}.profilePictureUrl, read/written directly with
   // the client Firestore SDK (same pattern as business-registration.tsx).
@@ -113,6 +119,67 @@ export default function ProfilePage() {
 
     fetchBusinesses();
   }, []);
+
+  /* ── Hide the "deleted" notice after a few seconds ── */
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  /* ── Esc closes the delete dialog (unless a delete is in progress) ── */
+  useEffect(() => {
+    if (!deleteTarget) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !deleting) {
+        setDeleteTarget(null);
+        setDeleteError("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [deleteTarget, deleting]);
+
+  function askToDelete(biz: BusinessSummary) {
+    setDeleteError("");
+    setDeleteTarget(biz);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      // The login token expires after about an hour, so ask Firebase for a fresh one
+      const freshToken = await auth.currentUser?.getIdToken();
+      const token =
+        freshToken ||
+        localStorage.getItem("mycalinan_token") ||
+        sessionStorage.getItem("mycalinan_token");
+
+      const response = await fetch(`/api/business/${encodeURIComponent(target.id)}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setDeleteError(data?.error ?? "Could not delete this business. Please try again.");
+        return;
+      }
+
+      setBusinesses((prev) => prev.filter((b) => b.id !== target.id));
+      setNotice(`"${target.businessName}" was deleted.`);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Delete business failed:", err);
+      setDeleteError("Cannot connect to the server. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function handleProfilePicChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -212,6 +279,15 @@ export default function ProfilePage() {
         </Link>
       </div>
 
+      {notice && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
+          <i className="fas fa-check-circle" /> {notice}
+        </div>
+      )}
+
       {businessesLoading && (
         <div className="rounded-[var(--radius-stall)] border border-canopy-100 bg-white px-6 py-10 text-center text-sm text-ink-700">
           Loading your businesses...
@@ -244,15 +320,84 @@ export default function ProfilePage() {
       {!businessesLoading && !businessesError && businesses.length > 0 && (
         <div className="space-y-5">
           {businesses.map((biz) => (
-            <BusinessCard key={biz.id} biz={biz} />
+            <BusinessCard key={biz.id} biz={biz} onDelete={askToDelete} />
           ))}
+        </div>
+      )}
+
+      {/* ── Delete confirmation dialog ── */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-business-title"
+          onClick={() => {
+            if (!deleting) {
+              setDeleteTarget(null);
+              setDeleteError("");
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <i className="fas fa-trash" />
+            </div>
+            <h3
+              id="delete-business-title"
+              className="text-center text-base font-semibold text-ink-900"
+            >
+              Delete this business?
+            </h3>
+            <p className="mt-2 text-center text-sm text-ink-700">
+              <strong>{deleteTarget.businessName}</strong> will be removed from your profile.
+              This can&apos;t be undone.
+            </p>
+
+            {deleteError && (
+              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteError("");
+                }}
+                className="flex-1 rounded-full border border-canopy-100 bg-white px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-canopy-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={confirmDelete}
+                className="flex-1 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function BusinessCard({ biz }: { biz: BusinessSummary }) {
+function BusinessCard({
+  biz,
+  onDelete,
+}: {
+  biz: BusinessSummary;
+  onDelete: (biz: BusinessSummary) => void;
+}) {
   const tag = STATUS_STYLES[biz.overallStatus] ?? STATUS_STYLES.pending;
   const cover = biz.pictures[0]?.url;
 
@@ -315,6 +460,17 @@ function BusinessCard({ biz }: { biz: BusinessSummary }) {
         )}
 
         <BusinessReviewsPanel businessId={biz.id} />
+
+        {/* ── Delete ── */}
+        <div className="flex justify-end border-t border-canopy-100 pt-4">
+          <button
+            type="button"
+            onClick={() => onDelete(biz)}
+            className="inline-flex items-center gap-2 rounded-full border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+          >
+            <i className="fas fa-trash" /> Delete
+          </button>
+        </div>
       </div>
     </div>
   );

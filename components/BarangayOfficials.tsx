@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
 import WovenDivider from "./WovenDivider";
 
@@ -231,34 +231,60 @@ export default function BarangayOfficials() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  // Offline support: the Firestore offline cache (lib/Firebase.ts) keeps the
+  // last list on the device; these two flags only drive the small notices.
+  const [offline, setOffline] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
 
-    getDocs(collection(db, "barangayOfficials"))
-      .then((snap) => {
+  useEffect(() => {
+    setOffline(!navigator.onLine);
+    const goOnline = () => setOffline(false);
+    const goOffline = () => setOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    // onSnapshot answers from the saved copy instantly (even with no internet),
+    // then updates by itself when fresh data arrives from the server.
+    const unsubscribe = onSnapshot(
+      collection(db, "barangayOfficials"),
+      { includeMetadataChanges: true },
+      (snap) => {
         const items = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }) as Official)
           .filter((o) => o.public !== false)
           .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-        if (!cancelled) setOfficials(items);
-      })
-      .catch((err) => {
-        console.error("Failed to load barangay officials:", err);
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
 
-    return () => {
-      cancelled = true;
-    };
+        setOfficials(items);
+        setFromCache(snap.metadata.fromCache);
+        setError(false);
+
+        // An empty answer that came only from the device cache isn't a real
+        // answer yet — keep waiting for the server instead of saying "none".
+        if (!(snap.empty && snap.metadata.fromCache)) setLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load barangay officials:", err);
+        setError(true);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
   }, []);
 
   const captain = officials.find((o) => o.group === "captain") ?? null;
   const kagawads = officials.filter((o) => o.group === "kagawad");
   const staff = officials.filter((o) => o.group === "staff");
   const sectoral = officials.filter((o) => o.group === "sectoral");
+
+  const waiting = loading && !offline; // still asking the server
+  const nothingSavedOffline = offline && officials.length === 0 && !error;
 
   return (
     <section className="bg-cream px-6 py-8 sm:px-10 sm:py-12 lg:px-20 lg:py-16">
@@ -268,9 +294,15 @@ export default function BarangayOfficials() {
         </h2>
         <WovenDivider tone="cream" />
 
-        {loading && (
+        {waiting && (
           <p className="mt-5 text-center font-mono text-sm text-ink-500 sm:mt-8">
             Loading officials...
+          </p>
+        )}
+
+        {nothingSavedOffline && (
+          <p className="mt-5 text-center font-mono text-sm text-ink-500 sm:mt-8">
+            No saved copy on this device yet. Connect to the internet once to load the officials.
           </p>
         )}
 
@@ -280,13 +312,19 @@ export default function BarangayOfficials() {
           </p>
         )}
 
-        {!loading && !error && officials.length === 0 && (
+        {!loading && !error && !offline && officials.length === 0 && (
           <p className="mt-5 text-center font-mono text-sm text-ink-500 sm:mt-8">
             No officials posted yet.
           </p>
         )}
 
-        {!loading && !error && officials.length > 0 && (
+        {!error && offline && fromCache && officials.length > 0 && (
+          <p className="mt-5 text-center font-mono text-xs text-ink-500 sm:mt-8">
+            You&rsquo;re offline — showing the saved list of officials.
+          </p>
+        )}
+
+        {!error && officials.length > 0 && (
           <>
             {captain && (
               <div className="mx-auto mt-8 w-[60%] sm:w-[30%]">

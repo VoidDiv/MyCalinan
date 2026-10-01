@@ -1,12 +1,28 @@
-import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { NextRequest, NextResponse } from "next/server";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { verifyAdminRequest } from "@/lib/serverAuth";
+import { FieldValue } from "firebase-admin/firestore";
+
+/* ============================================================
+   RULES AND REGULATIONS  —  /api/rules
+
+   Now stored in Firestore (siteContent/rules) instead of a file
+   (data/rules.json). Files can't be written on Vercel, so posting
+   rules online only works with a database.
+
+   GET  → public, anyone can read the rules
+   PUT  → admin only, replaces the whole list
+   ============================================================ */
 
 export const dynamic = "force-dynamic";
 
 type Rule = { title: string; body: string };
 
-const FILE = path.join(process.cwd(), "data", "rules.json");
+const MAX_RULES = 50;
+const MAX_TITLE = 200;
+const MAX_BODY = 2000;
+
+const rulesDoc = () => adminDb.collection("siteContent").doc("rules");
 
 const DEFAULT_RULES: Rule[] = [
   {
@@ -21,28 +37,47 @@ const DEFAULT_RULES: Rule[] = [
 
 async function readRules(): Promise<Rule[]> {
   try {
-    return JSON.parse(await fs.readFile(FILE, "utf-8"));
-  } catch {
-    return DEFAULT_RULES;
+    const snap = await rulesDoc().get();
+    const items = snap.exists ? snap.data()?.items : null;
+    if (Array.isArray(items)) return items as Rule[];
+  } catch (err) {
+    console.error("Read rules error:", err);
   }
+  return DEFAULT_RULES; // nothing posted yet
 }
 
 export async function GET() {
   return NextResponse.json({ items: await readRules() });
 }
 
-export async function PUT(req: Request) {
-  // TODO: i-check diri nga admin ang naga-request
-  const data = await req.json().catch(() => null);
-  if (!data || !Array.isArray(data.items)) {
-    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+export async function PUT(request: NextRequest) {
+  try {
+    await verifyAdminRequest(request);
+  } catch {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const items: Rule[] = data.items
-    .filter((r: Rule) => typeof r?.title === "string" && typeof r?.body === "string" && r.title.trim())
-    .map((r: Rule) => ({ title: r.title.trim(), body: r.body.trim() }));
+  try {
+    const data = await request.json().catch(() => null);
+    if (!data || !Array.isArray(data.items)) {
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+    }
 
-  await fs.mkdir(path.dirname(FILE), { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(items, null, 2));
-  return NextResponse.json({ items });
+    const items: Rule[] = data.items
+      .filter(
+        (r: Rule) =>
+          typeof r?.title === "string" && typeof r?.body === "string" && r.title.trim()
+      )
+      .slice(0, MAX_RULES)
+      .map((r: Rule) => ({
+        title: r.title.trim().slice(0, MAX_TITLE),
+        body: r.body.trim().slice(0, MAX_BODY),
+      }));
+
+    await rulesDoc().set({ items, updatedAt: FieldValue.serverTimestamp() });
+    return NextResponse.json({ items });
+  } catch (err) {
+    console.error("Save rules error:", err);
+    return NextResponse.json({ error: "Something went wrong." }, { status: 500 });
+  }
 }

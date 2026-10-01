@@ -5544,3 +5544,94 @@ body {
   }
 }
 
+/* ============================================================
+   PASTE THIS AT THE VERY BOTTOM OF app/globals.css
+   (it must come after everything else so it wins)
+   ============================================================ */
+
+/* ── LOCATE ME BUTTON — responsive ──────────────────────────
+   Phones: a round pin-only button, so the search box keeps its
+   room. The words ("Locate Me", "Locating...", "Tracking") are
+   hidden visually but stay available to screen readers, and the
+   button keeps its title="Find my location" tooltip. */
+@media (max-width: 720px) {
+  #locate-btn,
+  .community-page #locate-btn,
+  .food-header-actions > button {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0; /* hides the words */
+    line-height: 1;
+  }
+
+  #locate-btn .btn-label,
+  .community-page #locate-btn .btn-label {
+    font-size: 0;
+  }
+
+  /* the pin icon */
+  #locate-btn .btn-label::before,
+  .community-page #locate-btn .btn-label::before,
+  .food-header-actions > button::before {
+    content: "📍";
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  /* while it is finding you: show the spinner instead of the pin */
+  #locate-btn.loading .btn-label::before,
+  .community-page #locate-btn.loading .btn-label::before {
+    content: none;
+  }
+  #locate-btn.loading .spinner,
+  .community-page #locate-btn.loading .spinner {
+    display: block;
+  }
+
+  /* search box + button always stay on ONE line */
+  .search-wrap,
+  .community-page .search-wrap,
+  .food-header-actions {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  .search-box,
+  .community-page .search-box,
+  .food-header-actions .search-box {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
+/* Small tablets: keep the full "Locate Me" label but never let it wrap */
+@media (min-width: 721px) and (max-width: 900px) {
+  #locate-btn,
+  .community-page #locate-btn {
+    padding: 0.5rem 0.85rem;
+    white-space: nowrap;
+  }
+}
+
+/* ── HOTLINES PAGE — Home button stays on the LEFT ──────────
+   On phones the header stacks into a column, which was centering
+   the Home button. Keep it on the left; the title stays centered. */
+@media (max-width: 768px) {
+  .hotlines-header-top {
+    align-items: stretch;
+  }
+  .hotlines-back-btn {
+    align-self: flex-start;
+  }
+  .hotlines-title {
+    text-align: center;
+  }
+}

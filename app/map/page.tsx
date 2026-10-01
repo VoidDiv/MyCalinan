@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { useExploreListings } from '@/hooks/useLiveListings';
 
 // ══════════════════════════════════════════
 // MAPBOX ACCESS TOKEN
@@ -11,26 +12,49 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
+// Calinan (Proper) is at about 7.1876, 125.4532.
+// The old map started at 7.1648 — roughly 2.5 km SOUTH of the town — which is
+// why the pins looked like they were in the wrong place.
+const CALINAN_CENTER: [number, number] = [125.4532, 7.1876];
+
 // ══════════════════════════════════════════
-// TYPES
+// PLACES COME FROM THE SAME LISTINGS AS THE EXPLORE PAGES
+// (Admin > Listings > Explore). That means a pin sits on exactly the same
+// coordinates as that place's "View on Map" button, and anything the admin
+// adds, edits or deletes shows up here automatically.
+//
+// The map starts CLEAN: no place is shown until the visitor clicks one
+// (in the Nearby list, a search result, the Directions list, or an
+// Emergency button). Then only that one place gets its pin.
 // ══════════════════════════════════════════
-type Category =
-  | 'all'
-  | 'tourist'
-  | 'hospital'
-  | 'school'
-  | 'restaurant'
-  | 'police'
-  | 'fire'
-  | 'government';
+const SECTIONS = [
+  { key: 'healthcare', label: 'Health', icon: '🏥' },
+  { key: 'education', label: 'School', icon: '🎓' },
+  { key: 'food', label: 'Food', icon: '🍽️' },
+  { key: 'hotspots', label: 'Tourist', icon: '🌴' },
+  { key: 'community', label: 'Community', icon: '🏛️' },
+  { key: 'finance', label: 'Finance', icon: '🏦' },
+  { key: 'transport', label: 'Transport', icon: '🚌' },
+  { key: 'shopping', label: 'Shopping', icon: '🛍️' },
+  { key: 'lifestyle', label: 'Lifestyle', icon: '🏨' },
+] as const;
+
+type SectionKey = (typeof SECTIONS)[number]['key'];
+type Category = 'all' | SectionKey;
+
+const CATEGORY_LABELS: Record<Category, string> = {
+  all: 'All',
+  ...(Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])) as Record<SectionKey, string>),
+};
 
 interface Place {
   id: string;
   name: string;
-  category: Category;
+  category: SectionKey;
   lat: number;
   lng: number;
   address: string;
+  tag: string;
   icon: string;
 }
 
@@ -38,34 +62,46 @@ interface PlaceWithDistance extends Place {
   dist: number | null;
 }
 
-const CATEGORY_LABELS: Record<Category, string> = {
-  all: 'All',
-  tourist: 'Tourist',
-  hospital: 'Hospital',
-  school: 'School',
-  restaurant: 'Food',
-  police: 'Police',
-  fire: 'Fire',
-  government: "Gov't",
-};
+// The few fields we read from an Explore listing
+interface ListingLike {
+  docId: string;
+  name?: string;
+  lat?: number;
+  lng?: number;
+  tag?: string;
+  pin?: string;
+  address?: string;
+}
 
-// ══════════════════════════════════════════
-// DATA
-// Tip: to get exact coordinates, run the app in development, zoom in,
-// click the exact spot, and copy the lat/lng printed in the browser console.
-// ══════════════════════════════════════════
-const CALINAN_PLACES: Place[] = [
-  { id: '1', name: 'Philippine Eagle Center', category: 'tourist', lat: 7.1824, lng: 125.4093, address: 'Malagos, Calinan, Davao City', icon: '🦅' },
-  { id: '2', name: 'Malagos Garden Resort', category: 'tourist', lat: 7.1833, lng: 125.4132, address: 'Bagkiwet, Malagos, Calinan', icon: '🌺' },
-  { id: '3', name: 'Bamboo Sanctuary', category: 'tourist', lat: 7.1700, lng: 125.4200, address: 'Calinan District, Davao City', icon: '🎋' },
-  { id: '4', name: 'Isaac T. Robillo Memorial Hospital', category: 'hospital', lat: 7.1662, lng: 125.4590, address: 'McArthur Highway, Calinan', icon: '🏥' },
-  { id: '5', name: 'Calinan National High School', category: 'school', lat: 7.1650, lng: 125.4630, address: 'Roman Diaz St, Calinan', icon: '🏫' },
-  { id: '6', name: 'Holy Cross College of Calinan', category: 'school', lat: 7.1640, lng: 125.4615, address: 'Villafuerte St, Calinan', icon: '🎓' },
-  { id: '7', name: 'Calinan Public Market', category: 'restaurant', lat: 7.1643, lng: 125.4608, address: 'Market Site, Calinan', icon: '🏪' },
-  { id: '8', name: 'Calinan Police Station (Station 10)', category: 'police', lat: 7.1635, lng: 125.4621, address: 'Roman Diaz St, Calinan', icon: '🚔' },
-  { id: '9', name: 'Calinan Fire Station', category: 'fire', lat: 7.1630, lng: 125.4610, address: 'Central Calinan', icon: '🚒' },
-  { id: '10', name: 'Calinan District Hall', category: 'government', lat: 7.1648, lng: 125.4602, address: 'District Center, Calinan', icon: '🏛️' },
-];
+function toPlaces(section: (typeof SECTIONS)[number], listings: unknown[]): Place[] {
+  return (listings as ListingLike[])
+    .filter(
+      (l) =>
+        l &&
+        typeof l.lat === 'number' &&
+        typeof l.lng === 'number' &&
+        Number.isFinite(l.lat) &&
+        Number.isFinite(l.lng) &&
+        !(l.lat === 0 && l.lng === 0)
+    )
+    .map((l) => ({
+      id: `${section.key}:${l.docId}`,
+      name: l.name ?? 'Unnamed place',
+      category: section.key,
+      lat: l.lat as number,
+      lng: l.lng as number,
+      address: l.address ?? '',
+      tag: l.tag ?? '',
+      icon: l.pin || section.icon,
+    }));
+}
+
+// Words used to find the nearest hospital / police / fire station in the listings
+const EMERGENCY: Record<'hospital' | 'police' | 'fire', { label: string; match: RegExp }> = {
+  hospital: { label: 'hospital', match: /hospital|medical center|medical centre/i },
+  police: { label: 'police station', match: /police|pnp/i },
+  fire: { label: 'fire station', match: /fire|bfp/i },
+};
 
 // GPS fixes worse than this (in meters) are ignored once we already have a position
 const MAX_ACCEPTED_ACCURACY_M = 150;
@@ -83,11 +119,46 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+/* Place pin: a green teardrop with the place's emoji.
+   The teardrop is an INNER element — Mapbox positions a marker by writing its own
+   `transform` onto the marker element, which would wipe out a rotation set on that
+   same element and leave the pin misaligned. Built with textContent so a place name
+   or emoji can never inject HTML. */
+function createPinElement(icon: string): HTMLDivElement {
+  const el = document.createElement('div');
+  el.style.cursor = 'pointer';
+
+  const drop = document.createElement('div');
+  drop.style.cssText =
+    'background:#2b6b45;color:#fff;font-size:16px;width:36px;height:36px;' +
+    'border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;' +
+    'align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);' +
+    'border:2px solid #fff;';
+
+  const emoji = document.createElement('span');
+  emoji.style.transform = 'rotate(45deg)';
+  emoji.textContent = icon;
+
+  drop.appendChild(emoji);
+  el.appendChild(drop);
+  return el;
+}
+
+/* "You are here" — the same pulsing blue dot used on the Explore pages
+   (styles .user-dot-wrapper / -ring / -inner live in globals.css). */
+function createUserDotElement(): HTMLDivElement {
+  const el = document.createElement('div');
+  el.className = 'user-dot-wrapper';
+  el.innerHTML = '<div class="user-dot-ring"></div><div class="user-dot-inner"></div>';
+  return el;
+}
+
 export default function BarangayMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const placeMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const selectedMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Always holds the latest GPS position. Popup buttons and routing read from
   // here, so they never use a stale (null) position captured at map load.
@@ -106,17 +177,58 @@ export default function BarangayMap() {
   const [searchResults, setSearchResults] = useState<Place[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  const [selectedDestination, setSelectedDestination] = useState('');
+  // The ONE place that has been clicked — the only pin on the map
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedDestinationId, setSelectedDestinationId] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // ══════════════════════════════════════════
+  // PLACES (live from the Explore listings)
+  // ══════════════════════════════════════════
+  const healthcare = useExploreListings('healthcare').listings;
+  const education = useExploreListings('education').listings;
+  const food = useExploreListings('food').listings;
+  const hotspots = useExploreListings('hotspots').listings;
+  const community = useExploreListings('community').listings;
+  const finance = useExploreListings('finance').listings;
+  const transport = useExploreListings('transport').listings;
+  const shopping = useExploreListings('shopping').listings;
+  const lifestyle = useExploreListings('lifestyle').listings;
+
+  const allPlaces: Place[] = useMemo(() => {
+    const bySection: Record<SectionKey, unknown[]> = {
+      healthcare, education, food, hotspots, community, finance, transport, shopping, lifestyle,
+    };
+    return SECTIONS.flatMap((s) => toPlaces(s, bySection[s.key] ?? []));
+  }, [healthcare, education, food, hotspots, community, finance, transport, shopping, lifestyle]);
+
+  // Only offer a filter chip for categories that actually have places
+  const availableCategories: Category[] = useMemo(
+    () => ['all', ...SECTIONS.filter((s) => allPlaces.some((p) => p.category === s.key)).map((s) => s.key)],
+    [allPlaces]
+  );
+
+  const categoryPlaces: Place[] = useMemo(
+    () => (activeCategory === 'all' ? allPlaces : allPlaces.filter((p) => p.category === activeCategory)),
+    [allPlaces, activeCategory]
+  );
 
   // ══════════════════════════════════════════
   // TOAST
   // ══════════════════════════════════════════
   const showToast = useCallback((msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    []
+  );
 
   // ══════════════════════════════════════════
   // DIRECT ROUTE
@@ -161,8 +273,11 @@ export default function BarangayMap() {
           });
         }
 
+        // Fit the view to the route AND both ends (you + the destination pin)
         const bounds = new mapboxgl.LngLatBounds();
         route.coordinates.forEach((c: [number, number]) => bounds.extend(c));
+        bounds.extend([pos.lng, pos.lat]);
+        bounds.extend([destLng, destLat]);
         mapRef.current.fitBounds(bounds, { padding: 60 });
 
         showToast(`Route calculated to ${label}`);
@@ -174,78 +289,32 @@ export default function BarangayMap() {
     [showToast]
   );
 
-  const directRouteTo = useCallback(
-    (destinationName: string) => {
-      setSelectedDestination(destinationName);
-      const target = CALINAN_PLACES.find((p) => p.name === destinationName);
-      if (target) drawRoute(target.lat, target.lng, target.name);
-    },
-    [drawRoute]
-  );
+  // ══════════════════════════════════════════
+  // REVEAL A PLACE (the only way a pin appears)
+  // ══════════════════════════════════════════
+  const revealPlace = useCallback((place: Place, fly = true) => {
+    setSelectedPlace(place);
+    setSelectedDestinationId(place.id);
+    if (fly) mapRef.current?.flyTo({ center: [place.lng, place.lat], zoom: 16 });
+  }, []);
 
   // ══════════════════════════════════════════
-  // FILTERED PLACES
+  // YOU-ARE-HERE MARKER
   // ══════════════════════════════════════════
-  const getFilteredPlaces = useCallback(
-    (category: Category = activeCategory): Place[] => {
-      if (category === 'all') return CALINAN_PLACES;
-      return CALINAN_PLACES.filter((p) => p.category === category);
-    },
-    [activeCategory]
-  );
+  const placeUserMarker = useCallback((lat: number, lng: number) => {
+    const map = mapRef.current;
+    if (!map) return;
 
-  // ══════════════════════════════════════════
-  // RENDER MARKERS
-  // ══════════════════════════════════════════
-  const renderPlacesOnMap = useCallback(
-    (places: Place[]) => {
-      if (!mapRef.current) return;
-
-      placeMarkersRef.current.forEach((m) => m.remove());
-      placeMarkersRef.current = [];
-
-      places.forEach((place) => {
-        // Built with textContent (not innerHTML) so place names can never inject HTML.
-        const popupNode = document.createElement('div');
-        popupNode.className = 'popup-content';
-
-        const title = document.createElement('h4');
-        title.textContent = `${place.icon} ${place.name}`;
-        const addr = document.createElement('p');
-        addr.textContent = place.address;
-        const btn = document.createElement('button');
-        btn.textContent = 'Directions';
-        btn.onclick = () => directRouteTo(place.name);
-
-        popupNode.append(title, addr, btn);
-
-        const popup = new mapboxgl.Popup({ offset: 25 }).setDOMContent(popupNode);
-
-        const marker = new mapboxgl.Marker()
-          .setLngLat([place.lng, place.lat])
-          .setPopup(popup)
-          .addTo(mapRef.current!);
-
-        placeMarkersRef.current.push(marker);
-      });
-    },
-    [directRouteTo]
-  );
-
-  // ══════════════════════════════════════════
-  // NEARBY LIST (derived)
-  // ══════════════════════════════════════════
-  const nearbyList: PlaceWithDistance[] = (() => {
-    const places = getFilteredPlaces();
-    const withDist: PlaceWithDistance[] = places.map((p) => ({
-      ...p,
-      dist: userLat !== null && userLng !== null ? calculateDistance(userLat, userLng, p.lat, p.lng) : null,
-    }));
-    if (userLat !== null && userLng !== null) {
-      withDist.sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0));
+    if (userMarkerRef.current) {
+      userMarkerRef.current.setLngLat([lng, lat]);
+      return;
     }
-    return withDist.slice(0, 5);
-  })();
+
+    userMarkerRef.current = new mapboxgl.Marker({ element: createUserDotElement(), anchor: 'center' })
+      .setLngLat([lng, lat])
+      .setPopup(new mapboxgl.Popup({ offset: 14 }).setText('Your Current Location'))
+      .addTo(map);
+  }, []);
 
   // ══════════════════════════════════════════
   // MAP INITIALIZATION
@@ -261,8 +330,8 @@ export default function BarangayMap() {
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [125.46, 7.1648],
-      zoom: 13,
+      center: CALINAN_CENTER,
+      zoom: 14,
       // Compact attribution: Mapbox/OpenStreetMap credit stays (required),
       // but collapses into a small "i" button.
       attributionControl: false,
@@ -272,13 +341,15 @@ export default function BarangayMap() {
     map.addControl(new mapboxgl.AttributionControl({ compact: true }));
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
+    let loaded = false;
+
     map.on('load', () => {
+      loaded = true;
       setMapLoaded(true);
-      renderPlacesOnMap(CALINAN_PLACES);
       requestAnimationFrame(() => map.resize());
 
       // Development only: click the map to print exact coordinates in the
-      // browser console, for fixing place positions in CALINAN_PLACES.
+      // browser console, for checking the position of a listing.
       if (process.env.NODE_ENV === 'development') {
         map.on('click', (e) => {
           console.log(`lat: ${e.lngLat.lat.toFixed(6)}, lng: ${e.lngLat.lng.toFixed(6)}`);
@@ -286,17 +357,82 @@ export default function BarangayMap() {
       }
     });
 
+    // Only a failure BEFORE the map has loaded is fatal. A later error (one tile
+    // that couldn't load, a dropped connection) must not cover the whole map.
     map.on('error', (e) => {
       console.error('[Mapbox error]', e?.error?.message || e);
-      setMapError(e?.error?.message || 'Unknown Mapbox error');
+      if (!loaded) setMapError(e?.error?.message || 'Unknown Mapbox error');
     });
 
     return () => {
+      // Forget every marker that belonged to this map, so a remount
+      // (hot reload / React Strict Mode) rebuilds them on the NEW map.
+      selectedMarkerRef.current?.remove();
+      selectedMarkerRef.current = null;
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+
       map.remove();
       mapRef.current = null;
+      setMapLoaded(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ══════════════════════════════════════════
+  // THE CLICKED PLACE — its pin + popup (nothing else is ever pinned)
+  // ══════════════════════════════════════════
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    selectedMarkerRef.current?.remove();
+    selectedMarkerRef.current = null;
+
+    const place = selectedPlace;
+    if (!place) return;
+
+    const popupNode = document.createElement('div');
+    popupNode.className = 'place-popup';
+
+    const title = document.createElement('h4');
+    title.textContent = `${place.icon} ${place.name}`;
+    popupNode.appendChild(title);
+
+    if (place.tag) {
+      const tag = document.createElement('div');
+      tag.className = 'popup-tag';
+      tag.textContent = place.tag;
+      popupNode.appendChild(tag);
+    }
+    if (place.address) {
+      const addr = document.createElement('p');
+      addr.textContent = place.address;
+      popupNode.appendChild(addr);
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '🧭 Directions';
+    btn.style.cssText =
+      'margin-top:8px;padding:6px 14px;border:none;border-radius:999px;' +
+      'background:#2b6b45;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+    btn.onclick = () => drawRoute(place.lat, place.lng, place.name);
+    popupNode.appendChild(btn);
+
+    // offset [0,-7]: the rotated teardrop's tip sticks out ~7px below its box,
+    // so lift it by 7px to land exactly on the coordinates.
+    const marker = new mapboxgl.Marker({
+      element: createPinElement(place.icon),
+      anchor: 'bottom',
+      offset: [0, -7],
+    })
+      .setLngLat([place.lng, place.lat])
+      .setPopup(new mapboxgl.Popup({ offset: 40, maxWidth: '260px' }).setDOMContent(popupNode))
+      .addTo(map);
+
+    marker.togglePopup(); // show its details right away — it was just clicked
+    selectedMarkerRef.current = marker;
+  }, [selectedPlace, mapLoaded, drawRoute]);
 
   // ══════════════════════════════════════════
   // GEOLOCATION TRACKING
@@ -322,21 +458,7 @@ export default function BarangayMap() {
         setAccuracy(Math.round(acc));
         setGpsStatus('ok');
 
-        if (!mapRef.current) return;
-
-        if (userMarkerRef.current) {
-          userMarkerRef.current.setLngLat([lng, lat]);
-        } else {
-          const el = document.createElement('div');
-          el.className = 'user-gps-marker';
-          el.style.cssText =
-            'background:#2b6b45;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 8px rgba(0,0,0,0.4);';
-
-          userMarkerRef.current = new mapboxgl.Marker({ element: el })
-            .setLngLat([lng, lat])
-            .setPopup(new mapboxgl.Popup().setText('Your Current Location'))
-            .addTo(mapRef.current);
-        }
+        placeUserMarker(lat, lng);
       },
       (err) => {
         console.warn(`GPS Error: ${err.message}`);
@@ -347,13 +469,33 @@ export default function BarangayMap() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [placeUserMarker]);
+
+  // The map may finish loading AFTER the first GPS fix — draw the dot then too
+  useEffect(() => {
+    const pos = userPosRef.current;
+    if (mapLoaded && pos) placeUserMarker(pos.lat, pos.lng);
+  }, [mapLoaded, placeUserMarker]);
 
   // Nudge the map to recalc size when the sidebar toggles or on mount
   useEffect(() => {
     const t = setTimeout(() => mapRef.current?.resize(), 250);
     return () => clearTimeout(t);
   }, [sidebarOpen]);
+
+  // ══════════════════════════════════════════
+  // NEARBY LIST (derived) — follows the category chips
+  // ══════════════════════════════════════════
+  const nearbyList: PlaceWithDistance[] = (() => {
+    const withDist: PlaceWithDistance[] = categoryPlaces.map((p) => ({
+      ...p,
+      dist: userLat !== null && userLng !== null ? calculateDistance(userLat, userLng, p.lat, p.lng) : null,
+    }));
+    if (userLat !== null && userLng !== null) {
+      withDist.sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0));
+    }
+    return withDist.slice(0, 5);
+  })();
 
   // ══════════════════════════════════════════
   // RECENTER
@@ -369,24 +511,22 @@ export default function BarangayMap() {
   };
 
   // ══════════════════════════════════════════
-  // CATEGORY FILTER
+  // CATEGORY FILTER — only filters the Nearby list; the map stays clean
   // ══════════════════════════════════════════
-  const filterCat = (category: Category) => {
-    setActiveCategory(category);
-    const filtered = category === 'all' ? CALINAN_PLACES : CALINAN_PLACES.filter((p) => p.category === category);
-
-    renderPlacesOnMap(filtered);
-
-    if (filtered.length > 0 && mapRef.current) {
-      const bounds = new mapboxgl.LngLatBounds();
-      filtered.forEach((p) => bounds.extend([p.lng, p.lat]));
-      mapRef.current.fitBounds(bounds, { padding: 60 });
-    }
-  };
+  const filterCat = (category: Category) => setActiveCategory(category);
 
   // ══════════════════════════════════════════
   // SEARCH
   // ══════════════════════════════════════════
+  const matchPlaces = (query: string) =>
+    allPlaces.filter(
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        p.address.toLowerCase().includes(query) ||
+        p.tag.toLowerCase().includes(query) ||
+        CATEGORY_LABELS[p.category].toLowerCase().includes(query)
+    );
+
   const handleSearchInput = (value: string) => {
     setSearchQuery(value);
     const query = value.toLowerCase().trim();
@@ -396,53 +536,53 @@ export default function BarangayMap() {
       return;
     }
 
-    const matches = CALINAN_PLACES.filter(
-      (p) => p.name.toLowerCase().includes(query) || p.address.toLowerCase().includes(query)
-    );
-    setSearchResults(matches);
+    setSearchResults(matchPlaces(query));
     setShowSearchResults(true);
   };
 
+  // "Go" lists the matches — a place only appears on the map when you click it.
+  // (If there is exactly one match, it is opened straight away.)
   const doSearch = () => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return;
 
-    const matches = CALINAN_PLACES.filter(
-      (p) => p.name.toLowerCase().includes(query) || p.category.toLowerCase().includes(query)
-    );
-
-    renderPlacesOnMap(matches);
-    setShowSearchResults(false);
-
-    if (matches.length > 0 && mapRef.current) {
-      mapRef.current.flyTo({ center: [matches[0].lng, matches[0].lat], zoom: 15 });
-      showToast(`Found ${matches.length} matching location(s)`);
-    } else {
+    const matches = matchPlaces(query);
+    if (matches.length === 0) {
+      setShowSearchResults(false);
       showToast('No locations matched your query');
+    } else if (matches.length === 1) {
+      setShowSearchResults(false);
+      revealPlace(matches[0]);
+      showToast(`Showing ${matches[0].name}`);
+    } else {
+      setSearchResults(matches);
+      setShowSearchResults(true);
+      showToast(`Found ${matches.length} places — tap one to show it`);
     }
   };
 
   const selectSearchResult = (id: string) => {
-    const place = CALINAN_PLACES.find((p) => p.id === id);
+    const place = allPlaces.find((p) => p.id === id);
     setShowSearchResults(false);
-    if (place && mapRef.current) {
-      mapRef.current.flyTo({ center: [place.lng, place.lat], zoom: 16 });
-      showToast(`Navigated to ${place.name}`);
+    if (place) {
+      revealPlace(place);
+      showToast(`Showing ${place.name}`);
     }
   };
 
   // ══════════════════════════════════════════
   // ROUTING — clear and get directions
   // ══════════════════════════════════════════
-  const clearRoute = useCallback(() => {
-    if (!mapRef.current) return;
-    if (mapRef.current.getLayer('route')) {
-      mapRef.current.removeLayer('route');
+  const clearMap = useCallback(() => {
+    // Back to a clean map: no route and no place pin
+    setSelectedPlace(null);
+    setSelectedDestinationId('');
+    const map = mapRef.current;
+    if (map) {
+      if (map.getLayer('route')) map.removeLayer('route');
+      if (map.getSource('route')) map.removeSource('route');
     }
-    if (mapRef.current.getSource('route')) {
-      mapRef.current.removeSource('route');
-    }
-    showToast('Route cleared');
+    showToast('Map cleared');
   }, [showToast]);
 
   const getDirections = useCallback(() => {
@@ -450,25 +590,28 @@ export default function BarangayMap() {
       showToast('Waiting for your GPS location...');
       return;
     }
-    if (!selectedDestination) {
+    if (!selectedDestinationId) {
       showToast('Please select a destination first');
       return;
     }
-    const target = CALINAN_PLACES.find((p) => p.name === selectedDestination);
+    const target = allPlaces.find((p) => p.id === selectedDestinationId);
     if (!target) return;
 
+    revealPlace(target, false); // show the destination pin; the route view fits both ends
     drawRoute(target.lat, target.lng, target.name);
-  }, [selectedDestination, drawRoute, showToast]);
+  }, [selectedDestinationId, allPlaces, drawRoute, revealPlace, showToast]);
 
   // ══════════════════════════════════════════
   // EMERGENCY SEARCH
-  // Picks the nearest place of that type when GPS is available,
-  // otherwise the first one in the list.
+  // Finds the nearest hospital / police / fire station in the listings
+  // (matched by name or tag). Uses your GPS position when available.
   // ══════════════════════════════════════════
-  const findNearest = (type: Category) => {
-    const matches = CALINAN_PLACES.filter((p) => p.category === type);
+  const findNearest = (type: keyof typeof EMERGENCY) => {
+    const { label, match } = EMERGENCY[type];
+    const matches = allPlaces.filter((p) => match.test(p.name) || match.test(p.tag));
+
     if (matches.length === 0) {
-      showToast(`No ${type} services found in database`);
+      showToast(`No ${label} listed yet — add it in Admin > Listings`);
       return;
     }
 
@@ -481,10 +624,9 @@ export default function BarangayMap() {
         )[0]
       : matches[0];
 
-    renderPlacesOnMap(matches);
-    mapRef.current?.flyTo({ center: [target.lng, target.lat], zoom: 16 });
-    directRouteTo(target.name);
-    showToast(`Found nearest ${type}: ${target.name}`);
+    revealPlace(target, false);
+    drawRoute(target.lat, target.lng, target.name);
+    showToast(`Nearest ${label}: ${target.name}`);
   };
 
   // ══════════════════════════════════════════
@@ -581,7 +723,7 @@ export default function BarangayMap() {
                       <span>{m.icon}</span>
                       <div>
                         <div className="text-sm font-medium text-neutral-800">{m.name}</div>
-                        <div className="text-xs text-neutral-500">{m.address}</div>
+                        <div className="text-xs text-neutral-500">{m.address || m.tag}</div>
                       </div>
                     </div>
                   ))
@@ -594,7 +736,7 @@ export default function BarangayMap() {
           <div className="px-4 py-3 border-b border-neutral-200">
             <p className="text-xs font-medium text-neutral-500 mb-2">Filter</p>
             <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(CATEGORY_LABELS) as Category[]).map((cat) => (
+              {availableCategories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => filterCat(cat)}
@@ -612,7 +754,8 @@ export default function BarangayMap() {
 
           {/* Nearby list */}
           <div className="px-4 py-3 border-b border-neutral-200 flex-1 min-h-0 overflow-y-auto">
-            <p className="text-xs font-medium text-neutral-500 mb-2">Nearby</p>
+            <p className="text-xs font-medium text-neutral-500">Nearby</p>
+            <p className="text-[11px] text-neutral-400 mb-2">Tap a place to show it on the map.</p>
             <ul className="text-sm divide-y divide-neutral-100">
               {nearbyList.length === 0 ? (
                 <li className="py-2 text-neutral-400">No locations found</li>
@@ -620,10 +763,12 @@ export default function BarangayMap() {
                 nearbyList.map((item) => (
                   <li
                     key={item.id}
-                    className="py-2 flex items-center gap-2 cursor-pointer hover:bg-neutral-50 rounded px-1"
+                    className={`py-2 flex items-center gap-2 cursor-pointer hover:bg-neutral-50 rounded px-1 ${
+                      selectedPlace?.id === item.id ? 'bg-green-50' : ''
+                    }`}
                     onClick={() => {
-                      mapRef.current?.flyTo({ center: [item.lng, item.lat], zoom: 16 });
-                      showToast(`Panned to ${item.name}`);
+                      revealPlace(item);
+                      showToast(`Showing ${item.name}`);
                     }}
                   >
                     <span>{item.icon}</span>
@@ -641,13 +786,20 @@ export default function BarangayMap() {
           <div className="px-4 py-3">
             <p className="text-xs font-medium text-neutral-500 mb-2">Directions</p>
             <select
-              value={selectedDestination}
-              onChange={(e) => setSelectedDestination(e.target.value)}
+              value={selectedDestinationId}
+              onChange={(e) => {
+                const place = allPlaces.find((p) => p.id === e.target.value);
+                if (place) revealPlace(place);
+                else {
+                  setSelectedDestinationId('');
+                  setSelectedPlace(null);
+                }
+              }}
               className="w-full text-sm border border-neutral-300 rounded-md px-2 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-green-700/40"
             >
               <option value="">Select destination...</option>
-              {CALINAN_PLACES.map((p) => (
-                <option key={p.id} value={p.name}>
+              {allPlaces.map((p) => (
+                <option key={p.id} value={p.id}>
                   {p.icon} {p.name}
                 </option>
               ))}
@@ -660,7 +812,7 @@ export default function BarangayMap() {
                 Get Directions
               </button>
               <button
-                onClick={clearRoute}
+                onClick={clearMap}
                 className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-md px-3 text-sm font-medium transition-colors"
               >
                 Clear
