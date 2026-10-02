@@ -64,6 +64,37 @@ async function loadCached<T extends { order?: number; public?: boolean }>(
   }
 }
 
+/* The Admin "Rules" page saves to Firestore settings/rules (a list called "items"),
+   NOT to a "barangayRules" collection — so Calibot has to read it from there. */
+async function loadRules(): Promise<Rule[]> {
+  const key = "settings/rules";
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.docs as Rule[];
+
+  try {
+    const snap = await adminDb.collection("settings").doc("rules").get();
+    const items = snap.exists && Array.isArray(snap.data()?.items) ? (snap.data()!.items as unknown[]) : [];
+    const docs: Rule[] = items
+      .filter(
+        (r): r is { title: string; body?: string } =>
+          !!r &&
+          typeof (r as { title?: unknown }).title === "string" &&
+          !!(r as { title: string }).title.trim()
+      )
+      .map((r, i) => ({
+        id: String(i),
+        title: r.title,
+        body: typeof r.body === "string" ? r.body : "",
+        order: i,
+      }));
+    cache.set(key, { at: Date.now(), docs });
+    return docs;
+  } catch (error) {
+    console.error("Firestore read failed for settings/rules:", error);
+    return (hit?.docs as Rule[]) ?? []; // serve stale rather than nothing
+  }
+}
+
 /* ---------- Helpers ---------- */
 
 function padded(text: string): string {
@@ -170,7 +201,7 @@ export async function getStaticKnowledge(query: string): Promise<StaticKnowledge
   const parts: string[] = [];
   if (officials) parts.push(officialsText(officialsData));
   if (rules) {
-    const rulesData = await loadCached<Rule>("barangayRules");
+    const rulesData = await loadRules();
     const text = rulesText(rulesData, query);
     if (text) parts.push(text);
   }

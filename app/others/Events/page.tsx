@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, type Timestamp } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
 
 interface EventItem {
@@ -12,6 +12,7 @@ interface EventItem {
   image?: string;
   category?: string;
   date?: string;
+  createdAt?: Timestamp;
   location?: string;
   description?: string;
 }
@@ -27,6 +28,20 @@ function getCategoryClass(category?: string): string {
   return "general";
 }
 
+/* Newest first. The "date" the admin types is plain text ("June 28, 2026"), so
+   sorting by it A–Z puts September before October. Sort by when it was posted
+   instead; if that is missing, fall back to the typed date. Done here (not in
+   the Firestore query) so events without a "createdAt" are not hidden. */
+function newestFirst(a: EventItem, b: EventItem): number {
+  const key = (item: EventItem) => {
+    const created = item.createdAt?.toMillis?.();
+    if (typeof created === "number") return created;
+    const typed = Date.parse(String(item.date ?? ""));
+    return Number.isNaN(typed) ? 0 : typed;
+  };
+  return key(b) - key(a);
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -36,14 +51,14 @@ export default function EventsPage() {
     try {
       setError(false);
 
-      const eventsRef = collection(db, "events");
-      const q = query(eventsRef, orderBy("date", "desc"));
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(collection(db, "events"));
 
-      const data: EventItem[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const data: EventItem[] = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .sort(newestFirst);
 
       setEvents(data);
     } catch (err) {

@@ -18,6 +18,9 @@
      zooming to the pin.
    - The user dot is moved with setLngLat instead of being re-created.
    - The pin tip now sits exactly on the coordinates (offset fix).
+
+   SAFETY FIX: names and tags typed by the admin are escaped before they go
+   into the map popup HTML (see lib/escapeHtml.ts).
    ============================================================ */
 
 "use client";
@@ -36,6 +39,7 @@ import {
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { escapeHtml } from "@/lib/escapeHtml";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
 
@@ -154,8 +158,8 @@ function buildLocationPopupHtml(
     : "";
 
   return `<div class="finance-popup">
-    <h4>${loc.name}</h4>
-    <div class="popup-tag">${loc.tag}</div>
+    <h4>${escapeHtml(loc.name)}</h4>
+    <div class="popup-tag">${escapeHtml(loc.tag)}</div>
     <p>${distText}</p>
     <a href="${googleMapsSearchUrl(loc.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
   </div>`;
@@ -418,7 +422,7 @@ export default function FinancePage() {
     if (placeMarkerRef.current) placeMarkerRef.current.remove();
 
     const el = document.createElement("div");
-    el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${selectedLocation.pin}</span></div>`;
+    el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${escapeHtml(selectedLocation.pin)}</span></div>`;
 
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
       buildLocationPopupHtml(selectedLocation, userLocationRef.current)

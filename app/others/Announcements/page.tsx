@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/Firebase";
 
 interface AnnouncementItem {
@@ -12,6 +12,7 @@ interface AnnouncementItem {
   image?: string;
   category?: string;
   date?: string | Timestamp;
+  createdAt?: Timestamp;
   location?: string;
   description?: string;
 }
@@ -53,6 +54,20 @@ function formatDate(date?: string | Timestamp): string {
   });
 }
 
+/* Newest first. The "date" the admin types is plain text ("June 28, 2026"), so
+   sorting by it A–Z puts September before October. Sort by when it was posted
+   instead; if that is missing, fall back to the typed date. Done here (not in
+   the Firestore query) so announcements without a "createdAt" are not hidden. */
+function newestFirst(a: AnnouncementItem, b: AnnouncementItem): number {
+  const key = (item: AnnouncementItem) => {
+    const created = item.createdAt?.toMillis?.();
+    if (typeof created === "number") return created;
+    const typed = item.date instanceof Timestamp ? item.date.toMillis() : Date.parse(String(item.date ?? ""));
+    return Number.isNaN(typed) ? 0 : typed;
+  };
+  return key(b) - key(a);
+}
+
 export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -62,14 +77,14 @@ export default function AnnouncementPage() {
     try {
       setError(false);
 
-      const announcementsRef = collection(db, "announcements");
-      const q = query(announcementsRef, orderBy("date", "desc"));
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(collection(db, "announcements"));
 
-      const data: AnnouncementItem[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const data: AnnouncementItem[] = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .sort(newestFirst);
 
       setAnnouncements(data);
     } catch (err) {

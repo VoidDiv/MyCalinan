@@ -16,6 +16,9 @@
      zooming to the pin.
    - The user dot is moved with setLngLat instead of being re-created.
    - The pin tip now sits exactly on the coordinates (offset fix).
+
+   SAFETY FIX: names and tags typed by the admin are escaped before they go
+   into the map popup HTML (see lib/escapeHtml.ts).
    ============================================================ */
 
 "use client";
@@ -33,13 +36,12 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { escapeHtml } from "@/lib/escapeHtml";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
 
-const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-
-mapboxgl.accessToken = token!;
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+mapboxgl.accessToken = MAPBOX_TOKEN;
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";
 
@@ -132,8 +134,8 @@ function buildClinicPopupHtml(
     : "";
 
   return `<div class="health-popup">
-    <h4>${clinic.name}</h4>
-    <div class="popup-tag">${clinic.tag}</div>
+    <h4>${escapeHtml(clinic.name)}</h4>
+    <div class="popup-tag">${escapeHtml(clinic.tag)}</div>
     <p>${distText}</p>
     <a href="https://www.google.com/maps/search/?api=1&query=${clinic.mapsQuery}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
   </div>`;

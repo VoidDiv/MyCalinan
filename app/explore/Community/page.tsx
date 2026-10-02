@@ -23,6 +23,12 @@
      zooming to the pin.
    - The user dot is moved with setLngLat instead of being re-created.
    - The pin tip now sits exactly on the coordinates (offset fix).
+
+   CLEAN-UP + SAFETY FIX IN THIS VERSION:
+   - Names, tags and descriptions typed by the admin are escaped before they
+     go into the map popup HTML (see lib/escapeHtml.ts).
+   - Removed three leftover <link> tags (the old logo as favicon, a Poppins
+     font that nothing here uses, and /style/Community.css which no longer exists).
    ============================================================ */
 
 "use client";
@@ -41,6 +47,7 @@ import {
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { escapeHtml } from "@/lib/escapeHtml";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
 
@@ -172,9 +179,9 @@ function buildPlacePopupHtml(
     : "";
 
   return `<div class="place-popup">
-    <span class="popup-tag">${place.tag}</span>
-    <h4>${place.pin} ${place.name}</h4>
-    <p>${place.description}${distText}</p>
+    <span class="popup-tag">${escapeHtml(place.tag)}</span>
+    <h4>${escapeHtml(place.pin)} ${escapeHtml(place.name)}</h4>
+    <p>${escapeHtml(place.description)}${distText}</p>
     <a href="${googleMapsSearchUrl(place.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
   </div>`;
 }
@@ -439,7 +446,7 @@ export default function CommunityPage() {
     if (placeMarkerRef.current) placeMarkerRef.current.remove();
 
     const el = document.createElement("div");
-    el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${selectedPlace.pin}</span></div>`;
+    el.innerHTML = `<div style="background:${PIN_COLOR};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">${escapeHtml(selectedPlace.pin)}</span></div>`;
 
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "260px" }).setHTML(
       buildPlacePopupHtml(selectedPlace, userLocationRef.current)
@@ -573,14 +580,6 @@ export default function CommunityPage() {
 
   return (
     <>
-      {/* CDN External Stylesheets */}
-      <link rel="icon" type="image/png" href="/image/CALINAN LOGO.png" />
-      <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-      <link rel="stylesheet" href="/style/Community.css" />
-
       {/* HEADER */}
       <header className="header">
         <div className="header-left">

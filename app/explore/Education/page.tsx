@@ -20,6 +20,9 @@
      zooming to the pin.
    - The user dot is moved with setLngLat instead of being re-created.
    - The pin tip now sits exactly on the coordinates (offset fix).
+
+   SAFETY FIX: names and tags typed by the admin are escaped before they go
+   into the map popup HTML (see lib/escapeHtml.ts).
    ============================================================ */
 
 "use client";
@@ -38,6 +41,7 @@ import {
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { escapeHtml } from "@/lib/escapeHtml";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
 
@@ -152,8 +156,8 @@ function buildSchoolPopupHtml(
     : "";
 
   return `<div class="place-popup">
-    <h4>${school.name}</h4>
-    <div class="popup-tag">${school.displayTag}</div>
+    <h4>${escapeHtml(school.name)}</h4>
+    <div class="popup-tag">${escapeHtml(school.displayTag)}</div>
     <p>${distText}</p>
     <a href="${googleMapsSearchUrl(school.mapsQuery)}" target="_blank" rel="noreferrer">🧭 Open in Google Maps</a>
   </div>`;

@@ -1,18 +1,11 @@
 /* ============================================================
-   FILE: components/EmailOtpVerifier.tsx   (NEW)
-   Drop-in "verify this email" block. Put it right under an email
-   input. It sends the code, takes the 6 digits, and hands the
-   parent a verification token via onVerified().
+   FILE: components/EmailOtpVerifier.tsx   (REPLACE whole file)
+   Same behaviour as before — sends the code, takes the 6 digits and hands the
+   parent a verification token via onVerified() — with the bold sign-up look
+   (classes "otp-*" in globals-signup-bold.css).
 
-   If the email text changes after sending/verifying, it resets
-   itself and calls onReset() so the parent drops the old token.
-
-   Usage:
-     <EmailOtpVerifier
-       email={formData.email}
-       onVerified={(token) => setOtpToken(token)}
-       onReset={() => setOtpToken(null)}
-     />
+   If the email text changes after sending/verifying, it resets itself and
+   calls onReset() so the parent drops the old token.
    ============================================================ */
 
 "use client";
@@ -141,30 +134,28 @@ export default function EmailOtpVerifier({
   const canSend = EMAIL_REGEX.test(trimmed) && !sending && !disabled && cooldown === 0;
 
   return (
-    <div className="mt-2">
+    <div className="otp">
       {status === "verified" && (
-        <p
-          role="status"
-          className="rounded-md bg-green-50 px-3 py-2 text-xs font-semibold text-green-800"
-        >
-          Email verified. You can finish signing up.
+        <p role="status" className="otp-verified">
+          <span className="otp-verified-icon" aria-hidden="true">
+            ✓
+          </span>
+          Email verified — you can finish signing up.
         </p>
       )}
 
       {status === "idle" && (
-        <button
-          type="button"
-          onClick={sendCode}
-          disabled={!canSend}
-          className="w-full rounded-md border border-[#1b4332] px-3 py-2 text-xs font-semibold text-[#1b4332] transition hover:bg-[#1b4332] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[#1b4332]"
-        >
-          {sending ? "Sending code..." : "Send verification code"}
-        </button>
+        <>
+          <button type="button" onClick={sendCode} disabled={!canSend} className="otp-btn">
+            {sending ? "Sending code…" : "Send verification code"}
+          </button>
+          <p className="otp-hint">We&rsquo;ll email you a 6-digit code to confirm it&rsquo;s really you.</p>
+        </>
       )}
 
       {status === "sent" && (
-        <div className="space-y-2">
-          <div className="flex gap-2">
+        <>
+          <div className="otp-row">
             <input
               type="text"
               inputMode="numeric"
@@ -172,7 +163,7 @@ export default function EmailOtpVerifier({
               maxLength={6}
               value={code}
               aria-label="6-digit verification code"
-              placeholder="6-digit code"
+              placeholder="••••••"
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               onKeyDown={(e) => {
                 // Enter here should verify the code, not submit the whole form
@@ -181,15 +172,15 @@ export default function EmailOtpVerifier({
                   verifyCode();
                 }
               }}
-              className="w-full rounded-md border px-3 py-2 text-center text-sm tracking-[0.35em] focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className="otp-code"
             />
             <button
               type="button"
               onClick={verifyCode}
               disabled={code.length !== 6 || verifying || disabled}
-              className="shrink-0 rounded-md bg-[#1b4332] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#143326] disabled:cursor-not-allowed disabled:opacity-50"
+              className="otp-verify"
             >
-              {verifying ? "Checking..." : "Verify code"}
+              {verifying ? "Checking…" : "Verify"}
             </button>
           </div>
 
@@ -197,22 +188,15 @@ export default function EmailOtpVerifier({
             type="button"
             onClick={sendCode}
             disabled={cooldown > 0 || sending || disabled}
-            className="text-xs font-semibold text-[#1b4332] underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
+            className="otp-resend"
           >
-            {cooldown > 0
-              ? `Resend code in ${cooldown}s`
-              : sending
-              ? "Sending code..."
-              : "Resend code"}
+            {cooldown > 0 ? `Resend code in ${cooldown}s` : sending ? "Sending code…" : "Resend code"}
           </button>
-        </div>
+        </>
       )}
 
       {message && (
-        <p
-          role={message.ok ? "status" : "alert"}
-          className={`mt-2 text-xs ${message.ok ? "text-gray-600" : "text-red-500"}`}
-        >
+        <p role={message.ok ? "status" : "alert"} className={`otp-msg ${message.ok ? "is-ok" : "is-err"}`}>
           {message.text}
         </p>
       )}

@@ -37,11 +37,13 @@ const CACHE_TTL_MS = 10 * 60 * 1000; // re-read a collection at most every 10 mi
 const RATE_LIMIT_MAX = 12;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 
-// NOTE: "barangayOfficials" and "barangayRules" are intentionally NOT here.
+// NOTE: "barangayOfficials" and the rules are intentionally NOT here.
 // They are handled by getStaticKnowledge() in lib/calibotKnowledge.ts.
+// The names below must match the real Firestore collections (the Explore pages
+// use "transport", not "transportation").
 const SEARCHABLE_COLLECTIONS = [
   "documents", "hotspots", "history", "community", "education", "finance",
-  "food", "healthcare", "lifestyle", "shopping", "transportation",
+  "food", "healthcare", "lifestyle", "shopping", "transport",
 ];
 
 const COLLECTION_KEYWORDS: Record<string, string[]> = {
@@ -55,7 +57,7 @@ const COLLECTION_KEYWORDS: Record<string, string[]> = {
     "elementary", "high school", "senior high", "junior high",
   ],
   food: ["restaurant", "food", "eat", "eating", "meal", "coffee", "cafe", "carinderia", "dining"],
-  transportation: [
+  transport: [
     "jeepney", "jeep", "bus", "transport", "transportation", "terminal",
     "route", "ride", "commute", "tricycle", "trike", "fare",
   ],
@@ -199,7 +201,9 @@ async function loadCollection(name: string): Promise<CachedDoc[]> {
     const docs: CachedDoc[] = [];
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      if (data.public === false) continue; // private records never reach Calibot
+      // private records (public:false) and listings the admin hid (published:false)
+      // never reach Calibot
+      if (data.public === false || data.published === false) continue;
       docs.push({
         id: doc.id,
         data,

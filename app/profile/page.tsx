@@ -93,7 +93,12 @@ export default function ProfilePage() {
       setBusinessesLoading(true);
       setBusinessesError("");
       try {
+        // The login token saved at sign-in expires after about an hour, which made this
+        // list fail ("Could not load your businesses") for anyone who stayed logged in.
+        // So wait until Firebase knows who is signed in and ask it for a FRESH token.
+        await auth.authStateReady();
         const token =
+          (await auth.currentUser?.getIdToken()) ||
           localStorage.getItem("mycalinan_token") ||
           sessionStorage.getItem("mycalinan_token");
 

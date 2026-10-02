@@ -1,6 +1,11 @@
 "use client";
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 
@@ -15,6 +20,23 @@ const firebaseConfig = {
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+/* Firestore with an OFFLINE CACHE.
+   In the browser, everything the app reads is also saved on the device
+   (IndexedDB), so barangay officials, Explore listings, etc. still load
+   with no internet. On the server (Next.js pre-rendering) there is no
+   IndexedDB, so the plain Firestore is used there. */
+function createDb() {
+  if (typeof window === "undefined") return getFirestore(app);
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    // Already initialized (hot reload, or another import got there first)
+    return getFirestore(app);
+  }
+}
+
+export const db = createDb();
 export const storage = getStorage(app);
 export const auth = getAuth(app);

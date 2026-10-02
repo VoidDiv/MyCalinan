@@ -1,15 +1,13 @@
 /* ============================================================
    FILE: app/signup/page.tsx   (REPLACE whole file)
-   Sign-up now requires a verified email:
-   1. type your email -> "Send verification code"
-   2. enter the 6-digit code from the email -> "Verify code"
-   3. "Sign Up" is only accepted with the verification token
-
-   The account itself is created by /api/auth/signup (server), so the
-   browser is no longer left silently signed in after registering.
-
-   Look: styled with the MyCalinan colors + bold type (CSS classes
-   "signup-page-*" at the bottom of app/globals.css).
+   Same sign-up flow as before (verified email -> /api/auth/signup),
+   with a bold, highlighted design:
+   - logo badge + gold top bar on a green background
+   - 3 numbered sections (About you · Verify your email · Password)
+   - the email check is a highlighted gold panel that turns green
+   - live password checklist
+   - big gold "Create my account" button
+   Styles: globals-signup-bold.css  (classes "su-*" and "otp-*")
    ============================================================ */
 
 "use client";
@@ -39,6 +37,45 @@ const ERROR_FIELDS: (keyof FormErrors)[] = [
   "confirmPassword",
 ];
 
+/* Same rules the server checks in /api/auth/signup */
+const PASSWORD_RULES: { id: string; label: string; test: (p: string) => boolean }[] = [
+  { id: "len", label: "8 or more characters", test: (p) => p.length >= 8 },
+  { id: "up", label: "One uppercase letter (A–Z)", test: (p) => /[A-Z]/.test(p) },
+  { id: "low", label: "One lowercase letter (a–z)", test: (p) => /[a-z]/.test(p) },
+  { id: "num", label: "One number (0–9)", test: (p) => /\d/.test(p) },
+  {
+    id: "sym",
+    label: "One symbol (! @ # $ % …)",
+    test: (p) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(p),
+  },
+];
+
+function Field({
+  id,
+  label,
+  error,
+  children,
+}: {
+  id: string;
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="su-field">
+      <label className="su-label" htmlFor={id}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <p className="su-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SignUpPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -61,9 +98,7 @@ export default function SignUpPage() {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [verifierKey, setVerifierKey] = useState(0);
 
-  // Adds the red border to a field that has an error
-  const inputClass = (field: keyof FormErrors) =>
-    `signup-page-input${errors[field] ? " has-error" : ""}`;
+  const inputClass = (field: keyof FormErrors) => `su-input${errors[field] ? " has-error" : ""}`;
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -80,7 +115,7 @@ export default function SignUpPage() {
     if (!phoneNumber.trim()) {
       newErrors.phoneNumber = "Phone number is required";
     } else if (!phoneRegex.test(cleanPhone)) {
-      newErrors.phoneNumber = "Invalid phone number. Format: 09XXXXXXXXX or +639XXXXXXXXX";
+      newErrors.phoneNumber = "Use 09XXXXXXXXX or +639XXXXXXXXX";
     }
 
     if (!address.trim()) {
@@ -102,16 +137,9 @@ export default function SignUpPage() {
 
     if (!password) {
       newErrors.password = "Password is required";
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
-    } else if (!/[A-Z]/.test(password)) {
-      newErrors.password = "Password must contain at least one uppercase letter";
-    } else if (!/[a-z]/.test(password)) {
-      newErrors.password = "Password must contain at least one lowercase letter";
-    } else if (!/\d/.test(password)) {
-      newErrors.password = "Password must contain at least one number";
-    } else if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
-      newErrors.password = "Password must contain at least one special character";
+    } else {
+      const missing = PASSWORD_RULES.find((r) => !r.test(password));
+      if (missing) newErrors.password = `Password needs: ${missing.label.toLowerCase()}`;
     }
 
     if (!confirmPassword) {
@@ -176,85 +204,110 @@ export default function SignUpPage() {
     }
   };
 
+  const password = formData.password;
+
   return (
-    <div className="signup-page">
-      <div className="signup-page-card">
-        <h2 className="signup-page-title">Create Account</h2>
-        <p className="signup-page-subtitle">Sign up for your MyCalinan account</p>
+    <div className="su-page">
+      <div className="su-card">
+        <div className="su-brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="su-logo" src="/image/MyCalinan Logo.png" alt="MyCalinan" />
+        </div>
+
+        <h1 className="su-title">Create Account</h1>
+        <p className="su-subtitle">Join MyCalinan — it only takes a minute.</p>
 
         {formError && (
-          <div role="alert" className="signup-page-alert">
-            {formError}
+          <div role="alert" className="su-alert">
+            <strong>⚠</strong> {formError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="signup-page-form">
-          <div>
-            <label className="signup-page-label">Full Name</label>
+        <form onSubmit={handleSubmit} className="su-form" noValidate>
+          {/* ── 1 · About you ── */}
+          <div className="su-section">
+            <span className="su-step">1</span> About you
+          </div>
+
+          <Field id="fullName" label="Full name" error={errors.fullName}>
             <input
+              id="fullName"
               type="text"
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
-              placeholder="Enter full name"
+              placeholder="Juan Dela Cruz"
+              autoComplete="name"
+              aria-invalid={!!errors.fullName}
               className={inputClass("fullName")}
             />
-            {errors.fullName && <p className="signup-page-error">{errors.fullName}</p>}
+          </Field>
+
+          <div className="su-row">
+            <Field id="phoneNumber" label="Phone number" error={errors.phoneNumber}>
+              <input
+                id="phoneNumber"
+                type="tel"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                placeholder="09XXXXXXXXX"
+                autoComplete="tel"
+                aria-invalid={!!errors.phoneNumber}
+                className={inputClass("phoneNumber")}
+              />
+            </Field>
+
+            <Field id="sex" label="Sex" error={errors.sex}>
+              <select
+                id="sex"
+                name="sex"
+                value={formData.sex}
+                onChange={handleChange}
+                aria-invalid={!!errors.sex}
+                className={inputClass("sex")}
+              >
+                <option value="">Select…</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </Field>
           </div>
 
-          <div>
-            <label className="signup-page-label">Phone Number</label>
+          <Field id="address" label="Address" error={errors.address}>
             <input
-              type="text"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-              placeholder="09XXXXXXXXX"
-              className={inputClass("phoneNumber")}
-            />
-            {errors.phoneNumber && <p className="signup-page-error">{errors.phoneNumber}</p>}
-          </div>
-
-          <div>
-            <label className="signup-page-label">Address</label>
-            <input
+              id="address"
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
-              placeholder="Enter address"
+              placeholder="Purok, Barangay, Calinan"
+              autoComplete="street-address"
+              aria-invalid={!!errors.address}
               className={inputClass("address")}
             />
-            {errors.address && <p className="signup-page-error">{errors.address}</p>}
+          </Field>
+
+          {/* ── 2 · Verify your email ── */}
+          <div className="su-section">
+            <span className={`su-step${otpToken ? " is-done" : ""}`}>{otpToken ? "✓" : "2"}</span>{" "}
+            Verify your email
           </div>
 
-          <div>
-            <label className="signup-page-label">Sex</label>
-            <select
-              name="sex"
-              value={formData.sex}
-              onChange={handleChange}
-              className={inputClass("sex")}
-            >
-              <option value="">Select Sex</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-            {errors.sex && <p className="signup-page-error">{errors.sex}</p>}
-          </div>
-
-          <div>
-            <label className="signup-page-label">Email</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Enter email"
-              autoComplete="email"
-              className={inputClass("email")}
-            />
-            {errors.email && <p className="signup-page-error">{errors.email}</p>}
+          <div className={`su-panel${otpToken ? " is-verified" : ""}`}>
+            <Field id="email" label="Email address" error={errors.email}>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="you@email.com"
+                autoComplete="email"
+                aria-invalid={!!errors.email}
+                className={inputClass("email")}
+              />
+            </Field>
 
             <EmailOtpVerifier
               key={verifierKey}
@@ -268,52 +321,71 @@ export default function SignUpPage() {
             />
           </div>
 
-          <div>
-            <label className="signup-page-label">Password</label>
-            <div className="signup-page-password">
+          {/* ── 3 · Password ── */}
+          <div className="su-section">
+            <span className="su-step">3</span> Secure your account
+          </div>
+
+          <Field id="password" label="Password" error={errors.password}>
+            <div className="su-password">
               <input
+                id="password"
                 type={showPassword ? "text" : "password"}
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter password"
+                placeholder="Create a password"
                 autoComplete="new-password"
+                aria-invalid={!!errors.password}
                 className={inputClass("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="signup-page-toggle"
+                className="su-toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-            {errors.password && <p className="signup-page-error">{errors.password}</p>}
-          </div>
+          </Field>
 
-          <div>
-            <label className="signup-page-label">Confirm Password</label>
+          <ul className="su-rules" aria-label="Password requirements">
+            {PASSWORD_RULES.map((rule) => (
+              <li key={rule.id} className={password && rule.test(password) ? "is-ok" : ""}>
+                {rule.label}
+              </li>
+            ))}
+          </ul>
+
+          <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword}>
             <input
+              id="confirmPassword"
               type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              placeholder="Confirm password"
+              placeholder="Type the password again"
               autoComplete="new-password"
+              aria-invalid={!!errors.confirmPassword}
               className={inputClass("confirmPassword")}
             />
-            {errors.confirmPassword && <p className="signup-page-error">{errors.confirmPassword}</p>}
-          </div>
+          </Field>
 
-          <button type="submit" disabled={loading} className="signup-page-btn">
-            {loading ? "Registering..." : "Sign Up"}
+          <button type="submit" disabled={loading} className="su-btn">
+            {loading ? "Creating your account…" : "Create my account"}
           </button>
         </form>
 
-        <div className="signup-page-footer">
+        <div className="su-footer">
           Already have an account?{" "}
-          <Link href="/login" className="signup-page-link">
+          <Link href="/login" className="su-link">
             Sign In
+          </Link>
+        </div>
+        <div className="su-footer su-footer--small">
+          <Link href="/" className="su-link">
+            ← Back to MyCalinan
           </Link>
         </div>
       </div>
