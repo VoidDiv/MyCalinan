@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { fullLogout } from "../lib/session"; // adjust path to match your project structure
 import { useLanguage, type Lang } from "./LanguageProvider";
 import { useOfflineAccess } from "@/hooks/useOfflineAccess";
+import InstallButton from "./InstallButton";
 
 const EXPLORE_LINKS = [
   { label: "Health", href: "/explore/HealthCare" },
@@ -359,7 +360,9 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <div className="justify-self-end">
+        {/* Right side: [Install app] [Login]  (the install button hides itself when not possible / already installed) */}
+        <div className="flex items-center justify-self-end gap-2">
+          <InstallButton />
           {authState === "none" && (
             <Link href="/login" className={`inline-block ${ACCOUNT_BTN}`}>
               Login
