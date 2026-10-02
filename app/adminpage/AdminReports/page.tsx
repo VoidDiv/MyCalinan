@@ -13,6 +13,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/Firebase';
 import useAdminGuard from '@/hooks/useAdminGuard';
 import AdminSidebar from '@/components/AdminSidebar';
+import CategoryBarChart from '@/components/CategoryBarChart';
 
 /* ─────────────────────────────────────────────────────────
    Config
@@ -28,6 +29,10 @@ const BAR_COLORS: Record<Category, string> = {
   Advisory: '#d9a300',
   Festival: '#a8256f',
 };
+
+/* Colors of the two bars in the "Postings by Category" bar chart */
+const ANNOUNCEMENT_COLOR = '#1a5c38';
+const EVENT_COLOR = '#d99b34';
 
 interface Posting {
   category?: string;
@@ -218,6 +223,7 @@ export default function AdminReports() {
         .stat-card h2 { font-size: 1.7rem; font-weight: 700; color: #1a3d28; margin: 0; }
         .stat-card p { font-size: .78rem; color: #777; margin-top: 2px; }
 
+        .chart-panel { margin-bottom: 24px; }
         .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
         .panel { background: #fff; border-radius: 12px; padding: 26px 28px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
         .panel h2 {
@@ -264,6 +270,7 @@ export default function AdminReports() {
         @media print {
           .adm-sidebar, .export-btn { display: none !important; }
           .content { margin-left: 0; }
+          .panel, .table-section { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
         }
       `}</style>
 
@@ -304,6 +311,40 @@ export default function AdminReports() {
             <p>Advisories</p>
           </div>
         </div>
+
+        {/* Bar chart: announcements vs events, side by side for each category */}
+        <section className="panel chart-panel">
+          <h2>
+            <Layers size={16} className="panel-heading-icon" />
+            Postings by Category
+          </h2>
+
+          {loading ? (
+            <div className="panel-state">
+              <Loader2 size={16} className="spin" /> Loading…
+            </div>
+          ) : loadError ? (
+            <div className="panel-state">⚠️ Unable to load data.</div>
+          ) : allTotal === 0 ? (
+            <div className="panel-state">No data yet.</div>
+          ) : (
+            <CategoryBarChart
+              categories={CATEGORIES}
+              series={[
+                {
+                  label: 'Announcements',
+                  color: ANNOUNCEMENT_COLOR,
+                  values: CATEGORIES.map((cat) => annCounts[cat]),
+                },
+                {
+                  label: 'Events & Festivals',
+                  color: EVENT_COLOR,
+                  values: CATEGORIES.map((cat) => evtCounts[cat]),
+                },
+              ]}
+            />
+          )}
+        </section>
 
         <div className="panels">
           <BreakdownPanel

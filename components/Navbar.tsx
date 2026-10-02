@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { fullLogout } from "../lib/session"; // adjust path to match your project structure
 import { useLanguage, type Lang } from "./LanguageProvider";
+import { useOfflineAccess } from "@/hooks/useOfflineAccess";
 
 const EXPLORE_LINKS = [
   { label: "Health", href: "/explore/HealthCare" },
@@ -35,6 +36,10 @@ const DIRECT_LINKS = [
   { label: "Business Registration", href: "/business-registration" },
 ];
 
+/* Where the admin's "Admin Dashboard" menu item goes.
+   If your dashboard lives at a different address, change this one line. */
+const ADMIN_DASHBOARD_HREF = "/adminpage/AdminDashboard";
+
 /* Which kind of account button the top-right corner should show. */
 type AuthState = "none" | "guest" | "user" | "admin";
 
@@ -42,13 +47,18 @@ type AuthState = "none" | "guest" | "user" | "admin";
 const ACCOUNT_BTN =
   "whitespace-nowrap rounded-full bg-durian-500 px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-durian-400 sm:px-4 sm:text-sm";
 
+/* Shown instead of a link when the phone is offline and that page was never saved */
+const NOT_SAVED_TITLE = "Not saved for offline use — connect to the internet to open it";
+
 /* ── Desktop dropdown (hover + click, closes on click-outside) ── */
 function NavDropdown({
   label,
   links,
+  isAvailable,
 }: {
   label: string;
   links: { label: string; href: string }[];
+  isAvailable: (href: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -80,16 +90,27 @@ function NavDropdown({
       </button>
       {open && (
         <div className="absolute left-0 top-full z-10 min-w-[190px] overflow-hidden rounded-[var(--radius-stall)] border border-canopy-100 bg-white shadow-lg">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) =>
+            isAvailable(link.href) ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <span
+                key={link.href}
+                aria-disabled="true"
+                title={NOT_SAVED_TITLE}
+                className="block cursor-not-allowed px-4 py-2.5 text-sm font-medium text-ink-900/40"
+              >
+                {link.label} <span className="text-[10px] font-normal">(not saved)</span>
+              </span>
+            )
+          )}
         </div>
       )}
     </div>
@@ -100,9 +121,11 @@ function NavDropdown({
 function MobileGroup({
   label,
   links,
+  isAvailable,
 }: {
   label: string;
   links: { label: string; href: string }[];
+  isAvailable: (href: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -125,12 +148,22 @@ function MobileGroup({
         <ul className="mb-2 rounded-[var(--radius-stall)] bg-white/70">
           {links.map((link) => (
             <li key={link.href}>
-              <Link
-                href={link.href}
-                className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
-              >
-                {link.label}
-              </Link>
+              {isAvailable(link.href) ? (
+                <Link
+                  href={link.href}
+                  className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title={NOT_SAVED_TITLE}
+                  className="block cursor-not-allowed px-4 py-2.5 text-sm font-medium text-ink-900/40"
+                >
+                  {link.label} <span className="text-[10px] font-normal">(not saved)</span>
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -140,14 +173,17 @@ function MobileGroup({
 }
 
 /*
-  Dropdown shown for a logged-in business owner ("user" role).
+  Dropdown shown for a logged-in business owner ("user") and for the admin.
+  The links inside it are passed in, and "Log out" is always the last item.
   Opens on click (not hover) and closes on click-outside.
 */
 function AccountDropdown({
   label,
+  links,
   onLogout,
 }: {
   label: string;
+  links: { label: string; href: string }[];
   onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -175,20 +211,16 @@ function AccountDropdown({
       </button>
       {open && (
         <div className="absolute right-0 top-full z-10 mt-2 min-w-[210px] overflow-hidden rounded-[var(--radius-stall)] border border-canopy-100 bg-white shadow-lg">
-          <Link
-            href="/profile"
-            className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
-            onClick={() => setOpen(false)}
-          >
-            Business Profile
-          </Link>
-          <Link
-            href="/business-registration"
-            className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
-            onClick={() => setOpen(false)}
-          >
-            Submit Business Form
-          </Link>
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="block px-4 py-2.5 text-sm font-medium text-ink-900 transition hover:bg-canopy-100 hover:text-canopy-800"
+              onClick={() => setOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
           <button
             onClick={() => {
               setOpen(false);
@@ -210,6 +242,8 @@ export default function Navbar() {
 
   // ENG / CEB — saved on the device; Cebuano translates the page (see LanguageProvider)
   const { lang, setLang } = useLanguage();
+  // Offline? Then only pages saved on the phone can be opened
+  const { isAvailable } = useOfflineAccess();
   const [authState, setAuthState] = useState<AuthState>("none");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -339,13 +373,22 @@ export default function Navbar() {
           )}
 
           {authState === "user" && (
-            <AccountDropdown label="My Account" onLogout={handleUserLogout} />
+            <AccountDropdown
+              label="My Account"
+              links={[
+                { label: "Business Profile", href: "/profile" },
+                { label: "Submit Business Form", href: "/business-registration" },
+              ]}
+              onLogout={handleUserLogout}
+            />
           )}
 
           {authState === "admin" && (
-            <button onClick={handleAdminLogout} className={ACCOUNT_BTN}>
-              Logout
-            </button>
+            <AccountDropdown
+              label="Admin"
+              links={[{ label: "Admin Dashboard", href: ADMIN_DASHBOARD_HREF }]}
+              onLogout={handleAdminLogout}
+            />
           )}
         </div>
       </div>
@@ -354,19 +397,29 @@ export default function Navbar() {
       <nav className="hidden border-b-2 border-canopy-600 bg-canopy-100 px-10 py-3 md:block">
         <ul className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-center text-[15px]">
           <li>
-            <NavDropdown label="Explore" links={EXPLORE_LINKS} />
+            <NavDropdown label="Explore" links={EXPLORE_LINKS} isAvailable={isAvailable} />
           </li>
           <li>
-            <NavDropdown label="Documents" links={DOCUMENT_LINKS} />
+            <NavDropdown label="Documents" links={DOCUMENT_LINKS} isAvailable={isAvailable} />
           </li>
           {DIRECT_LINKS.map((link) => (
             <li key={link.href}>
-              <Link
-                href={link.href}
-                className="inline-block py-1 font-semibold text-ink-900 transition hover:text-canopy-700"
-              >
-                {link.label}
-              </Link>
+              {isAvailable(link.href) ? (
+                <Link
+                  href={link.href}
+                  className="inline-block py-1 font-semibold text-ink-900 transition hover:text-canopy-700"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title={NOT_SAVED_TITLE}
+                  className="inline-block cursor-not-allowed py-1 font-semibold text-ink-900/40"
+                >
+                  {link.label}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -384,16 +437,26 @@ export default function Navbar() {
           </div>
 
           <ul>
-            <MobileGroup label="Explore" links={EXPLORE_LINKS} />
-            <MobileGroup label="Documents" links={DOCUMENT_LINKS} />
+            <MobileGroup label="Explore" links={EXPLORE_LINKS} isAvailable={isAvailable} />
+            <MobileGroup label="Documents" links={DOCUMENT_LINKS} isAvailable={isAvailable} />
             {DIRECT_LINKS.map((link) => (
               <li key={link.href} className="border-b border-canopy-600/15 last:border-b-0">
-                <Link
-                  href={link.href}
-                  className="block py-3 text-[15px] font-semibold text-ink-900 transition hover:text-canopy-700"
-                >
-                  {link.label}
-                </Link>
+                {isAvailable(link.href) ? (
+                  <Link
+                    href={link.href}
+                    className="block py-3 text-[15px] font-semibold text-ink-900 transition hover:text-canopy-700"
+                  >
+                    {link.label}
+                  </Link>
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    title={NOT_SAVED_TITLE}
+                    className="block cursor-not-allowed py-3 text-[15px] font-semibold text-ink-900/40"
+                  >
+                    {link.label} <span className="text-[10px] font-normal">(not saved)</span>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

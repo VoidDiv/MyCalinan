@@ -5,12 +5,37 @@ import { useEffect, useState } from "react";
 type SavedPage = { path: string; title: string; savedAt: number };
 type Meta = Record<string, { title?: string; savedAt?: number }>;
 
+/* Friendly names for the pages people look for most */
+const KNOWN_LABELS: Record<string, string> = {
+  "/": "Home",
+  "/map": "Barangay Map",
+  "/others/History": "History of Calinan",
+  "/others/Hotlines": "Emergency Hotlines",
+  "/others/Announcements": "Announcements",
+  "/others/Events": "Events",
+  "/explore/HealthCare": "Health",
+  "/explore/Education": "Education",
+  "/explore/Transportation": "Transport & Utilities",
+  "/explore/Finance": "Finance",
+  "/explore/Community": "Community",
+  "/explore/Lifestyle": "Lifestyle",
+  "/explore/Shopping": "Shopping & Stores",
+  "/explore/Food": "Food & Dining",
+  "/explore/Hotspots": "Hotspots",
+  "/documents/PoliceClearance": "Police Clearance",
+  "/documents/BarangayClearance": "Barangay Clearance",
+  "/documents/BarangayCertificate": "Barangay Certification",
+  "/documents/Cedula": "Cedula",
+  "/documents/Postal": "Get Postal ID",
+};
+
 function labelFor(path: string, title: string | undefined, homeTitle: string | undefined) {
+  if (KNOWN_LABELS[path]) return KNOWN_LABELS[path];
+
   // Use the page <title> only when it is different from the generic site title
   const t = (title ?? "").replace(/\s*[|\-–—]\s*MyCalinan\s*$/i, "").trim();
   if (t && t !== homeTitle && !/^(mycalinan|offline)$/i.test(t)) return t;
 
-  if (path === "/") return "Home";
   const last = decodeURIComponent(path.split("/").filter(Boolean).pop() ?? "");
   return last
     .replace(/[-_]+/g, " ")
@@ -29,6 +54,20 @@ function PageLink({ page }: { page: SavedPage }) {
         {page.title}
       </a>
     </li>
+  );
+}
+
+function Group({ title, pages }: { title: string; pages: SavedPage[] }) {
+  if (pages.length === 0) return null;
+  return (
+    <>
+      <h3 className="mt-6 font-mono text-xs uppercase tracking-widest text-durian-500">{title}</h3>
+      <ul className="mt-2 space-y-2">
+        {pages.map((p) => (
+          <PageLink key={p.path} page={p} />
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -70,7 +109,20 @@ export default function OfflineCachedPages() {
 
   const home = pages?.find((p) => p.path === "/");
   const explore = pages?.filter((p) => p.path.startsWith("/explore/")) ?? [];
-  const others = pages?.filter((p) => p.path !== "/" && !p.path.startsWith("/explore/")) ?? [];
+  const documents = pages?.filter((p) => p.path.startsWith("/documents/")) ?? [];
+  const info =
+    pages?.filter(
+      (p) => p.path === "/map" || p.path.startsWith("/others/")
+    ) ?? [];
+  const more =
+    pages?.filter(
+      (p) =>
+        p.path !== "/" &&
+        p.path !== "/map" &&
+        !p.path.startsWith("/explore/") &&
+        !p.path.startsWith("/documents/") &&
+        !p.path.startsWith("/others/")
+    ) ?? [];
 
   return (
     <div className="mt-2 w-full max-w-md text-center">
@@ -93,7 +145,7 @@ export default function OfflineCachedPages() {
       {pages !== null && pages.length === 0 && (
         <p className="mt-8 text-sm text-ink-500">
           No saved pages yet. Open MyCalinan once while you have internet and it will save the
-          barangay officials, Explore, History and Hotlines for offline use.
+          barangay officials, Explore, Documents, History and Hotlines for offline use.
         </p>
       )}
 
@@ -109,31 +161,10 @@ export default function OfflineCachedPages() {
             </ul>
           )}
 
-          {others.length > 0 && (
-            <>
-              <h3 className="mt-6 font-mono text-xs uppercase tracking-widest text-durian-500">
-                Pages
-              </h3>
-              <ul className="mt-2 space-y-2">
-                {others.map((p) => (
-                  <PageLink key={p.path} page={p} />
-                ))}
-              </ul>
-            </>
-          )}
-
-          {explore.length > 0 && (
-            <>
-              <h3 className="mt-6 font-mono text-xs uppercase tracking-widest text-durian-500">
-                Explore
-              </h3>
-              <ul className="mt-2 space-y-2">
-                {explore.map((p) => (
-                  <PageLink key={p.path} page={p} />
-                ))}
-              </ul>
-            </>
-          )}
+          <Group title="Hotlines, History & Map" pages={info} />
+          <Group title="Explore" pages={explore} />
+          <Group title="Documents" pages={documents} />
+          <Group title="More" pages={more} />
 
           <p className="mt-6 text-center text-xs text-ink-500">
             Maps, directions and new updates need an internet connection.

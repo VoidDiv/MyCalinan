@@ -27,9 +27,33 @@ const OFFLINE_URL = "/offline";
 // Always saved when the app is first installed
 const START_URLS = ["/offline", "/"];
 
-// Pages that are NOT linked from the home page but must work offline.
-// Example: ["/history", "/hotlines"]   ← use your real page paths
-const EXTRA_PATHS = [];
+// Pages that must work offline. The Explore and Documents menus only draw their
+// links when you open them, so the background save cannot "see" those links on
+// its own — every page is listed here so it is always saved.
+const EXTRA_PATHS = [
+  // Explore
+  "/explore/HealthCare",
+  "/explore/Education",
+  "/explore/Transportation",
+  "/explore/Finance",
+  "/explore/Community",
+  "/explore/Lifestyle",
+  "/explore/Shopping",
+  "/explore/Food",
+  "/explore/Hotspots",
+  // Documents
+  "/documents/PoliceClearance",
+  "/documents/BarangayClearance",
+  "/documents/BarangayCertificate",
+  "/documents/Cedula",
+  "/documents/Postal",
+  // Map, History, Hotlines, news
+  "/map",
+  "/others/History",
+  "/others/Hotlines",
+  "/others/Announcements",
+  "/others/Events",
+];
 
 const MAX_CRAWL_PAGES = 40; // how many pages the background save will fetch
 const MAX_CRAWL_DEPTH = 2; // home → section → sub-page

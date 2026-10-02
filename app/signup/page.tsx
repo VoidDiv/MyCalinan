@@ -7,6 +7,9 @@
 
    The account itself is created by /api/auth/signup (server), so the
    browser is no longer left silently signed in after registering.
+
+   Look: styled with the MyCalinan colors + bold type (CSS classes
+   "signup-page-*" at the bottom of app/globals.css).
    ============================================================ */
 
 "use client";
@@ -57,6 +60,10 @@ export default function SignUpPage() {
   // verifierKey remounts the verifier when the server rejects the token.
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [verifierKey, setVerifierKey] = useState(0);
+
+  // Adds the red border to a field that has an error
+  const inputClass = (field: keyof FormErrors) =>
+    `signup-page-input${errors[field] ? " has-error" : ""}`;
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -170,77 +177,74 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f4f6f4] p-4">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center text-[#1b4332] mb-2">Create Account</h2>
-        <p className="text-sm text-gray-600 text-center mb-6">Sign up for your MyCalinan account</p>
+    <div className="signup-page">
+      <div className="signup-page-card">
+        <h2 className="signup-page-title">Create Account</h2>
+        <p className="signup-page-subtitle">Sign up for your MyCalinan account</p>
 
         {formError && (
-          <div
-            role="alert"
-            className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600"
-          >
+          <div role="alert" className="signup-page-alert">
             {formError}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="signup-page-form">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Full Name</label>
+            <label className="signup-page-label">Full Name</label>
             <input
               type="text"
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
               placeholder="Enter full name"
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("fullName")}
             />
-            {errors.fullName && <p className="text-xs text-red-500 mt-1">{errors.fullName}</p>}
+            {errors.fullName && <p className="signup-page-error">{errors.fullName}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Phone Number</label>
+            <label className="signup-page-label">Phone Number</label>
             <input
               type="text"
               name="phoneNumber"
               value={formData.phoneNumber}
               onChange={handleChange}
               placeholder="09XXXXXXXXX"
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("phoneNumber")}
             />
-            {errors.phoneNumber && <p className="text-xs text-red-500 mt-1">{errors.phoneNumber}</p>}
+            {errors.phoneNumber && <p className="signup-page-error">{errors.phoneNumber}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Address</label>
+            <label className="signup-page-label">Address</label>
             <input
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
               placeholder="Enter address"
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("address")}
             />
-            {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
+            {errors.address && <p className="signup-page-error">{errors.address}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Sex</label>
+            <label className="signup-page-label">Sex</label>
             <select
               name="sex"
               value={formData.sex}
               onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("sex")}
             >
               <option value="">Select Sex</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
-            {errors.sex && <p className="text-xs text-red-500 mt-1">{errors.sex}</p>}
+            {errors.sex && <p className="signup-page-error">{errors.sex}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Email</label>
+            <label className="signup-page-label">Email</label>
             <input
               type="email"
               name="email"
@@ -248,9 +252,9 @@ export default function SignUpPage() {
               onChange={handleChange}
               placeholder="Enter email"
               autoComplete="email"
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("email")}
             />
-            {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+            {errors.email && <p className="signup-page-error">{errors.email}</p>}
 
             <EmailOtpVerifier
               key={verifierKey}
@@ -265,8 +269,8 @@ export default function SignUpPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Password</label>
-            <div className="relative">
+            <label className="signup-page-label">Password</label>
+            <div className="signup-page-password">
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
@@ -274,21 +278,21 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="Enter password"
                 autoComplete="new-password"
-                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+                className={inputClass("password")}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2 text-xs text-gray-500"
+                className="signup-page-toggle"
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+            {errors.password && <p className="signup-page-error">{errors.password}</p>}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Confirm Password</label>
+            <label className="signup-page-label">Confirm Password</label>
             <input
               type="password"
               name="confirmPassword"
@@ -296,23 +300,19 @@ export default function SignUpPage() {
               onChange={handleChange}
               placeholder="Confirm password"
               autoComplete="new-password"
-              className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#1b4332]"
+              className={inputClass("confirmPassword")}
             />
-            {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
+            {errors.confirmPassword && <p className="signup-page-error">{errors.confirmPassword}</p>}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#1b4332] text-white py-2 rounded-md font-medium text-sm hover:bg-[#143326] transition mt-2 disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading} className="signup-page-btn">
             {loading ? "Registering..." : "Sign Up"}
           </button>
         </form>
 
-        <div className="mt-4 text-center text-sm text-gray-600">
+        <div className="signup-page-footer">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-[#1b4332] hover:underline">
+          <Link href="/login" className="signup-page-link">
             Sign In
           </Link>
         </div>
