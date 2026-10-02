@@ -211,7 +211,7 @@ export default function SignUpPage() {
       <div className="su-card">
         <div className="su-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="su-logo" src="/image/MyCalinan Logo.png" alt="MyCalinan" />
+          <img className="su-logo" src="/image/CALINAN LOGO.png" alt="MyCalinan" />
         </div>
 
         <h1 className="su-title">Create Account</h1>

@@ -1,4 +1,17 @@
+/* ============================================================
+   FILE: app/login/page.tsx   (REPLACE whole file)
+
+   Same login logic as before (email + password → role → redirect, and
+   "Continue as Guest"), with the SAME bold design as the Sign Up page:
+   green background, gold top bar, logo badge, bold labels, big gold button.
+
+   - "Sign up here" is now a real green BUTTON inside a highlighted gold panel.
+   - Styles: the "su-*" classes from globals-signup-bold.css  +  the "lg-*" classes
+     from globals-login-bold.css (paste BOTH at the bottom of app/globals.css).
+   ============================================================ */
+
 "use client";
+
 import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -26,6 +39,13 @@ const ROLE_REDIRECTS: Record<UserRole, string> = {
   user: "/",
 };
 
+const GUEST_PERKS = [
+  "Access community information",
+  "Explore tourism and establishments",
+  "View announcements and events",
+  "Use available public service guides",
+];
+
 const LoginPage: React.FC = () => {
   const router = useRouter();
 
@@ -42,10 +62,7 @@ const LoginPage: React.FC = () => {
   /* ---------------- Guest sign-in state --------------- */
   const [guestLoading, setGuestLoading] = useState<boolean>(false);
 
-  const storeSession = (
-    shouldRemember: boolean,
-    payload: LoginSuccessPayload
-  ): void => {
+  const storeSession = (shouldRemember: boolean, payload: LoginSuccessPayload): void => {
     const storage: Storage = shouldRemember ? localStorage : sessionStorage;
 
     storage.setItem("mycalinan_uid", payload.uid);
@@ -73,19 +90,15 @@ const LoginPage: React.FC = () => {
       console.error("Could not clear the previous Firebase session:", err);
     }
 
-    ["mycalinan_uid", "mycalinan_token", "mycalinan_username", "mycalinan_role"].forEach(
-      (key) => {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      }
-    );
+    ["mycalinan_uid", "mycalinan_token", "mycalinan_username", "mycalinan_role"].forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
     sessionStorage.removeItem("mycalinan_guest");
     sessionStorage.removeItem("mycalinan_guest_name");
   };
 
-  const handleSignIn = async (
-    e: FormEvent<HTMLFormElement>
-  ): Promise<void> => {
+  const handleSignIn = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError("");
 
@@ -104,11 +117,7 @@ const LoginPage: React.FC = () => {
       sessionStorage.removeItem("mycalinan_guest_name");
 
       // 1. Firebase Auth sign-in
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        trimmedIdentifier,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, trimmedIdentifier, password);
       const user = userCredential.user;
 
       // 2. Get role + profile info from Firestore
@@ -138,18 +147,19 @@ const LoginPage: React.FC = () => {
       // 3. Redirect based on role
       const destination = ROLE_REDIRECTS[role] ?? "/";
       router.push(destination);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Sign in error:", err);
+      const code = (err as { code?: string })?.code;
 
       if (
-        err.code === "auth/invalid-credential" ||
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password"
+        code === "auth/invalid-credential" ||
+        code === "auth/user-not-found" ||
+        code === "auth/wrong-password"
       ) {
         setError("Invalid email or password. Please try again.");
-      } else if (err.code === "auth/invalid-email") {
+      } else if (code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
-      } else if (err.code === "auth/too-many-requests") {
+      } else if (code === "auth/too-many-requests") {
         setError("Too many failed attempts. Please try again later.");
       } else {
         setError("Cannot connect to the server. Please try again.");
@@ -182,26 +192,28 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-page-card">
-        {/* LOGO SECTION */}
-        <div className="login-page-logo-section">
-          <img src="/image/CALINAN LOGO.png" alt="MyCalinan Logo" />
-          <h1>MyCalinan</h1>
-          <p>
-            {mode === "signin"
-              ? "Sign in to your MyCalinan account."
-              : "Discover Calinan. Explore. Stay Informed."}
-          </p>
+    <div className="su-page">
+      <div className="su-card">
+        {/* LOGO BADGE */}
+        <div className="su-brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="su-logo" src="/image/CALINAN LOGO.png" alt="MyCalinan" />
         </div>
 
+        <h1 className="su-title">{mode === "signin" ? "Welcome Back" : "Browse as Guest"}</h1>
+        <p className="su-subtitle">
+          {mode === "signin"
+            ? "Sign in to your MyCalinan account."
+            : "Discover Calinan. Explore. Stay Informed."}
+        </p>
+
         {/* MODE TABS */}
-        <div className="login-page-tabs" role="tablist">
+        <div className="lg-tabs" role="tablist">
           <button
             type="button"
             role="tab"
             aria-selected={mode === "signin"}
-            className={mode === "signin" ? "active" : ""}
+            className={`lg-tab${mode === "signin" ? " is-active" : ""}`}
             onClick={() => setMode("signin")}
           >
             Sign In
@@ -211,174 +223,154 @@ const LoginPage: React.FC = () => {
             type="button"
             role="tab"
             aria-selected={mode === "guest"}
-            className={mode === "guest" ? "active" : ""}
+            className={`lg-tab${mode === "guest" ? " is-active" : ""}`}
             onClick={() => setMode("guest")}
           >
             Continue as Guest
           </button>
         </div>
 
-        {/* ---------------- UNIFIED SIGN IN FORM ---------------- */}
+        {/* ---------------- SIGN IN ---------------- */}
         {mode === "signin" && (
-          <form
-            className="login-page-form"
-            id="signin-form"
-            onSubmit={handleSignIn}
-          >
-            <h2>Sign In</h2>
+          <>
+            <form className="su-form" id="signin-form" onSubmit={handleSignIn} noValidate>
+              {error && (
+                <div id="login-error" className="su-alert" role="alert">
+                  <strong>⚠</strong> {error}
+                </div>
+              )}
 
-            {error && (
-              <div id="login-error" className="login-page-error" role="alert">
-                {error}
-              </div>
-            )}
-
-            <div className="login-page-input-group">
-              <label htmlFor="identifier">Email Address</label>
-
-              <input
-                type="email"
-                id="identifier"
-                placeholder="Enter email address"
-                autoComplete="email"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="login-page-input-group">
-              <label htmlFor="password">Password</label>
-
-              <div className="login-page-password-wrapper">
+              <div className="su-field" style={{ marginTop: error ? "1rem" : 0 }}>
+                <label className="su-label" htmlFor="identifier">
+                  Email address
+                </label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  placeholder="Enter password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  type="email"
+                  id="identifier"
+                  className={`su-input${error ? " has-error" : ""}`}
+                  placeholder="you@email.com"
+                  autoComplete="email"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  aria-invalid={!!error}
                 />
-
-                <button
-                  type="button"
-                  className="login-page-show-password"
-                  onClick={() => setShowPassword((previous) => !previous)}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
               </div>
+
+              <div className="su-field">
+                <label className="su-label" htmlFor="password">
+                  Password
+                </label>
+                <div className="su-password">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    className={`su-input${error ? " has-error" : ""}`}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-invalid={!!error}
+                  />
+                  <button
+                    type="button"
+                    className="su-toggle"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              <label className="lg-remember" htmlFor="remember">
+                <input
+                  type="checkbox"
+                  id="remember"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                <span>Remember me</span>
+              </label>
+
+              <button type="submit" className="su-btn" id="login-submit-btn" disabled={loading}>
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+
+            {/* NEW: the "Sign up here" button, in a highlighted panel */}
+            <div className="lg-register">
+              <p className="lg-register-title">New to MyCalinan?</p>
+              <p className="lg-register-text">
+                Create an account to register your business and leave reviews.
+              </p>
+              <Link href="/signup" className="lg-register-btn">
+                Sign up here <span aria-hidden="true">→</span>
+              </Link>
             </div>
 
-            <div className="login-page-remember">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-
-              <label htmlFor="remember">Remember Me</label>
-            </div>
-
-            <button
-              type="submit"
-              className="login-page-btn"
-              id="login-submit-btn"
-              disabled={loading}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-
-            <div className="login-page-footer-text">
-              Works for administrator and business accounts.
-              <br />
-              Don&apos;t have a business account?{" "}
-              <Link href="/signup">Sign up here</Link>
-            </div>
-          </form>
+            <p className="lg-hint">Works for administrator and business accounts.</p>
+          </>
         )}
 
-        {/* ---------------- GUEST SIGN-IN ---------------- */}
+        {/* ---------------- GUEST ---------------- */}
         {mode === "guest" && (
-          <div className="login-page-guest-content">
-            <div className="login-page-guest-icon">
-              <span>👤</span>
+          <div className="lg-guest">
+            <div className="lg-guest-icon" aria-hidden="true">
+              👤
             </div>
 
-            <h2>Sign in as Guest</h2>
-
-            <p className="login-page-guest-description">
-              Continue to MyCalinan without creating an account. You can
-              explore community information, tourism spots, public services,
-              events, announcements, and other available features as a
-              guest.
+            <p className="lg-guest-text">
+              Continue to MyCalinan without creating an account. You can explore community
+              information, tourism spots, public services, events, announcements, and other
+              available features as a guest.
             </p>
 
-            <div className="login-page-guest-info">
-              <div className="login-page-info-item">
-                <span className="login-page-info-icon">✓</span>
-                <span>Access community information</span>
-              </div>
-
-              <div className="login-page-info-item">
-                <span className="login-page-info-icon">✓</span>
-                <span>Explore tourism and establishments</span>
-              </div>
-
-              <div className="login-page-info-item">
-                <span className="login-page-info-icon">✓</span>
-                <span>View announcements and events</span>
-              </div>
-
-              <div className="login-page-info-item">
-                <span className="login-page-info-icon">✓</span>
-                <span>Use available public service guides</span>
-              </div>
-            </div>
+            <ul className="lg-guest-list">
+              {GUEST_PERKS.map((perk) => (
+                <li key={perk} className="lg-guest-item">
+                  <span className="lg-guest-check" aria-hidden="true">
+                    ✓
+                  </span>
+                  {perk}
+                </li>
+              ))}
+            </ul>
 
             <button
               type="button"
-              className="login-page-guest-btn"
+              className="su-btn lg-btn-flex"
               onClick={handleGuestSignIn}
               disabled={guestLoading}
             >
               {guestLoading ? (
                 <>
-                  <span className="login-page-guest-spinner"></span>
-                  Entering...
+                  <span className="lg-spinner" />
+                  Entering…
                 </>
               ) : (
-                <>Continue as Guest</>
+                "Continue as Guest"
               )}
             </button>
 
-            <div className="login-page-guest-notice">
-              <strong>Guest Access</strong>
+            <div className="lg-notice">
+              <strong>Guest access</strong>
               <p>
-                Guest access does not require an account. Reviews and other
-                account-only features are disabled while browsing as a guest.
+                Guest access does not require an account. Reviews and other account-only features
+                are disabled while browsing as a guest.
               </p>
             </div>
           </div>
         )}
 
         {/* HOME LINK — shared by both modes */}
-        <div className="login-page-home-link">
-          <button
-            type="button"
-            className="login-page-home-btn"
-            onClick={handleBackToHome}
-          >
+        <div className="su-footer su-footer--small">
+          <button type="button" className="lg-home" onClick={handleBackToHome}>
             ← Back to MyCalinan
           </button>
         </div>
       </div>
 
-      <div className="login-page-footer">
-        MyCalinan • Barangay Calinan, Davao City
-      </div>
+      <p className="lg-page-footer">MyCalinan • Barangay Calinan, Davao City</p>
     </div>
   );
 };
