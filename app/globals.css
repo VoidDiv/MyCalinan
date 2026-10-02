@@ -5846,3 +5846,38 @@ body {
     border-radius: 12px;
   }
 }
+/* ============================================================
+   PASTE THIS AT THE VERY BOTTOM OF app/globals.css
+   APP LAUNCH SPLASH — the picture shown when the installed app opens.
+   It only exists while <html> has the class "mc-splash-on".
+   ============================================================ */
+
+#mc-splash {
+  display: none;
+}
+
+html.mc-splash-on #mc-splash {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: #f8f7f3 url("/splash/splash.jpg") center / cover no-repeat;
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+html.mc-splash-on.mc-splash-hide #mc-splash {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* keep the page still behind the picture */
+html.mc-splash-on body {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.mc-splash-on #mc-splash {
+    transition: none;
+  }
+}

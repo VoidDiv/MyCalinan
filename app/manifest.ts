@@ -3,11 +3,18 @@
    Put this file at:  app/manifest.ts   (replace the existing one)
 
    Needs these files in /public:
-     icons/icon-192.png        (run scripts/generate-pwa-icons.mjs)
+     icons/icon-192.png
      icons/icon-512.png
      icons/maskable-512.png
-     screenshots/wide.png      (1280x720)  ← desktop install UI
-     screenshots/narrow.png    (540x960)   ← mobile install UI
+
+   background_color is the colour Android shows behind the icon while the
+   app is starting. It matches the new logo's own background (#fdfdfc), so
+   the logo sits on it with no visible square.
+   theme_color is the colour of the phone's top bar — same green as the navbar.
+
+   Optional later: add screenshots (1280x720 "wide" and 540x960 "narrow") in
+   /public/screenshots and a  screenshots: [...]  list for Android's richer
+   install window.
    ============================================================ */
 
 import type { MetadataRoute } from "next";
@@ -22,28 +29,12 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#f9f7f4",
-    theme_color: "#2f6b2f",
+    background_color: "#fdfdfc",
+    theme_color: "#1f4d33",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-    ],
-    screenshots: [
-      {
-        src: "/screenshots/wide.png",
-        sizes: "1280x720",
-        type: "image/png",
-        form_factor: "wide",
-        label: "MyCalinan on desktop",
-      },
-      {
-        src: "/screenshots/narrow.png",
-        sizes: "540x960",
-        type: "image/png",
-        form_factor: "narrow",
-        label: "MyCalinan on mobile",
-      },
     ],
   };
 }
