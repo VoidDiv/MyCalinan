@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useExploreListings } from '@/hooks/useLiveListings';
@@ -153,6 +154,16 @@ function createUserDotElement(): HTMLDivElement {
   return el;
 }
 
+// Phone-sized screen? (below Tailwind's "md" breakpoint, 768px)
+const PHONE_QUERY = '(max-width: 767px)';
+function subscribePhone(onChange: () => void) {
+  const mq = window.matchMedia(PHONE_QUERY);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+const getPhoneSnapshot = () => window.matchMedia(PHONE_QUERY).matches;
+const getPhoneServerSnapshot = () => false;
+
 export default function BarangayMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -181,7 +192,14 @@ export default function BarangayMap() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedDestinationId, setSelectedDestinationId] = useState('');
   const [toast, setToast] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // On a phone the sidebar covers the map, so it starts CLOSED there and closes
+  // again by itself once you pick a place. On a computer it starts open.
+  const isPhone = useSyncExternalStore(subscribePhone, getPhoneSnapshot, getPhoneServerSnapshot);
+  const isPhoneRef = useRef(false);
+  isPhoneRef.current = isPhone;
+  const [sidebarOverride, setSidebarOverride] = useState<boolean | null>(null);
+  const sidebarOpen = sidebarOverride ?? !isPhone;
+  const gpsDeniedRef = useRef(false);
 
   // ══════════════════════════════════════════
   // PLACES (live from the Explore listings)
@@ -237,7 +255,11 @@ export default function BarangayMap() {
     async (destLat: number, destLng: number, label: string) => {
       const pos = userPosRef.current;
       if (!pos || !mapRef.current) {
-        showToast('Waiting for your GPS location...');
+        showToast(
+          gpsDeniedRef.current
+            ? 'Turn on location (GPS) for this site to get directions'
+            : 'Waiting for your GPS location...'
+        );
         return;
       }
 
@@ -295,6 +317,7 @@ export default function BarangayMap() {
   const revealPlace = useCallback((place: Place, fly = true) => {
     setSelectedPlace(place);
     setSelectedDestinationId(place.id);
+    if (isPhoneRef.current) setSidebarOverride(false); // show the map on phones
     if (fly) mapRef.current?.flyTo({ center: [place.lng, place.lat], zoom: 16 });
   }, []);
 
@@ -427,7 +450,7 @@ export default function BarangayMap() {
       offset: [0, -7],
     })
       .setLngLat([place.lng, place.lat])
-      .setPopup(new mapboxgl.Popup({ offset: 40, maxWidth: '260px' }).setDOMContent(popupNode))
+      .setPopup(new mapboxgl.Popup({ offset: 50, maxWidth: '260px' }).setDOMContent(popupNode))
       .addTo(map);
 
     marker.togglePopup(); // show its details right away — it was just clicked
@@ -452,6 +475,7 @@ export default function BarangayMap() {
         // Ignore sudden low-quality fixes once we already have a position
         if (acc > MAX_ACCEPTED_ACCURACY_M && userPosRef.current) return;
 
+        gpsDeniedRef.current = false;
         userPosRef.current = { lat, lng };
         setUserLat(lat);
         setUserLng(lng);
@@ -462,6 +486,7 @@ export default function BarangayMap() {
       },
       (err) => {
         console.warn(`GPS Error: ${err.message}`);
+        gpsDeniedRef.current = true;
         setGpsStatus('denied');
       },
       // maximumAge: 0 means it never reuses an old cached position
@@ -493,8 +518,10 @@ export default function BarangayMap() {
     }));
     if (userLat !== null && userLng !== null) {
       withDist.sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0));
+    } else {
+      withDist.sort((a, b) => a.name.localeCompare(b.name));
     }
-    return withDist.slice(0, 5);
+    return withDist.slice(0, 8);
   })();
 
   // ══════════════════════════════════════════
@@ -587,7 +614,11 @@ export default function BarangayMap() {
 
   const getDirections = useCallback(() => {
     if (!userPosRef.current) {
-      showToast('Waiting for your GPS location...');
+      showToast(
+        gpsDeniedRef.current
+          ? 'Turn on location (GPS) for this site to get directions'
+          : 'Waiting for your GPS location...'
+      );
       return;
     }
     if (!selectedDestinationId) {
@@ -632,18 +663,44 @@ export default function BarangayMap() {
   // ══════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════
+  const toggleSidebar = () => setSidebarOverride(!sidebarOpen);
+
   return (
-    <div className="flex w-full h-screen overflow-hidden bg-neutral-100">
-      {/* ─── SIDEBAR ─── */}
+    <div className="relative flex w-full overflow-hidden bg-neutral-100" style={{ height: '100dvh' }}>
+      {/* ─── SIDEBAR ───
+          Phone: slides over the map (and closes itself when you pick a place).
+          Computer: sits beside the map. */}
       <aside
-        className={`${
-          sidebarOpen ? 'w-80' : 'w-0'
-        } flex-shrink-0 h-full bg-white border-r border-neutral-200 overflow-hidden transition-all duration-200 flex flex-col`}
+        className={[
+          'h-full flex-col overflow-hidden border-r border-neutral-200 bg-white',
+          sidebarOpen ? 'flex' : 'hidden',
+          'absolute inset-y-0 left-0 z-30 w-[88vw] max-w-sm shadow-xl',
+          'md:static md:z-auto md:w-80 md:max-w-none md:flex-shrink-0 md:shadow-none',
+        ].join(' ')}
       >
-        <div className="w-80 flex flex-col h-full">
+        <div className="flex h-full w-full flex-col">
           {/* Header */}
           <div className="px-4 pt-4 pb-3 border-b border-neutral-200">
-            <h1 className="text-lg font-semibold text-neutral-800">Barangay Map</h1>
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="text-lg font-semibold text-neutral-800">Barangay Map</h1>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/"
+                  className="rounded-full border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  ← Home
+                </Link>
+                {/* Close (phones only) */}
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  aria-label="Close menu"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 md:hidden"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2 mt-2">
               <span
                 className={`inline-block w-2 h-2 rounded-full ${
@@ -754,7 +811,7 @@ export default function BarangayMap() {
 
           {/* Nearby list */}
           <div className="px-4 py-3 border-b border-neutral-200 flex-1 min-h-0 overflow-y-auto">
-            <p className="text-xs font-medium text-neutral-500">Nearby</p>
+            <p className="text-xs font-medium text-neutral-500">{userLat !== null ? 'Nearby' : 'Places'}</p>
             <p className="text-[11px] text-neutral-400 mb-2">Tap a place to show it on the map.</p>
             <ul className="text-sm divide-y divide-neutral-100">
               {nearbyList.length === 0 ? (
@@ -798,11 +855,19 @@ export default function BarangayMap() {
               className="w-full text-sm border border-neutral-300 rounded-md px-2 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-green-700/40"
             >
               <option value="">Select destination...</option>
-              {allPlaces.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.icon} {p.name}
-                </option>
-              ))}
+              {SECTIONS.map((s) => {
+                const inSection = allPlaces.filter((p) => p.category === s.key);
+                if (inSection.length === 0) return null;
+                return (
+                  <optgroup key={s.key} label={CATEGORY_LABELS[s.key]}>
+                    {inSection.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.icon} {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
             <div className="flex gap-2">
               <button
@@ -829,7 +894,7 @@ export default function BarangayMap() {
       </aside>
 
       {/* ─── MAP ─── */}
-      <div className="relative flex-1 min-h-0" style={{ height: '100vh' }}>
+      <div className="relative min-h-0 flex-1">
         <div ref={mapContainerRef} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
 
         {!mapLoaded && !mapError && (
@@ -843,14 +908,23 @@ export default function BarangayMap() {
           </div>
         )}
 
-        {/* Sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          className="absolute top-3 left-3 z-10 bg-white shadow-md rounded-md w-9 h-9 flex items-center justify-center text-neutral-600 hover:bg-neutral-50"
-          aria-label="Toggle sidebar"
-        >
-          {sidebarOpen ? '‹' : '›'}
-        </button>
+        {/* Menu button + Home (on a phone: shown only while the menu is closed) */}
+        <div className={`absolute left-3 top-3 z-20 items-center gap-2 ${sidebarOpen ? 'hidden md:flex' : 'flex'}`}>
+          <button
+            onClick={toggleSidebar}
+            className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-white px-3 text-sm font-medium text-neutral-700 shadow-md hover:bg-neutral-50"
+            aria-label="Toggle menu"
+          >
+            <span aria-hidden="true">{sidebarOpen ? '‹' : '☰'}</span>
+            <span className="md:hidden">Menu</span>
+          </button>
+          <Link
+            href="/"
+            className="flex h-9 items-center rounded-md bg-white px-3 text-sm font-medium text-neutral-700 shadow-md hover:bg-neutral-50 md:hidden"
+          >
+            ← Home
+          </Link>
+        </div>
 
         {/* Toast */}
         {toast && (
