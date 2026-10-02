@@ -5,7 +5,9 @@
    - Saves every page the user opens (and the pages linked from the
      home page, 2 levels deep) so they open with NO internet:
      barangay officials, Explore, History, Hotlines, etc.
-   - Saves the JS/CSS/fonts those pages need, plus their images.
+   - Saves the JS/CSS/fonts those pages need, plus their pictures: the ones
+     written in each page, the ones the app asks it to save (Explore photos,
+     officials, announcements), and any picture the person looks at.
    - Shows a smart "You're offline" page that lists the saved pages.
    - Never saves: /api, admin, login, signup, maps, Firestore calls.
 
@@ -58,7 +60,12 @@ const EXTRA_PATHS = [
 const MAX_CRAWL_PAGES = 40; // how many pages the background save will fetch
 const MAX_CRAWL_DEPTH = 2; // home → section → sub-page
 const MAX_PAGES = 80;
-const MAX_IMAGES = 150;
+const MAX_IMAGES = 400; // pictures kept on the phone (oldest are removed first)
+const IMG_WIDTH = 640; // width of the small saved copy of a picture
+const IMG_QUALITY = 75;
+const MAX_RAW_IMAGE_BYTES = 1500000; // an original bigger than this (1.5 MB) is not saved
+const WARM_BUDGET_BYTES = 30000000; // one background save of pictures stops after ~30 MB
+const MAX_WARM_IMAGES = 160;
 const MAX_STATIC = 500;
 const NAV_TIMEOUT_MS = 6000; // slow connection? fall back to the saved copy
 
@@ -180,7 +187,7 @@ function extractLinks(html) {
 
 function extractAssets(html) {
   const out = new Set();
-  const abs = /\/_next\/static\/[^"'\s\\<>)]+?\.(?:js|css|woff2?|ttf|otf)/g;
+  const abs = /\/_next\/static\/[^"'\s\\<>)]+?\.(?:js|css|woff2?|ttf|otf|png|jpe?g|webp|avif|gif|svg)/g;
   const rel = /static\/(?:chunks|css|media)\/[^"'\s\\<>)]+?\.(?:js|css|woff2?)/g;
   let m;
   while ((m = abs.exec(html))) out.add(m[0]);
@@ -205,12 +212,164 @@ async function cacheAssets(urls) {
   await trimCache(CACHES.static, MAX_STATIC);
 }
 
+/* ── pictures ──
+   One saved copy per picture, whatever size was asked for. A picture can be asked
+   for in two ways — straight from its address (<img src="https://…">) or through
+   Next.js (/_next/image?url=…&w=…). Both are matched to the same saved copy. */
+
+// the address Next.js uses for a resized copy of a picture
+function optimizedHref(rawHref) {
+  const u = new URL(rawHref);
+  const param = u.origin === self.location.origin ? u.pathname + u.search : rawHref;
+  return new URL(
+    `/_next/image?url=${encodeURIComponent(param)}&w=${IMG_WIDTH}&q=${IMG_QUALITY}`,
+    self.location.origin
+  ).href;
+}
+
+// key = where this request is saved; other = where the same picture may be saved in its other form
+function imageKeys(href) {
+  const u = new URL(href);
+  if (u.origin === self.location.origin && u.pathname === "/_next/image") {
+    const param = u.searchParams.get("url") || "";
+    return {
+      key: new URL("/_next/image?url=" + encodeURIComponent(param), self.location.origin).href,
+      other: new URL(param, self.location.origin).href,
+    };
+  }
+  const param = u.origin === self.location.origin ? u.pathname + u.search : u.href;
+  return {
+    key: u.href,
+    other: new URL("/_next/image?url=" + encodeURIComponent(param), self.location.origin).href,
+  };
+}
+
+async function putImage(key, res) {
+  try {
+    const cache = await caches.open(CACHES.images);
+    await cache.put(key, res);
+    await trimCache(CACHES.images, MAX_IMAGES);
+  } catch (_) {
+    /* storage is full — skip this one */
+  }
+}
+
+// a picture the person is looking at: use the saved copy, otherwise load and save it
+async function imageStrategy(event) {
+  const req = event.request;
+  const { key, other } = imageKeys(req.url);
+  const cache = await caches.open(CACHES.images);
+  const hit = (await cache.match(key)) || (await cache.match(other));
+  if (hit) return hit;
+
+  const sameOrigin = new URL(req.url).origin === self.location.origin;
+  try {
+    const res = await fetch(sameOrigin ? req : new Request(req.url, { mode: "cors", credentials: "omit" }));
+    if (res.ok) event.waitUntil(putImage(key, res.clone()));
+    return res;
+  } catch (_) {
+    if (!sameOrigin) {
+      try {
+        return await fetch(req); // that site does not allow CORS: show it, just don't save it
+      } catch (__) {
+        /* offline */
+      }
+    }
+    return Response.error();
+  }
+}
+
+// save one picture ahead of time. Returns the bytes saved (0 = nothing / already saved).
+async function warmOne(raw) {
+  // only real addresses: "/image/x.jpg" or "https://…" (not "//host", not plain words)
+  if (typeof raw !== "string" || raw.startsWith("//") || !(raw.startsWith("/") || /^https?:\/\//i.test(raw))) return 0;
+  let rawHref;
+  try {
+    rawHref = new URL(raw, self.location.origin).href;
+  } catch (_) {
+    return 0;
+  }
+  const host = new URL(rawHref).hostname;
+  if (!/^https?:/.test(rawHref) || SKIP_IMAGE_HOSTS.test(host)) return 0;
+
+  const cache = await caches.open(CACHES.images);
+  const opt = optimizedHref(rawHref);
+  const optKey = imageKeys(opt).key;
+  if ((await cache.match(optKey)) || (await cache.match(rawHref))) return 0;
+
+  // 1) a small resized copy (usually 50–150 KB)
+  try {
+    const res = await fetch(opt, { headers: { Accept: "image/avif,image/webp,image/*,*/*;q=0.8" } });
+    if (res.ok && (res.headers.get("content-type") || "").startsWith("image/")) {
+      const copy = res.clone();
+      const size = (await res.blob()).size;
+      await putImage(optKey, copy);
+      return size;
+    }
+  } catch (_) {
+    /* fall through to the original */
+  }
+
+  // 2) the original, but only if it is not huge
+  try {
+    const sameOrigin = new URL(rawHref).origin === self.location.origin;
+    const res = await fetch(sameOrigin ? rawHref : new Request(rawHref, { mode: "cors", credentials: "omit" }));
+    if (!res.ok) return 0;
+    const copy = res.clone();
+    const size = (await res.blob()).size;
+    if (size > MAX_RAW_IMAGE_BYTES) return 0;
+    await putImage(rawHref, copy);
+    return size;
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function warmImages(urls, limit) {
+  const list = [...new Set(urls)].slice(0, limit || MAX_WARM_IMAGES);
+  let spent = 0;
+  let next = 0;
+  async function worker() {
+    while (next < list.length && spent < WARM_BUDGET_BYTES) {
+      spent += await warmOne(list[next++]);
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
+  return spent;
+}
+
+// pictures written inside a page's HTML (<img src> and srcset)
+function extractImageSources(html) {
+  const out = new Set();
+  const tags = html.match(/<img\b[^>]*>/gi) || [];
+  const add = (value) => {
+    let v = (value || "").trim().replace(/&amp;/g, "&");
+    if (!v || v.startsWith("data:") || v.startsWith("blob:") || v.startsWith("/_next/static/")) return;
+    if (v.startsWith("/_next/image")) {
+      try {
+        const param = new URL(v, self.location.origin).searchParams.get("url");
+        if (param) out.add(param);
+      } catch (_) {}
+      return;
+    }
+    if (v.startsWith("/") || /^https?:\/\//i.test(v)) out.add(v);
+  };
+  for (const tag of tags) {
+    const src = tag.match(/\bsrc="([^"]*)"/i);
+    if (src) add(src[1]);
+    const set = tag.match(/\bsrcset="([^"]*)"/i);
+    if (set) set[1].split(",").forEach((c) => add(c.trim().split(/\s+/)[0]));
+  }
+  return [...out];
+}
+
 /* ── background "save the site" crawl ── */
 
 async function crawl(options = {}) {
   const maxDepth = options.maxDepth ?? MAX_CRAWL_DEPTH;
   const seen = new Set();
   const assets = new Set();
+  const images = new Set();
   const frontier = [...START_URLS, ...EXTRA_PATHS].map((path) => ({ path, depth: 0 }));
   let saved = 0;
 
@@ -241,6 +400,7 @@ async function crawl(options = {}) {
       if (!r) continue;
       saved++;
       extractAssets(r.html).forEach((a) => assets.add(a));
+      extractImageSources(r.html).forEach((u) => images.add(u));
       if (r.depth < maxDepth) {
         extractLinks(r.html).forEach((p) => {
           if (!seen.has(p)) frontier.push({ path: p, depth: r.depth + 1 });
@@ -250,6 +410,7 @@ async function crawl(options = {}) {
   }
 
   await cacheAssets([...assets]);
+  if (images.size) await warmImages([...images], options.maxImages || 120).catch(() => {});
   return saved;
 }
 
@@ -340,7 +501,7 @@ async function crossOriginCached(event, cacheName, max) {
 self.addEventListener("install", (event) => {
   // Save the offline page + home page right away; never let this block installing
   event.waitUntil(
-    crawl({ maxDepth: 0 })
+    crawl({ maxDepth: 0, maxImages: 60 })
       .catch(() => {})
       .then(() => self.skipWaiting())
   );
@@ -360,6 +521,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   const type = event.data && event.data.type;
   if (type === "SKIP_WAITING") self.skipWaiting();
+  if (type === "WARM_IMAGES" && Array.isArray(event.data.urls)) {
+    event.waitUntil(
+      warmImages(event.data.urls.filter((u) => typeof u === "string"))
+        .then(async (bytes) => {
+          const all = await self.clients.matchAll();
+          all.forEach((c) => c.postMessage({ type: "IMAGES_DONE", bytes }));
+        })
+        .catch(() => {})
+    );
+  }
   if (type === "WARM") {
     event.waitUntil(
       crawl()
@@ -383,7 +554,7 @@ self.addEventListener("fetch", (event) => {
     if (FONT_HOSTS.has(url.hostname)) {
       event.respondWith(crossOriginCached(event, CACHES.static));
     } else if (req.destination === "image" && !SKIP_IMAGE_HOSTS.test(url.hostname)) {
-      event.respondWith(crossOriginCached(event, CACHES.images, MAX_IMAGES));
+      event.respondWith(imageStrategy(event));
     }
     return; // everything else (maps, Firestore, Google APIs) goes straight to the network
   }
@@ -406,7 +577,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (path.startsWith("/_next/image") || req.destination === "image") {
-    event.respondWith(staleWhileRevalidate(event, CACHES.images, MAX_IMAGES));
+    event.respondWith(imageStrategy(event));
     return;
   }
   if (["style", "script", "font", "manifest"].includes(req.destination)) {
