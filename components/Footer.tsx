@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TutorialButton from "@/components/TutorialButton";
 
 export default function Footer() {
   return (
@@ -14,7 +15,8 @@ export default function Footer() {
         &middot;{" "}
         <Link href="/others/privacy" className="underline">
           Privacy notice
-        </Link>
+        </Link>{" "}
+        &middot; <TutorialButton />
       </p>
     </footer>
   );

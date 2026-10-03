@@ -7,6 +7,7 @@ import BarangayOfficials from "@/components/BarangayOfficials";
 import BarangayRules from "@/components/BarangayRules";
 import Footer from "@/components/Footer";
 import ChatbotLauncher from "@/components/ChatbotLauncher";
+import WelcomeTutorial from "@/components/WelcomeTutorial";
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
       </main>
       <Footer />
       <ChatbotLauncher />
+      <WelcomeTutorial />
     </>
   );
 }
