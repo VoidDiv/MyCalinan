@@ -1,6 +1,7 @@
 /* FILE: app/layout.tsx   (REPLACE whole file)
-   Same as your current layout, plus <UpdateNotifier /> (the "Update your MyCalinan app" check).
-   It draws NOTHING unless a newer version is live. */
+   Your layout with the splash screen (components/SplashScreen.tsx), plus <UpdateNotifier />
+   (the "Update your MyCalinan app" check). It draws NOTHING unless a newer version is live.
+   Uses only files your project already has. */
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
@@ -8,8 +9,6 @@ import LanguageProvider from "@/components/LanguageProvider";
 import OfflineSupport from "@/components/OfflineSupport";
 import SplashScreen from "@/components/SplashScreen";
 import UpdateNotifier from "@/components/UpdateNotifier";
-import { SPLASH_BG } from "@/lib/splashColor";
-import type { CSSProperties } from "react";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -38,7 +37,7 @@ const LAUNCH_SPLASH_SCRIPT = `(function(){try{
 var standalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
 if(standalone&&!sessionStorage.getItem("mc_splash")){
 document.documentElement.classList.add("mc-splash-on");
-var m=document.createElement("meta");m.name="theme-color";m.content="${SPLASH_BG}";m.id="mc-splash-theme";
+var m=document.createElement("meta");m.name="theme-color";m.content="#fdfdfc";m.id="mc-splash-theme";
 document.head.insertBefore(m,document.head.firstChild);
 }
 }catch(e){}})();`;
@@ -89,12 +88,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      data-scroll-behavior="smooth"
-      suppressHydrationWarning
-      style={{ "--splash-bg": SPLASH_BG } as CSSProperties}
-    >
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: LAUNCH_SPLASH_SCRIPT }} />
         <link
