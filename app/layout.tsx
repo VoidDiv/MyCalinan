@@ -1,9 +1,15 @@
+/* FILE: app/layout.tsx   (REPLACE whole file)
+   Same as your current layout, plus <UpdateNotifier /> (the "Update your MyCalinan app" check).
+   It draws NOTHING unless a newer version is live. */
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
 import LanguageProvider from "@/components/LanguageProvider";
 import OfflineSupport from "@/components/OfflineSupport";
 import SplashScreen from "@/components/SplashScreen";
+import UpdateNotifier from "@/components/UpdateNotifier";
+import { SPLASH_BG } from "@/lib/splashColor";
+import type { CSSProperties } from "react";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -25,10 +31,16 @@ const plexMono = IBM_Plex_Mono({
 });
 
 /* Runs before the page paints. If MyCalinan was opened as an INSTALLED APP (not in a
-   browser tab) and this is a fresh launch, it switches the launch splash on. */
+   browser tab) and this is a fresh launch, it switches the launch splash on and makes the
+   phone's top bar the same colour as the splash (so the colours blend). The green top bar
+   comes back when the splash is gone (see components/SplashScreen.tsx). */
 const LAUNCH_SPLASH_SCRIPT = `(function(){try{
 var standalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
-if(standalone&&!sessionStorage.getItem("mc_splash")){document.documentElement.classList.add("mc-splash-on");}
+if(standalone&&!sessionStorage.getItem("mc_splash")){
+document.documentElement.classList.add("mc-splash-on");
+var m=document.createElement("meta");m.name="theme-color";m.content="${SPLASH_BG}";m.id="mc-splash-theme";
+document.head.insertBefore(m,document.head.firstChild);
+}
 }catch(e){}})();`;
 
 /* iPhone launch pictures. iOS needs one image per screen size, matched by these rules. */
@@ -77,7 +89,12 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+      style={{ "--splash-bg": SPLASH_BG } as CSSProperties}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: LAUNCH_SPLASH_SCRIPT }} />
         <link
@@ -94,6 +111,7 @@ export default function RootLayout({
           {children}
         </LanguageProvider>
         <PwaRegister />
+        <UpdateNotifier />
       </body>
     </html>
   );
