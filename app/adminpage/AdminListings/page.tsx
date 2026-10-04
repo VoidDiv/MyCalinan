@@ -8,6 +8,13 @@
    - Shared AdminSidebar (Admin lang, naa ang Rules ug Log Out)
    - Firebase Auth admin guard (wala nay localStorage)
    - Documents open in an in-app PreviewModal
+
+   NEW IN THIS VERSION (accurate location):
+   - The owner now pins their business on a map when registering
+     (address, lat, lng, locationMethod, locationAccuracyM). When you press
+     "Approve & Publish", that pin is already in the map picker: check it on
+     the 🛰 Satellite view (and drag it if it is off) instead of searching.
+   - Each application card shows whether the owner pinned a location.
    ============================================================ */
 
 "use client";
@@ -41,9 +48,14 @@ import { styles } from "./styles";
 type AdminBusiness = BusinessRegistration & {
   rejectionReason?: string | null;
   reviewedBy?: string;
-  address?: string; // optional: collected by the registration form
+  address?: string; // collected by the registration form
   description?: string;
   listing?: ListingData; // what was published to Explore
+  // Where the owner pinned the business on the registration map
+  lat?: number;
+  lng?: number;
+  locationMethod?: "map" | "gps" | "typed";
+  locationAccuracyM?: number;
 };
 
 /** A file the admin can preview: a document, or a business picture. */
@@ -76,6 +88,18 @@ function picsOf(biz: AdminBusiness): string[] {
   return (biz.documents?.businessPictures?.urls ?? []).map((p) => p.url);
 }
 
+const hasOwnerPin = (biz: AdminBusiness): boolean =>
+  typeof biz.lat === "number" && Number.isFinite(biz.lat) && typeof biz.lng === "number" && Number.isFinite(biz.lng);
+
+/* "Owner pinned it with GPS (±12 m)" / "Owner pinned it on the map" / "No location pinned" */
+function ownerPinLabel(biz: AdminBusiness): string {
+  if (!hasOwnerPin(biz)) return "📍 The owner did not pin a location (older application).";
+  if (biz.locationMethod === "gps" && typeof biz.locationAccuracyM === "number") {
+    return `📍 Pinned by the owner with GPS (±${Math.round(biz.locationAccuracyM)} m).`;
+  }
+  return "📍 Pinned by the owner on the map.";
+}
+
 /* Starting values for the Approve & Publish / Edit form */
 function publishInitial(biz: AdminBusiness): Partial<ListingData> {
   if (biz.listing) return biz.listing;
@@ -94,6 +118,8 @@ function publishInitial(biz: AdminBusiness): Partial<ListingData> {
     description: biz.description ?? "",
     address: biz.address ?? "",
     image: picsOf(biz)[0] ?? "",
+    // the owner's pin (the admin checks it on the map before approving)
+    ...(hasOwnerPin(biz) ? { lat: biz.lat as number, lng: biz.lng as number } : {}),
     published: true,
   };
 }
@@ -287,6 +313,13 @@ function BusinessCard({
             Owner: {biz.fullName} &middot; {requestedTypeLabel(biz)}
           </div>
           <div style={styles.bizMeta}>Operating since {biz.yearOperation}</div>
+          {biz.address && <div style={styles.bizMeta}>{biz.address}</div>}
+          <div
+            style={{ ...styles.bizMeta, color: hasOwnerPin(biz) ? "#1a5c38" : "#b9770e" }}
+            data-testid="owner-pin-note"
+          >
+            {ownerPinLabel(biz)}
+          </div>
         </div>
         <span style={{ ...styles.tag, background: tag.background, color: tag.color }}>
           {biz.overallStatus}
@@ -524,6 +557,23 @@ export default function AdminListingsPage() {
       ? publishTarget.explorePage
       : undefined;
 
+  /* The hint shown at the top of the Approve & Publish window */
+  const approveNotice = (() => {
+    if (!publishTarget || publishTarget.listing) return undefined;
+    const parts: string[] = [];
+    if (requestedPage) {
+      parts.push(
+        `Owner registered as ${EXPLORE_PAGES[requestedPage].label} › ${publishTarget.exploreCategory}. Change it below if it doesn't fit.`
+      );
+    }
+    parts.push(
+      hasOwnerPin(publishTarget)
+        ? `${ownerPinLabel(publishTarget)} Check the pin on the 🛰 Satellite view and drag it if it is not on the building.`
+        : "The owner did not pin a location. Put the pin on the building on the map below."
+    );
+    return parts.join(" ");
+  })();
+
   return (
     <div style={styles.body}>
       <AdminSidebar />
@@ -629,11 +679,7 @@ export default function AdminListingsPage() {
           title={publishTarget.listing ? "Edit Listing" : "Approve & Publish to Explore"}
           submitLabel={publishTarget.listing ? "Save changes" : "Approve & Publish"}
           initial={publishInitial(publishTarget)}
-          notice={
-            !publishTarget.listing && requestedPage
-              ? `Owner registered as ${EXPLORE_PAGES[requestedPage].label} › ${publishTarget.exploreCategory}. Change it below if it doesn't fit.`
-              : undefined
-          }
+          notice={approveNotice}
           photoChoices={picsOf(publishTarget)}
           onClose={() => setPublishTarget(null)}
           onSave={(data) => saveListing(publishTarget, data)}

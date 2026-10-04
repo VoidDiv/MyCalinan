@@ -1,9 +1,20 @@
 /* ============================================================
-   FILE: app/adminpage/AdminListings/ListingModal.tsx   (NEW)
+   FILE: app/adminpage/AdminListings/ListingModal.tsx   (REPLACE whole file)
    One editor for every Explore listing. Used to:
    - approve & publish a business application,
    - edit any listing already on Explore (built-in or not),
    - add a brand-new establishment without an application.
+
+   CHANGED IN THIS VERSION (accurate coordinates):
+   - The old "Find" button put the FIRST geocoder result straight into the
+     latitude / longitude boxes. Those results are often 100-500 m off (and
+     Mapbox does not allow storing its search results). It is gone.
+   - New map picker (components/LocationPicker.tsx): tap the map or drag the
+     big ring onto the building, switch to 🛰 Satellite to see the roof, use
+     the crosshair or the nudge buttons. "Find" now only FLIES the map to the
+     place; you put the pin yourself.
+   - The latitude / longitude boxes still work: type numbers and the pin moves.
+   - Saving is refused if the spot is outside Davao City.
    ============================================================ */
 
 "use client";
@@ -17,6 +28,8 @@ import {
   type ExplorePage,
   type ListingData,
 } from "@/types/listing";
+import LocationPicker from "@/components/LocationPicker";
+import { isInDavao } from "@/lib/geo";
 import { styles } from "./styles";
 
 export interface ListingModalProps {
@@ -79,25 +92,6 @@ export default function ListingModal({
     }));
   }
 
-  async function geocode() {
-    setErr("");
-    try {
-      const q = encodeURIComponent(`${f.name} ${f.address} Calinan Davao City`);
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${q}.json?proximity=125.454,7.188&country=PH&limit=1&access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`
-      );
-      const data = await res.json();
-      const c = data.features?.[0]?.center;
-      if (!c) {
-        setErr("No match found. Enter the coordinates manually (right-click the spot in Google Maps to copy them).");
-        return;
-      }
-      setF((p) => ({ ...p, lng: String(c[0]), lat: String(c[1]) }));
-    } catch {
-      setErr("Geocoding failed. Enter the coordinates manually.");
-    }
-  }
-
   async function upload(file: File) {
     setErr("");
     setUploading(true);
@@ -122,7 +116,10 @@ export default function ListingModal({
     if (!f.name.trim()) return setErr("Name is required.");
     if (!category) return setErr(isEducation ? "Select at least one school type." : "Choose a category.");
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return setErr("Valid latitude and longitude are required.");
+      return setErr("Put the pin on the map (or type a valid latitude and longitude).");
+    }
+    if (!isInDavao(lat, lng)) {
+      return setErr("That spot is outside Davao City. Check the latitude and longitude (a minus sign or swapped numbers?).");
     }
     if (!f.image.trim()) return setErr("Add a photo — upload one or paste an image link.");
 
@@ -159,6 +156,9 @@ export default function ListingModal({
       setBusy(false);
     }
   }
+
+  const latNum = parseFloat(f.lat);
+  const lngNum = parseFloat(f.lng);
 
   return (
     <div style={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -251,11 +251,22 @@ export default function ListingModal({
           onChange={(e) => set("description", e.target.value)}
         />
 
-        <label style={styles.fLabel}>Map location</label>
-        <div style={{ display: "flex", gap: 8 }}>
+        <label style={styles.fLabel}>Map location (put the pin on the building)</label>
+        <LocationPicker
+          lat={Number.isFinite(latNum) ? latNum : null}
+          lng={Number.isFinite(lngNum) ? lngNum : null}
+          savedLat={initial?.lat ?? null}
+          savedLng={initial?.lng ?? null}
+          searchHint={`${f.name} ${f.address}`.trim()}
+          allowGps={false}
+          onChange={(p) => setF((prev) => ({ ...prev, lat: String(p.lat), lng: String(p.lng) }))}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <input style={styles.fInput} placeholder="Latitude" value={f.lat} onChange={(e) => set("lat", e.target.value)} />
           <input style={styles.fInput} placeholder="Longitude" value={f.lng} onChange={(e) => set("lng", e.target.value)} />
-          <button type="button" style={styles.modalCancelBtn} onClick={geocode}>Find</button>
+        </div>
+        <div style={styles.hintText}>
+          The pin and these two boxes always match. You can also type the numbers (right-click the spot in Google Maps to copy them).
         </div>
 
         <label style={styles.fLabel}>Photo</label>

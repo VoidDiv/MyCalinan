@@ -29,7 +29,12 @@ import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from '@/lib/tricycleFare';
    3. Emergency buttons: the "nearest" hospital / police / fire station is now
       chosen by DRIVING time (Mapbox Matrix), not by straight-line distance.
    4. The map is locked north-up and flat (no accidental rotating or tilting).
-   5. Admin only: "Fix pin positions".
+   5. Admin only: "Fix pin positions" — the easy way to put a pin on the right spot:
+        - choose a place (search) -> the map zooms to it with a BIG pin, the other pins fade
+        - 🛰 Satellite view: see the real roof and drop the pin right on it
+        - drag the pin, OR pan the map until the crosshair is on the building and press 🎯
+        - nudge buttons move it 1 / 3 / 10 meters at a time
+        - Save (one place) or Save all
         - "Check all pins": the map finds every place of yours on Mapbox's own map
           (by name), measures how far your pin is from where Mapbox draws it, and
           offers to move the pin there.
@@ -152,6 +157,16 @@ type Lines = FeatureCollection<LineString>;
 const EMPTY_LINES: Lines = { type: 'FeatureCollection', features: [] };
 const EMPTY_AREAS: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
+/** The last data of each overlay layer (used to redraw them after a base-map change). */
+const overlayCache = new Map<string, FeatureCollection | Feature>();
+
+const STREETS_STYLE = 'mapbox://styles/mapbox/streets-v12';
+const SATELLITE_STYLE = 'mapbox://styles/mapbox/satellite-streets-v12';
+
+/** Pins within this distance of the selected pin stay visible (small) while fixing, for context. */
+const NEAR_PIN_CONTEXT_M = 450;
+const NUDGE_STEPS_M = [1, 3, 10] as const;
+
 const SECTION_COLORS: Record<SectionKey, string> = {
   healthcare: '#d93025', education: '#1a73e8', food: '#e8710a', hotspots: '#188038', community: '#7b1fa2',
   finance: '#00838f', transport: '#5f6368', shopping: '#c2185b', lifestyle: '#6d4c41',
@@ -209,14 +224,17 @@ function dashedLine(from: [number, number], to: [number, number]): Feature<LineS
 
 /** Adds (once) every extra layer this page draws: GPS accuracy circle, route, dashed gaps, pin-move line. */
 function addOverlays(map: mapboxgl.Map): void {
-  if (!map.getSource(ACCURACY_SRC)) map.addSource(ACCURACY_SRC, { type: 'geojson', data: EMPTY_AREAS });
+  // Switching the base map (streets <-> satellite) throws away every extra layer, so each source
+  // starts with the last data it had (kept in overlayCache) instead of being empty.
+  const had = (id: string, empty: FeatureCollection | Feature) => overlayCache.get(id) ?? empty;
+  if (!map.getSource(ACCURACY_SRC)) map.addSource(ACCURACY_SRC, { type: 'geojson', data: had(ACCURACY_SRC, EMPTY_AREAS) });
   if (!map.getLayer('user-accuracy-fill')) {
     map.addLayer({ id: 'user-accuracy-fill', type: 'fill', source: ACCURACY_SRC, paint: { 'fill-color': '#1a73e8', 'fill-opacity': 0.13 } });
   }
   if (!map.getLayer('user-accuracy-line')) {
     map.addLayer({ id: 'user-accuracy-line', type: 'line', source: ACCURACY_SRC, paint: { 'line-color': '#1a73e8', 'line-width': 1.5, 'line-opacity': 0.5 } });
   }
-  if (!map.getSource(ROUTE_SRC)) map.addSource(ROUTE_SRC, { type: 'geojson', data: EMPTY_LINES });
+  if (!map.getSource(ROUTE_SRC)) map.addSource(ROUTE_SRC, { type: 'geojson', data: had(ROUTE_SRC, EMPTY_LINES) });
   if (!map.getLayer('route')) {
     map.addLayer({
       id: 'route', type: 'line', source: ROUTE_SRC,
@@ -224,14 +242,14 @@ function addOverlays(map: mapboxgl.Map): void {
       paint: { 'line-color': '#2b6b45', 'line-width': 6, 'line-opacity': 0.85 },
     });
   }
-  if (!map.getSource(GAPS_SRC)) map.addSource(GAPS_SRC, { type: 'geojson', data: EMPTY_LINES });
+  if (!map.getSource(GAPS_SRC)) map.addSource(GAPS_SRC, { type: 'geojson', data: had(GAPS_SRC, EMPTY_LINES) });
   if (!map.getLayer('route-gaps')) {
     map.addLayer({
       id: 'route-gaps', type: 'line', source: GAPS_SRC,
       paint: { 'line-color': '#2b6b45', 'line-width': 3, 'line-opacity': 0.9, 'line-dasharray': [1.2, 1.4] },
     });
   }
-  if (!map.getSource(MOVE_SRC)) map.addSource(MOVE_SRC, { type: 'geojson', data: EMPTY_LINES });
+  if (!map.getSource(MOVE_SRC)) map.addSource(MOVE_SRC, { type: 'geojson', data: had(MOVE_SRC, EMPTY_LINES) });
   if (!map.getLayer('pin-move')) {
     map.addLayer({
       id: 'pin-move', type: 'line', source: MOVE_SRC,
@@ -292,6 +310,7 @@ function whenMapIdle(map: mapboxgl.Map, timeoutMs = 4000): Promise<void> {
 const AUDIT_SEARCH_RADIUS_M = 900;
 
 function setSourceData(map: mapboxgl.Map | null, id: string, data: FeatureCollection | Feature): void {
+  overlayCache.set(id, data);
   const src = map?.getSource(id) as mapboxgl.GeoJSONSource | undefined;
   src?.setData(data);
 }
@@ -324,14 +343,66 @@ function createPinElement(icon: string): HTMLDivElement {
   return el;
 }
 
-/* Small round pin used ONLY in "Fix pin positions" mode. Draggable. */
+/* The pins used ONLY in "Fix pin positions" mode (all draggable).
+   - 'selected': a BIG ring with a crosshair; its CENTER is the exact spot, and the ring is see-through
+                 so (on the satellite view) you can see the roof under it
+   - 'near':     a small dot (other places close to the selected one, for context)
+   - 'far':      a tiny faint dot (still there when you zoom out, and still clickable)
+   - 'hidden':   not shown ("Hide other pins")
+   The marker's own box keeps a fixed center, so the coordinate never shifts when the look changes. */
+type PinLook = 'selected' | 'near' | 'far' | 'hidden';
+
 function createEditPinElement(icon: string, color: string): HTMLDivElement {
   const el = document.createElement('div');
-  el.style.cssText =
-    'width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;' +
-    `justify-content:center;font-size:15px;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.35);border:3px solid ${color};`;
-  el.textContent = icon;
+  el.dataset.icon = icon;
+  el.dataset.color = color;
+  el.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;';
+  el.appendChild(document.createElement('div'));
+  applyPinLook(el, 'near');
   return el;
+}
+
+function applyPinLook(el: HTMLDivElement, look: PinLook): void {
+  const color = el.dataset.color ?? '#555';
+  const inner = el.firstElementChild as HTMLDivElement;
+  el.dataset.look = look;
+
+  if (look === 'hidden') {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'flex';
+
+  if (look === 'selected') {
+    el.style.width = '56px';
+    el.style.height = '56px';
+    el.style.zIndex = '5';
+    inner.style.cssText =
+      `position:relative;width:48px;height:48px;border-radius:50%;border:3px solid ${color};` +
+      'background:rgba(255,255,255,.22);box-shadow:0 0 0 2px #fff,0 3px 10px rgba(0,0,0,.5);';
+    inner.textContent = '';
+    const lineStyle = 'position:absolute;background:#e11d1d;border-radius:1px;';
+    const vertical = document.createElement('div');
+    vertical.style.cssText = `${lineStyle}left:50%;top:5px;bottom:5px;width:2px;margin-left:-1px;`;
+    const horizontal = document.createElement('div');
+    horizontal.style.cssText = `${lineStyle}top:50%;left:5px;right:5px;height:2px;margin-top:-1px;`;
+    inner.appendChild(vertical);
+    inner.appendChild(horizontal);
+  } else if (look === 'far') {
+    el.style.width = '20px';
+    el.style.height = '20px';
+    el.style.zIndex = '0';
+    inner.style.cssText = `width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;opacity:.6;`;
+    inner.textContent = '';
+  } else {
+    el.style.width = '30px';
+    el.style.height = '30px';
+    el.style.zIndex = '1';
+    inner.style.cssText =
+      `width:24px;height:24px;border-radius:50%;background:#fff;border:3px solid ${color};opacity:.85;` +
+      'display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.35);';
+    inner.textContent = el.dataset.icon ?? '';
+  }
 }
 
 /* "You are here" — the same pulsing blue dot used on the Explore pages
@@ -410,6 +481,13 @@ export default function BarangayMap() {
   const [audit, setAudit] = useState<Record<string, PinAudit>>({});
   const [auditProgress, setAuditProgress] = useState<{ done: number; total: number } | null>(null);
   const [auditOnlyOff, setAuditOnlyOff] = useState(true);
+  const [auditOpen, setAuditOpen] = useState(false);
+  // easy pin placing
+  const [satellite, setSatellite] = useState(false);
+  const satelliteShownRef = useRef(false);
+  const [hideOthers, setHideOthers] = useState(false);
+  const [fixQuery, setFixQuery] = useState('');
+  const [nudgeStep, setNudgeStep] = useState<number>(3);
   const auditCancelRef = useRef(false);
   const pinEditsRef = useRef(pinEdits);
   pinEditsRef.current = pinEdits;
@@ -625,9 +703,12 @@ export default function BarangayMap() {
       return;
     }
 
+    overlayCache.clear();
+    satelliteShownRef.current = false;
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: STREETS_STYLE,
       center: CALINAN_CENTER,
       zoom: 14,
       // Always north-up and flat. A map that was turned or tilted by accident (right-click drag,
@@ -658,6 +739,14 @@ export default function BarangayMap() {
       setMapLoaded(true);
       requestAnimationFrame(() => map.resize());
     });
+
+    // A new base map (streets <-> satellite) removes our extra layers: put them back.
+    // (addOverlays only adds what is missing, so calling it several times is harmless.)
+    const restoreOverlays = () => {
+      if (loaded && map.isStyleLoaded()) addOverlays(map);
+    };
+    map.on('style.load', restoreOverlays);
+    map.on('styledata', restoreOverlays);
 
     map.on('click', (e) => {
       // Development only: click the map to print exact coordinates in the
@@ -755,7 +844,7 @@ export default function BarangayMap() {
   }, [selectedPlace, mapLoaded, drawRoute, pinMode]);
 
   // ═══════════════════════════════════════
-  // ADMIN: "Fix pin positions" — a draggable dot for every place in the current filter
+  // ADMIN: "Fix pin positions" — one draggable pin for every place
   // ═══════════════════════════════════════
   useEffect(() => {
     const map = mapRef.current;
@@ -766,7 +855,7 @@ export default function BarangayMap() {
     markers.clear();
     if (!pinMode || !isAdmin) return;
 
-    categoryPlaces.forEach((place) => {
+    allPlaces.forEach((place) => {
       const start = pinEditsRef.current[place.id] ?? { lat: place.lat, lng: place.lng };
       const el = createEditPinElement(place.icon, SECTION_COLORS[place.section]);
       el.title = place.name;
@@ -789,7 +878,42 @@ export default function BarangayMap() {
 
       markers.set(place.id, marker);
     });
-  }, [pinMode, isAdmin, categoryPlaces, mapLoaded, setPinEdit]);
+  }, [pinMode, isAdmin, allPlaces, mapLoaded, setPinEdit]);
+
+  // The selected pin is BIG; the others are small, and the ones far away are tiny
+  useEffect(() => {
+    if (!pinMode || !isAdmin) return;
+    const markers = pinMarkersRef.current;
+    const selected = selectedPlace ? markers.get(selectedPlace.id)?.getLngLat() : undefined;
+
+    markers.forEach((marker, id) => {
+      const el = marker.getElement() as HTMLDivElement;
+      if (selectedPlace && id === selectedPlace.id) {
+        applyPinLook(el, 'selected');
+        return;
+      }
+      if (!selected) {
+        applyPinLook(el, 'near'); // nothing chosen yet: show them all, small
+        return;
+      }
+      if (hideOthers) {
+        applyPinLook(el, 'hidden');
+        return;
+      }
+      const ll = marker.getLngLat();
+      applyPinLook(el, metersBetween(selected.lat, selected.lng, ll.lat, ll.lng) <= NEAR_PIN_CONTEXT_M ? 'near' : 'far');
+    });
+  }, [pinMode, isAdmin, selectedPlace, hideOthers, allPlaces, mapLoaded, pinEdits]);
+
+  // 🛰 Satellite <-> streets (only the admin fixing pins can switch it; leaving the tool turns it off)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    if (satelliteShownRef.current === satellite) return;
+    satelliteShownRef.current = satellite;
+    // diff:false = build the new base map from scratch (a clean 'style.load', no half-updated layers)
+    map.setStyle(satellite ? SATELLITE_STYLE : STREETS_STYLE, { diff: false } as Parameters<mapboxgl.Map['setStyle']>[1]);
+  }, [satellite, mapLoaded]);
 
   // red dashed line from the saved position to the moved position of the selected pin
   useEffect(() => {
@@ -1117,8 +1241,29 @@ export default function BarangayMap() {
     setSelectedPlace(place);
     setSelectedDestinationId(place.id);
     const edit = pinEditsRef.current[place.id];
-    mapRef.current?.flyTo({ center: [edit?.lng ?? place.lng, edit?.lat ?? place.lat], zoom: 17 });
+    mapRef.current?.flyTo({ center: [edit?.lng ?? place.lng, edit?.lat ?? place.lat], zoom: 18 });
   }, []);
+
+  // ADMIN: put the pin exactly under the crosshair (the center of the screen). Pan the map until the
+  // crosshair is on the building, then press the button — your finger never covers the spot.
+  const pinToCrosshair = (place: Place) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const c = map.getCenter();
+    pinMarkersRef.current.get(place.id)?.setLngLat(c);
+    setPinEdit(place, c.lat, c.lng);
+  };
+
+  // ADMIN: nudge the pin a few meters (N / S / E / W)
+  const nudgePin = (place: Place, direction: 'n' | 's' | 'e' | 'w') => {
+    const cur = pinEditsRef.current[place.id] ?? { lat: place.lat, lng: place.lng };
+    const dLat = (nudgeStep / 110574) * (direction === 'n' ? 1 : direction === 's' ? -1 : 0);
+    const dLng = (nudgeStep / (111320 * Math.cos((cur.lat * Math.PI) / 180))) * (direction === 'e' ? 1 : direction === 'w' ? -1 : 0);
+    const lat = cur.lat + dLat;
+    const lng = cur.lng + dLng;
+    pinMarkersRef.current.get(place.id)?.setLngLat([lng, lat]);
+    setPinEdit(place, lat, lng);
+  };
 
   const undoPinEdit = (place: Place) => {
     const { [place.id]: _removed, ...rest } = pinEditsRef.current;
@@ -1220,6 +1365,9 @@ export default function BarangayMap() {
       setPinEdits({});
       setAudit({});
       setAuditProgress(null);
+      setSatellite(false);
+      setHideOthers(false);
+      setFixQuery('');
     }
   };
 
@@ -1238,6 +1386,11 @@ export default function BarangayMap() {
       : 'bg-red-500';
 
   const pendingCount = Object.keys(pinEdits).length;
+  const fixMatches = useMemo(() => {
+    const q = fixQuery.toLowerCase().trim();
+    if (q.length < 2) return [];
+    return allPlaces.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [fixQuery, allPlaces]);
   const auditRows = useMemo(() => {
     const byId = new Map(allPlaces.map((p) => [p.id, p]));
     return Object.entries(audit)
@@ -1565,109 +1718,88 @@ export default function BarangayMap() {
           </Link>
         </div>
 
+        {/* Admin: crosshair at the center of the map (shown while a pin is selected) */}
+        {pinMode && isAdmin && selectedPlace && (
+          <div
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+            data-testid="crosshair"
+            aria-hidden="true"
+          >
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <g stroke="#ffffff" strokeWidth="5" strokeLinecap="round">
+                <path d="M20 3v11M20 26v11M3 20h11M26 20h11" />
+              </g>
+              <g stroke="#e11d1d" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M20 3v11M20 26v11M3 20h11M26 20h11" />
+              </g>
+            </svg>
+          </div>
+        )}
+
         {/* Admin: Fix pin positions */}
         {pinMode && isAdmin && (
           <div
-            className="absolute left-1/2 top-14 z-20 max-h-[78dvh] w-[min(94%,28rem)] -translate-x-1/2 overflow-y-auto rounded-xl bg-white p-3 text-sm shadow-lg ring-1 ring-black/10 md:top-3"
+            // The panel must NEVER cover the middle of the map (that is where the pin and the crosshair are):
+            // on a phone / small screen it is a sheet at the bottom; on a big screen it sits at the left.
+            className="absolute inset-x-0 bottom-0 z-20 max-h-[42dvh] overflow-y-auto rounded-t-xl bg-white p-3 text-sm shadow-lg ring-1 ring-black/10 lg:inset-x-auto lg:bottom-auto lg:left-3 lg:top-14 lg:max-h-[calc(100dvh-6rem)] lg:w-80 lg:rounded-xl"
             data-testid="pin-panel"
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-semibold text-neutral-800">🛠 Fix pin positions</p>
-              <button
-                onClick={togglePinMode}
-                className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-200"
-              >
-                Done
-              </button>
-            </div>
-
-            {/* 1) Check all pins against Mapbox's own map */}
-            <div className="mt-2">
-              {auditProgress ? (
-                <div data-testid="audit-progress">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-                    <div
-                      className="h-full bg-green-600 transition-all"
-                      style={{ width: `${Math.round((auditProgress.done / auditProgress.total) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-neutral-600">
-                    <span>
-                      Checking {auditProgress.done} / {auditProgress.total} …
-                    </span>
-                    <button
-                      onClick={() => {
-                        auditCancelRef.current = true;
-                      }}
-                      className="font-semibold text-red-700"
-                    >
-                      Stop
-                    </button>
-                  </div>
-                </div>
-              ) : (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={checkAllPins}
-                  disabled={categoryPlaces.length === 0}
-                  className="w-full rounded-md bg-green-700 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+                  onClick={() => setSatellite((v) => !v)}
+                  aria-pressed={satellite}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    satellite ? 'bg-sky-700 text-white' : 'bg-sky-100 text-sky-900 hover:bg-sky-200'
+                  }`}
+                  title="See the real buildings from above"
                 >
-                  🔎 Check {categoryPlaces.length} pin{categoryPlaces.length === 1 ? '' : 's'}
-                  {activeCategory === 'all' ? '' : ` (${CATEGORY_LABELS[activeCategory]})`} against Mapbox
+                  🛰 {satellite ? 'Satellite on' : 'Satellite'}
                 </button>
-              )}
-              <p className="mt-1 text-[11px] leading-snug text-neutral-500">
-                Finds each place on Mapbox&apos;s own map by name and measures how far your pin is from it.
-              </p>
+                <button
+                  onClick={togglePinMode}
+                  className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-200"
+                >
+                  Done
+                </button>
+              </div>
             </div>
 
-            {/* 2) Results */}
-            {auditCounts.total > 0 && (
-              <div className="mt-2 rounded-lg bg-neutral-50 p-2" data-testid="audit-summary">
-                <p className="text-xs text-neutral-700">
-                  <strong>{auditCounts.total}</strong> checked ·{' '}
-                  <span className="text-green-700">{auditCounts.ok} OK</span> ·{' '}
-                  <span className="text-red-700">{auditCounts.off} off</span>
-                  {auditCounts.off > 0 && <> (typically {formatMeters(auditCounts.medianOff)})</>} ·{' '}
-                  <span className="text-neutral-500">{auditCounts.none} not found on Mapbox</span>
-                </p>
-                <label className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-600">
-                  <input type="checkbox" checked={auditOnlyOff} onChange={(e) => setAuditOnlyOff(e.target.checked)} />
-                  Only show places to fix (hide the OK ones)
-                </label>
-                <ul className="mt-1 max-h-48 divide-y divide-neutral-100 overflow-y-auto" data-testid="audit-list">
-                  {auditRows.map(({ place, audit: a }) => (
-                    <li key={place.id} className="flex items-center gap-2 py-1.5">
-                      <button onClick={() => showPlace(place)} className="min-w-0 flex-1 text-left">
-                        <span className="block truncate text-xs font-medium text-neutral-800">
-                          {place.icon} {place.name}
-                        </span>
-                        <span className={`block text-[11px] ${a.status === 'off' ? 'text-red-700' : a.status === 'ok' ? 'text-green-700' : 'text-neutral-500'}`}>
-                          {a.status === 'off' && `Mapbox shows it ${formatMeters(a.offsetM ?? 0)} away`}
-                          {a.status === 'ok' && `OK (${formatMeters(a.offsetM ?? 0)})`}
-                          {a.status === 'none' && 'Not on Mapbox — check it by eye'}
-                        </span>
+            {/* 1) Choose the place */}
+            <div className="mt-2">
+              <input
+                type="text"
+                value={fixQuery}
+                onChange={(e) => setFixQuery(e.target.value)}
+                placeholder="1. Type a place name to fix…"
+                className="w-full rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-700/40"
+                data-testid="fix-search"
+              />
+              {fixMatches.length > 0 && (
+                <ul className="mt-1 divide-y divide-neutral-100 rounded-md border border-neutral-200" data-testid="fix-results">
+                  {fixMatches.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        onClick={() => {
+                          showPlace(p);
+                          setFixQuery('');
+                        }}
+                        className="block w-full px-2 py-1.5 text-left text-xs hover:bg-neutral-50"
+                      >
+                        {p.icon} {p.name}
                       </button>
-                      {a.status === 'off' && a.suggestion && !pinEdits[place.id] && (
-                        <button
-                          onClick={() => useSuggestion(place)}
-                          className="rounded-md bg-green-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-green-800"
-                        >
-                          Use
-                        </button>
-                      )}
-                      {pinEdits[place.id] && <span className="text-[11px] font-semibold text-amber-700">moved</span>}
                     </li>
                   ))}
-                  {auditRows.length === 0 && <li className="py-2 text-center text-[11px] text-neutral-500">Nothing to fix here 🎉</li>}
                 </ul>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* 3) The selected pin */}
+            {/* 2) The selected pin */}
             {!editedPlace ? (
               <p className="mt-2 text-xs leading-snug text-neutral-500">
-                Or drag a pin onto the building where Mapbox shows its icon. Tap a pin, then tap the map to move it
-                there. Nothing changes until you press Save.
+                Or tap a pin on the map. Then <strong>drag it onto the building</strong> — turn on 🛰 Satellite to see
+                the roof. Nothing changes until you press Save.
               </p>
             ) : (
               <div className="mt-2 border-t border-neutral-100 pt-2">
@@ -1678,12 +1810,88 @@ export default function BarangayMap() {
                   Saved: {editedPlace.lat.toFixed(6)}, {editedPlace.lng.toFixed(6)}
                 </p>
 
-                <div className="mt-1 flex items-center gap-2">
+                <p className="mt-1 text-[11px] leading-snug text-neutral-600">
+                  2. <strong>Drag the big ring</strong> onto the building, <em>or</em> move the map until the red
+                  crosshair is on it and press the button below.
+                </p>
+
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => pinToCrosshair(editedPlace)}
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                    data-testid="to-crosshair"
+                  >
+                    🎯 Put pin at the crosshair
+                  </button>
+                  <label className="flex items-center gap-1.5 text-[11px] text-neutral-600">
+                    <input type="checkbox" checked={hideOthers} onChange={(e) => setHideOthers(e.target.checked)} />
+                    Hide other pins
+                  </label>
+                </div>
+
+                {/* nudge */}
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="grid grid-cols-3 gap-1" data-testid="nudge">
+                    <span />
+                    <button onClick={() => nudgePin(editedPlace, 'n')} aria-label="Move north" data-testid="nudge-n" className="h-7 w-9 rounded bg-neutral-100 text-xs font-bold hover:bg-neutral-200">▲</button>
+                    <span />
+                    <button onClick={() => nudgePin(editedPlace, 'w')} aria-label="Move west" data-testid="nudge-w" className="h-7 w-9 rounded bg-neutral-100 text-xs font-bold hover:bg-neutral-200">◀</button>
+                    <span className="flex items-center justify-center text-[10px] text-neutral-400">nudge</span>
+                    <button onClick={() => nudgePin(editedPlace, 'e')} aria-label="Move east" data-testid="nudge-e" className="h-7 w-9 rounded bg-neutral-100 text-xs font-bold hover:bg-neutral-200">▶</button>
+                    <span />
+                    <button onClick={() => nudgePin(editedPlace, 's')} aria-label="Move south" data-testid="nudge-s" className="h-7 w-9 rounded bg-neutral-100 text-xs font-bold hover:bg-neutral-200">▼</button>
+                    <span />
+                  </div>
+                  <div className="text-[11px] text-neutral-600">
+                    <p className="mb-1">Step</p>
+                    <div className="flex gap-1">
+                      {NUDGE_STEPS_M.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setNudgeStep(m)}
+                          aria-pressed={nudgeStep === m}
+                          data-testid={`step-${m}`}
+                          className={`rounded px-2 py-1 text-[11px] font-semibold ${nudgeStep === m ? 'bg-green-700 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                        >
+                          {m} m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {editedPos ? (
+                  <>
+                    <p className="mt-2 text-[11px] text-neutral-700">
+                      New: {editedPos.lat.toFixed(6)}, {editedPos.lng.toFixed(6)} · moved{' '}
+                      <strong>{formatMeters(editedMovedM)}</strong>
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => savePinEdit(editedPlace)}
+                        disabled={savingId === editedPlace.id || savingAll}
+                        className="flex-1 rounded-md bg-green-700 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-60"
+                      >
+                        {savingId === editedPlace.id ? 'Saving…' : '3. Save position'}
+                      </button>
+                      <button
+                        onClick={() => undoPinEdit(editedPlace)}
+                        className="rounded-md bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-200"
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-[11px] text-neutral-500">The pin has not been moved yet.</p>
+                )}
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => checkPlaceOnMapbox(editedPlace)}
                     className="rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-semibold text-neutral-700 hover:bg-neutral-200"
                   >
-                    🔎 Find on Mapbox
+                    🔎 Where does Mapbox put it?
                   </button>
                   {editedAudit?.status === 'off' && editedAudit.suggestion && !editedPos && (
                     <button
@@ -1700,36 +1908,10 @@ export default function BarangayMap() {
                 {editedAudit?.status === 'none' && (
                   <p className="mt-1 text-[11px] text-neutral-500">Mapbox does not show this place near the pin.</p>
                 )}
-
-                {editedPos ? (
-                  <>
-                    <p className="mt-1 text-[11px] text-neutral-700">
-                      New: {editedPos.lat.toFixed(6)}, {editedPos.lng.toFixed(6)} · moved{' '}
-                      <strong>{formatMeters(editedMovedM)}</strong>
-                    </p>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        onClick={() => savePinEdit(editedPlace)}
-                        disabled={savingId === editedPlace.id || savingAll}
-                        className="flex-1 rounded-md bg-green-700 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-60"
-                      >
-                        {savingId === editedPlace.id ? 'Saving…' : 'Save position'}
-                      </button>
-                      <button
-                        onClick={() => undoPinEdit(editedPlace)}
-                        className="rounded-md bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-200"
-                      >
-                        Undo
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <p className="mt-1 text-[11px] text-neutral-500">Drag this pin, or tap the map to move it there.</p>
-                )}
               </div>
             )}
 
-            {/* 4) Save everything that was moved */}
+            {/* 3) Save everything that was moved */}
             {pendingCount > 0 && (
               <button
                 onClick={saveAllPinEdits}
@@ -1740,12 +1922,108 @@ export default function BarangayMap() {
                 {savingAll ? 'Saving…' : `💾 Save all ${pendingCount} moved pin${pendingCount === 1 ? '' : 's'}`}
               </button>
             )}
+
+            {/* Optional: check every pin automatically against Mapbox's own map (can be wrong for small shops) */}
+            <details
+              className="mt-3 rounded-lg border border-neutral-200 p-2"
+              open={auditOpen}
+              onToggle={(e) => setAuditOpen((e.currentTarget as HTMLDetailsElement).open)}
+              data-testid="audit-details"
+            >
+              <summary className="cursor-pointer text-xs font-semibold text-neutral-700">
+                🔎 Check all pins against Mapbox (optional)
+              </summary>
+
+              <div className="mt-2">
+                {auditProgress ? (
+                  <div data-testid="audit-progress">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+                      <div
+                        className="h-full bg-green-600 transition-all"
+                        style={{ width: `${Math.round((auditProgress.done / auditProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-neutral-600">
+                      <span>
+                        Checking {auditProgress.done} / {auditProgress.total} …
+                      </span>
+                      <button
+                        onClick={() => {
+                          auditCancelRef.current = true;
+                        }}
+                        className="font-semibold text-red-700"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={checkAllPins}
+                    disabled={categoryPlaces.length === 0}
+                    className="w-full rounded-md bg-green-700 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+                  >
+                    🔎 Check {categoryPlaces.length} pin{categoryPlaces.length === 1 ? '' : 's'}
+                    {activeCategory === 'all' ? '' : ` (${CATEGORY_LABELS[activeCategory]})`} against Mapbox
+                  </button>
+                )}
+                <p className="mt-1 text-[11px] leading-snug text-neutral-500">
+                  Matches by name, so it can be wrong for small shops. Always look at the result before you save.
+                </p>
+              </div>
+
+              {auditCounts.total > 0 && (
+                <div className="mt-2 rounded-lg bg-neutral-50 p-2" data-testid="audit-summary">
+                  <p className="text-xs text-neutral-700">
+                    <strong>{auditCounts.total}</strong> checked ·{' '}
+                    <span className="text-green-700">{auditCounts.ok} OK</span> ·{' '}
+                    <span className="text-red-700">{auditCounts.off} off</span>
+                    {auditCounts.off > 0 && <> (typically {formatMeters(auditCounts.medianOff)})</>} ·{' '}
+                    <span className="text-neutral-500">{auditCounts.none} not found on Mapbox</span>
+                  </p>
+                  <label className="mt-1 flex items-center gap-1.5 text-[11px] text-neutral-600">
+                    <input type="checkbox" checked={auditOnlyOff} onChange={(e) => setAuditOnlyOff(e.target.checked)} />
+                    Only show places to fix (hide the OK ones)
+                  </label>
+                  <ul className="mt-1 max-h-48 divide-y divide-neutral-100 overflow-y-auto" data-testid="audit-list">
+                    {auditRows.map(({ place, audit: a }) => (
+                      <li key={place.id} className="flex items-center gap-2 py-1.5">
+                        <button onClick={() => showPlace(place)} className="min-w-0 flex-1 text-left">
+                          <span className="block truncate text-xs font-medium text-neutral-800">
+                            {place.icon} {place.name}
+                          </span>
+                          <span className={`block text-[11px] ${a.status === 'off' ? 'text-red-700' : a.status === 'ok' ? 'text-green-700' : 'text-neutral-500'}`}>
+                            {a.status === 'off' && `Mapbox shows it ${formatMeters(a.offsetM ?? 0)} away`}
+                            {a.status === 'ok' && `OK (${formatMeters(a.offsetM ?? 0)})`}
+                            {a.status === 'none' && 'Not on Mapbox — check it by eye'}
+                          </span>
+                        </button>
+                        {a.status === 'off' && a.suggestion && !pinEdits[place.id] && (
+                          <button
+                            onClick={() => useSuggestion(place)}
+                            className="rounded-md bg-green-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-green-800"
+                          >
+                            Use
+                          </button>
+                        )}
+                        {pinEdits[place.id] && <span className="text-[11px] font-semibold text-amber-700">moved</span>}
+                      </li>
+                    ))}
+                    {auditRows.length === 0 && <li className="py-2 text-center text-[11px] text-neutral-500">Nothing to fix here 🎉</li>}
+                  </ul>
+                </div>
+              )}
+            </details>
           </div>
         )}
 
         {/* Toast */}
         {toast && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-black/80 text-white text-sm px-4 py-2 rounded-full shadow-lg">
+          <div
+            className={`absolute left-1/2 -translate-x-1/2 z-20 bg-black/80 text-white text-sm px-4 py-2 rounded-full shadow-lg ${
+              pinMode && isAdmin ? 'bottom-[44dvh] lg:bottom-6' : 'bottom-6'
+            }`}
+          >
             {toast}
           </div>
         )}

@@ -3,17 +3,23 @@
    PAGE: Business Registration Form (LOGGED-IN BUSINESS OWNERS)
    URL:  /business-registration
 
-   FIXES IN THIS VERSION:
-   - The Step 1 "Email" field is now actually saved (as `email`)
-     alongside the Firebase Auth account email (`ownerEmail`).
-     Before, it was required by validation but silently dropped
-     at submit time.
-   - Business picture previews no longer leak object URLs. Each
-     File is now paired with its preview URL once, and every URL
-     is revoked when the picture is removed or the page unmounts.
-   - Added a "Back to Home" link at the top of the form so people
-     aren't stuck mid-form with no way out (the success screen
-     already had one).
+   NEW IN THIS VERSION (accurate location):
+   - Step 2 now asks for the business ADDRESS and for the owner to PIN the
+     business on a map (components/LocationPicker.tsx): tap the map or drag
+     the big ring onto the building, switch to 🛰 Satellite to see the roof, or
+     press 📍 "Use my current location" when standing at the business (the
+     most precise GPS reading is used, and the ±accuracy is saved).
+   - Saved on the application: address, lat, lng, locationMethod
+     ("map" | "gps" | "typed") and, for GPS, locationAccuracyM.
+   - In Admin > Listings, the pin is pre-filled when the admin approves, so
+     the admin only has to check it (on the satellite view) instead of
+     searching for the place.
+
+   FIXES FROM BEFORE (kept):
+   - The Step 1 "Email" field is saved (as `email`) next to the Firebase Auth
+     account email (`ownerEmail`).
+   - Business picture previews no longer leak object URLs.
+   - "Back to Home" link at the top of the form.
    ============================================================ */
 
 "use client";
@@ -27,6 +33,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { storage, db, auth } from "@/lib/Firebase";
 import { CURRENT_YEAR, MAX_BUSINESS_PICTURES } from "@/types/business";
 import { REGISTRATION_GROUPS, encodeChoice, decodeChoice } from "@/types/listing";
+import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
+import { isInDavao } from "@/lib/geo";
 
 /* ── Local form state ── */
 interface FormState {
@@ -36,6 +44,7 @@ interface FormState {
   businessName: string;
   businessChoice: string; // "page::category" — see types/listing.ts
   yearOperation: string;
+  address: string; // street / area of the business
 }
 
 const initialForm: FormState = {
@@ -45,7 +54,17 @@ const initialForm: FormState = {
   businessName: "",
   businessChoice: "",
   yearOperation: String(CURRENT_YEAR),
+  address: "",
 };
+
+/* Where the owner pinned the business */
+interface BusinessLocation {
+  lat: number | null;
+  lng: number | null;
+  /** only for a GPS pin: how precise the reading was (meters) */
+  accuracyM?: number;
+  method?: PickedLocation["method"];
+}
 
 /* A selected business picture, paired with its (revocable) preview URL. */
 interface PictureEntry {
@@ -100,6 +119,7 @@ export default function BusinessRegistrationPage() {
   const [step, setStep] = useState<1 | 2>(1);
 
   const [form, setForm] = useState<FormState>(initialForm);
+  const [location, setLocation] = useState<BusinessLocation>({ lat: null, lng: null });
 
   // Single-file documents
   const [businessPermit, setBusinessPermit] = useState<File | null>(null);
@@ -194,6 +214,13 @@ export default function BusinessRegistrationPage() {
     if (!form.businessName.trim()) return "Business name is required.";
     if (!decodeChoice(form.businessChoice)) return "Please select a business type.";
     if (!form.yearOperation.trim()) return "Year of operation is required.";
+    if (!form.address.trim()) return "Please enter your business address (street or area).";
+    if (location.lat === null || location.lng === null) {
+      return "Please put the pin on the map where your business is.";
+    }
+    if (!isInDavao(location.lat, location.lng)) {
+      return "The pin is outside Davao City. Please move it onto your business.";
+    }
     if (!businessPermit) return "Please upload your Business Permit.";
     if (!dti) return "Please upload your DTI/SEC Registration.";
     if (!barangayClearance) return "Please upload your Barangay Clearance.";
@@ -219,8 +246,8 @@ export default function BusinessRegistrationPage() {
     }
 
     const choice = decodeChoice(form.businessChoice);
-    if (!choice) {
-      setError("Please select a business type.");
+    if (!choice || location.lat === null || location.lng === null) {
+      setError("Please select a business type and put the pin on the map.");
       return;
     }
 
@@ -272,6 +299,14 @@ export default function BusinessRegistrationPage() {
         explorePage: choice.page,
         exploreCategory: choice.category,
         yearOperation: form.yearOperation.trim(),
+
+        // Where the business is (pinned by the owner; the admin checks it when approving)
+        address: form.address.trim(),
+        lat: location.lat,
+        lng: location.lng,
+        locationMethod: location.method ?? "map",
+        // (Firestore does not accept "undefined", so this field is only added for a GPS pin)
+        ...(location.accuracyM !== undefined ? { locationAccuracyM: location.accuracyM } : {}),
 
         documents: {
           businessPermit: { ...businessPermitUploaded, status: "pending", rejectionReason: null },
@@ -461,6 +496,37 @@ export default function BusinessRegistrationPage() {
                   value={form.yearOperation}
                   onChange={(e) => updateField("yearOperation", e.target.value)}
                   disabled={submitting}
+                />
+              </div>
+            </div>
+
+            <div className="business-reg-input-group">
+              <label>Business Address</label>
+              <input
+                type="text"
+                value={form.address}
+                onChange={(e) => updateField("address", e.target.value)}
+                placeholder="e.g. Villafuerte St., Calinan Poblacion"
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="business-reg-input-group">
+              <label>Where is your business? Pin it on the map</label>
+              <span className="business-reg-hint">
+                This is the spot people will be guided to, so please be exact. Tap the map or drag the big
+                ring onto your building. Turn on Satellite to see your roof. If you are at the business
+                right now, press &ldquo;Use my current location&rdquo;.
+              </span>
+              <div style={{ marginTop: 8 }}>
+                <LocationPicker
+                  lat={location.lat}
+                  lng={location.lng}
+                  searchHint={`${form.businessName} ${form.address}`.trim()}
+                  allowGps
+                  onChange={(p) =>
+                    setLocation({ lat: p.lat, lng: p.lng, method: p.method, accuracyM: p.method === "gps" ? p.accuracyM : undefined })
+                  }
                 />
               </div>
             </div>
