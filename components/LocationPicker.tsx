@@ -11,6 +11,11 @@
    - ▲ ▼ ◀ ▶ nudge the pin 1 / 3 / 10 meters
    - 📍 Use my current location (only if you are AT the place): picks the
      most precise GPS reading it can get, and shows the ±accuracy circle
+   - 📡 LIVE LOCATION (admin, standing at the establishment): a blue dot with its
+     ±accuracy circle shows where YOU are, updating as you walk, while you move the
+     pin. The panel tells you how far you are from the pin and in which direction, so
+     you can confirm you are really at the right place. "📍 Pin at my location"
+     puts the pin where the blue dot is, and "🔍 Show me and the pin" fits both on screen.
    - "Find": looks the name up on Mapbox and FLIES the map there. It never
      fills in the coordinates for you — you put the pin yourself, so the saved
      position is the one you chose (search results are often a few hundred
@@ -26,6 +31,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Feature, FeatureCollection } from "geojson";
 import { circlePolygon, formatMeters, isInDavao, metersBetween } from "@/lib/geo";
+import { GpsFilter, type GpsQuality } from "@/lib/gps";
 
 const CALINAN_CENTER: [number, number] = [125.4532, 7.1876];
 const STREETS_STYLE = "mapbox://styles/mapbox/streets-v12";
@@ -34,11 +40,15 @@ const SATELLITE_STYLE = "mapbox://styles/mapbox/satellite-streets-v12";
 const DAVAO_BBOX = "125.30,7.00,125.65,7.35";
 const NUDGE_STEPS_M = [1, 3, 10] as const;
 const ACCURACY_SRC = "picker-accuracy";
+const LIVE_SRC = "picker-live";
 /** A GPS reading this good (in meters) ends the search for a better one. */
 const GPS_GOOD_ENOUGH_M = 12;
 const GPS_MAX_WAIT_MS = 15000;
 /** Worse than this and the owner is told to drag the pin by hand. */
 const GPS_WEAK_M = 60;
+/** With a live location worse than this, "how far am I from the pin" is only a rough guide. */
+const LIVE_ROUGH_M = 100;
+const COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"] as const;
 
 export interface PickedLocation {
   lat: number;
@@ -59,6 +69,10 @@ export interface LocationPickerProps {
   savedLng?: number | null;
   /** Show the "Use my current location" button (right for an owner at their shop; not for an admin at a desk). */
   allowGps?: boolean;
+  /** Show your LIVE location (blue dot + accuracy circle) and the distance to the pin. For an admin at the establishment. */
+  liveLocation?: boolean;
+  /** Start with the live location already on (the browser asks for permission when the picker opens). Default: off until the person turns it on. */
+  liveLocationDefault?: boolean;
   /** Height of the map in pixels. */
   height?: number;
 }
@@ -75,6 +89,24 @@ const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFin
 /** A real place on earth. (Typed numbers like 125.45 / 7.18 in the wrong boxes must not reach Mapbox: it would throw.) */
 const isCoord = (la: unknown, ln: unknown): boolean => isNum(la) && isNum(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/** Direction from A to B in words ("north-east"). */
+function compassWord(fromLat: number, fromLng: number, toLat: number, toLng: number): string {
+  const dy = toLat - fromLat;
+  const dx = (toLng - fromLng) * Math.cos((fromLat * Math.PI) / 180);
+  const angle = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+  return COMPASS[Math.round(angle / 45) % 8];
+}
+
+/** YOU: a blue dot with a white edge (not draggable). */
+function createLiveDotElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.style.cssText =
+    "width:18px;height:18px;border-radius:50%;background:#1a73e8;border:3px solid #fff;" +
+    "box-shadow:0 0 0 2px rgba(26,115,232,.35),0 2px 6px rgba(0,0,0,.4);pointer-events:none;";
+  el.setAttribute("data-testid", "lp-live-dot");
+  return el;
+}
 
 /** The big ring you drag. Its CENTER is the exact spot; the ring is see-through so you can see the roof under it. */
 function createRingElement(): HTMLDivElement {
@@ -111,6 +143,8 @@ export default function LocationPicker({
   savedLat = null,
   savedLng = null,
   allowGps = true,
+  liveLocation = false,
+  liveLocationDefault = false,
   height = 300,
 }: LocationPickerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -119,6 +153,9 @@ export default function LocationPicker({
   const suggestionMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const loadedRef = useRef(false);
   const overlayRef = useRef<FeatureCollection | Feature | null>(null); // last GPS circle (redrawn after a base-map change)
+  const liveCircleRef = useRef<FeatureCollection | Feature | null>(null); // the live-location circle (redrawn after a base-map change)
+  const liveMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const liveFixRef = useRef<{ lat: number; lng: number; accuracy: number } | null>(null);
   const lastEmittedRef = useRef<string>("");
   const satelliteShownRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
@@ -139,6 +176,9 @@ export default function LocationPicker({
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [gps, setGps] = useState<{ state: "idle" | "working" | "done" | "error"; accuracyM?: number; message?: string }>({ state: "idle" });
+  // live location (blue dot)
+  const [liveWanted, setLiveWanted] = useState(liveLocationDefault);
+  const [live, setLive] = useState<{ state: "off" | "starting" | "on" | "denied"; lat?: number; lng?: number; accuracyM?: number; quality?: GpsQuality }>({ state: "off" });
 
   const hasPin = isCoord(lat, lng);
   const invalidNumbers = isNum(lat) && isNum(lng) && !hasPin;
@@ -163,9 +203,24 @@ export default function LocationPicker({
     if (src) src.setData(data ?? { type: "FeatureCollection", features: [] });
   }, []);
 
+  const drawLiveCircle = useCallback((data: FeatureCollection | Feature | null) => {
+    liveCircleRef.current = data;
+    const src = mapRef.current?.getSource(LIVE_SRC) as mapboxgl.GeoJSONSource | undefined;
+    if (src) src.setData(data ?? { type: "FeatureCollection", features: [] });
+  }, []);
+
   const addOverlay = useCallback((map: mapboxgl.Map) => {
     if (!map.getSource(ACCURACY_SRC)) {
       map.addSource(ACCURACY_SRC, { type: "geojson", data: overlayRef.current ?? { type: "FeatureCollection", features: [] } });
+    }
+    if (!map.getSource(LIVE_SRC)) {
+      map.addSource(LIVE_SRC, { type: "geojson", data: liveCircleRef.current ?? { type: "FeatureCollection", features: [] } });
+    }
+    if (!map.getLayer("picker-live-fill")) {
+      map.addLayer({ id: "picker-live-fill", type: "fill", source: LIVE_SRC, paint: { "fill-color": "#1a73e8", "fill-opacity": 0.13 } });
+    }
+    if (!map.getLayer("picker-live-line")) {
+      map.addLayer({ id: "picker-live-line", type: "line", source: LIVE_SRC, paint: { "line-color": "#1a73e8", "line-width": 1.5, "line-opacity": 0.55 } });
     }
     if (!map.getLayer("picker-accuracy-fill")) {
       map.addLayer({ id: "picker-accuracy-fill", type: "fill", source: ACCURACY_SRC, paint: { "fill-color": "#1a73e8", "fill-opacity": 0.15 } });
@@ -236,6 +291,8 @@ export default function LocationPicker({
       markerRef.current = null;
       suggestionMarkerRef.current?.remove();
       suggestionMarkerRef.current = null;
+      liveMarkerRef.current?.remove();
+      liveMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
       loadedRef.current = false;
@@ -277,6 +334,50 @@ export default function LocationPicker({
     }
   }, [lat, lng, mapReady, drawAccuracy, emit]);
 
+  /* ───────── 📡 live location: the blue dot ─────────
+     One GPS watcher while the toggle is on. Readings go through lib/gps.ts (the first rough
+     guess is replaced by a better one, jitter while standing still is ignored, a "teleport"
+     is ignored), so the dot is steady and the ±circle is honest. */
+  useEffect(() => {
+    if (!liveLocation || !liveWanted || !mapReady) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+
+    const filter = new GpsFilter();
+    setLive({ state: "starting" });
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const decision = filter.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: pos.timestamp || Date.now() });
+        const map = mapRef.current;
+        if (!decision || !map) return;
+        const { fix, quality } = decision;
+
+        liveFixRef.current = { lat: fix.lat, lng: fix.lng, accuracy: fix.accuracy };
+        setLive({ state: "on", lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracy, quality });
+        drawLiveCircle({ type: "FeatureCollection", features: [circlePolygon(fix.lat, fix.lng, fix.accuracy)] });
+        if (liveMarkerRef.current) liveMarkerRef.current.setLngLat([fix.lng, fix.lat]);
+        else liveMarkerRef.current = new mapboxgl.Marker({ element: createLiveDotElement(), anchor: "center" }).setLngLat([fix.lng, fix.lat]).addTo(map);
+      },
+      (err) => {
+        // Only "permission denied" is final. A weak signal ("unavailable" / "timeout") often recovers by itself.
+        if (err.code === 1) {
+          setLive({ state: "denied" });
+          setLiveWanted(false);
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      liveMarkerRef.current?.remove();
+      liveMarkerRef.current = null;
+      liveFixRef.current = null;
+      drawLiveCircle(null);
+      setLive((l) => (l.state === "denied" ? l : { state: "off" }));
+    };
+  }, [liveLocation, liveWanted, mapReady, drawLiveCircle]);
+
   /* ───────── 🛰 satellite <-> streets ───────── */
   useEffect(() => {
     const map = mapRef.current;
@@ -304,6 +405,31 @@ export default function LocationPicker({
     drawAccuracy(null);
     setGps({ state: "idle" });
     emit({ lat: ll.lat + dLat, lng: ll.lng + dLng, method: "map" });
+  };
+
+  /** Put the pin where the blue dot is (you are standing at the place). */
+  const pinAtMyLocation = () => {
+    const fix = liveFixRef.current;
+    if (!fix) return;
+    drawAccuracy(null);
+    setGps({ state: "idle" });
+    emit({ lat: fix.lat, lng: fix.lng, accuracyM: Math.round(fix.accuracy), method: "gps" });
+  };
+
+  const showMe = () => {
+    const fix = liveFixRef.current;
+    if (!fix) return;
+    mapRef.current?.flyTo({ center: [fix.lng, fix.lat], zoom: fix.accuracy <= 30 ? 18 : fix.accuracy <= 100 ? 17 : 16, duration: 600 });
+  };
+
+  /** Fit the map so that both YOU and the pin are on screen (to see how far apart they are). */
+  const showMeAndPin = () => {
+    const fix = liveFixRef.current;
+    const map = mapRef.current;
+    if (!map || !fix || !isCoord(lat, lng)) return;
+    const bounds = new mapboxgl.LngLatBounds([fix.lng, fix.lat], [fix.lng, fix.lat]);
+    bounds.extend([lng as number, lat as number]);
+    map.fitBounds(bounds, { padding: 60, maxZoom: 19, duration: 600 });
   };
 
   const stopGps = useCallback(() => {
@@ -401,6 +527,17 @@ export default function LocationPicker({
   const moved = hasPin && hasSaved ? metersBetween(lat as number, lng as number, savedLat as number, savedLng as number) : null;
   const outside = hasPin && !isInDavao(lat as number, lng as number);
   const btn = "rounded-md px-2.5 py-1.5 text-xs font-semibold";
+
+  // "You are 42 m from the pin, to the south-east"
+  const liveDistance =
+    live.state === "on" && hasPin && isNum(live.lat) && isNum(live.lng) && isNum(live.accuracyM)
+      ? {
+          meters: metersBetween(live.lat, live.lng, lat as number, lng as number),
+          direction: compassWord(live.lat, live.lng, lat as number, lng as number),
+          accuracy: live.accuracyM,
+        }
+      : null;
+  const atThePin = !!liveDistance && liveDistance.accuracy <= LIVE_ROUGH_M && liveDistance.meters <= Math.max(15, liveDistance.accuracy);
 
   return (
     <div className="overflow-hidden rounded-lg border border-neutral-300 bg-white text-sm" data-testid="location-picker">
@@ -523,6 +660,56 @@ export default function LocationPicker({
           </p>
         )}
         {gps.state === "error" && <p className="text-[11px] text-red-700" data-testid="lp-gps-status">{gps.message}</p>}
+
+        {liveLocation && (
+          <div className="rounded-md border border-sky-200 bg-sky-50 p-2" data-testid="lp-live-panel">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setLiveWanted((v) => !v)}
+                aria-pressed={liveWanted}
+                className={`${btn} ${liveWanted ? "bg-sky-700 text-white" : "bg-white text-sky-900 ring-1 ring-sky-300"}`}
+                data-testid="lp-live-toggle"
+              >
+                📡 My live location: {liveWanted ? "ON" : "OFF"}
+              </button>
+              <button type="button" onClick={pinAtMyLocation} disabled={live.state !== "on"} className={`${btn} bg-green-700 text-white hover:bg-green-800 disabled:opacity-40`} data-testid="lp-pin-me">
+                📍 Pin at my location
+              </button>
+              <button type="button" onClick={showMe} disabled={live.state !== "on"} className={`${btn} bg-white text-sky-900 ring-1 ring-sky-300 disabled:opacity-40`} data-testid="lp-show-me">
+                🧭 Show me
+              </button>
+              <button type="button" onClick={showMeAndPin} disabled={live.state !== "on" || !hasPin} className={`${btn} bg-white text-sky-900 ring-1 ring-sky-300 disabled:opacity-40`} data-testid="lp-show-both">
+                🔍 Me + pin
+              </button>
+            </div>
+
+            <div className="mt-1 text-[11px] leading-snug" data-testid="lp-live-status">
+              {live.state === "off" && <span className="text-neutral-500">Turn this on to see your own blue dot while you move the pin.</span>}
+              {live.state === "starting" && <span className="text-sky-800">Looking for your location… (allow it if your browser asks)</span>}
+              {live.state === "denied" && <span className="text-red-700">Location is turned off for this site. Allow it in your browser settings, then turn this on again.</span>}
+              {live.state === "on" && isNum(live.accuracyM) && (
+                <span className={live.accuracyM <= GPS_WEAK_M ? "text-sky-800" : "text-amber-700"}>
+                  🔵 You are the blue dot — GPS ±{Math.round(live.accuracyM)} m
+                  {live.accuracyM > GPS_WEAK_M && " (weak signal: go outside or wait a moment)"}
+                </span>
+              )}
+            </div>
+
+            {liveDistance && (
+              <p
+                className={`mt-1 text-xs font-semibold ${atThePin ? "text-green-700" : liveDistance.accuracy > LIVE_ROUGH_M ? "text-amber-700" : "text-neutral-800"}`}
+                data-testid="lp-live-distance"
+              >
+                {liveDistance.accuracy > LIVE_ROUGH_M
+                  ? `📏 About ${formatMeters(liveDistance.meters)} from the pin, to the ${liveDistance.direction} (rough: your GPS is only ±${Math.round(liveDistance.accuracy)} m).`
+                  : atThePin
+                  ? `✔ You are at the pin (${formatMeters(liveDistance.meters)} away, GPS ±${Math.round(liveDistance.accuracy)} m).`
+                  : `📏 You are ${formatMeters(liveDistance.meters)} from the pin. The pin is to the ${liveDistance.direction} of you.`}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <div className="grid grid-cols-3 gap-1">

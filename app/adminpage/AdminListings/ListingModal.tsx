@@ -15,6 +15,10 @@
      place; you put the pin yourself.
    - The latitude / longitude boxes still work: type numbers and the pin moves.
    - Saving is refused if the spot is outside Davao City.
+   - YOUR LIVE LOCATION (blue dot + ±accuracy circle) is shown while you move the pin,
+     with "You are 42 m from the pin, to the south-east". Stand at the establishment,
+     check the dot is on the building, and use "📍 Pin at my location" if you want
+     the pin exactly where you stand. (The browser asks to share your location.)
    ============================================================ */
 
 "use client";
@@ -259,6 +263,8 @@ export default function ListingModal({
           savedLng={initial?.lng ?? null}
           searchHint={`${f.name} ${f.address}`.trim()}
           allowGps={false}
+          liveLocation
+          liveLocationDefault
           onChange={(p) => setF((prev) => ({ ...prev, lat: String(p.lat), lng: String(p.lng) }))}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
