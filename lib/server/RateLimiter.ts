@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/RateLimiter.ts   (NEW)
+   FILE: lib/server/RateLimiter.ts
 
    TECHNIQUE: ENCAPSULATION + REUSABLE CLASS (one class, many instances)
    - Encapsulation: the list of hits is `private`; outside code can only ask

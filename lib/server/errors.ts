@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/errors.ts   (NEW)
+   FILE: lib/server/errors.ts
 
    TECHNIQUE: INHERITANCE + POLYMORPHISM
    - Inheritance: one parent class (AppError) and small child classes

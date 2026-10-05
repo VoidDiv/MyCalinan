@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: next.config.ts   (REPLACE whole file — project root)
+   FILE: next.config.ts
 
    Your settings are kept (images, devIndicators, security headers, the sw.js header).
    ADDED: every build gets a VERSION (NEXT_PUBLIC_APP_VERSION). On Vercel it is the

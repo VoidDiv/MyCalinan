@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/gps.ts   (NEW)
+   FILE: lib/gps.ts
    Cleans up the raw GPS readings so the blue dot is steady and honest.
 
    The browser sends a new reading every second or so. Raw readings are noisy:

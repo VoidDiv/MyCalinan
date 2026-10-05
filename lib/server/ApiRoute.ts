@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/ApiRoute.ts   (NEW)
+   FILE: lib/server/ApiRoute.ts
 
    TECHNIQUE: ABSTRACT CLASS + TEMPLATE METHOD PATTERN
    - Abstract class: ApiRoute cannot be used on its own; it is a blueprint.

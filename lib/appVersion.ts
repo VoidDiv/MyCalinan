@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/appVersion.ts   (NEW)
+   FILE: lib/appVersion.ts
    Small, pure helpers for the "Update your MyCalinan app" check.
    (No browser, no React: easy to test.)
 

@@ -2,10 +2,18 @@
    LIFESTYLE PAGE
    Replace the page.tsx inside your Lifestyle folder.
 
-   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
+   CHANGED IN THIS VERSION: the lodging category is now "Accommodation"
+   (it was "Hotel"). The page already builds its filter chips from the
+   categories that exist in Firestore, so the chip changes by itself once
+   the listings are renamed. What this file changes:
+   - the fallback map pin knows "Accommodation" (and still "Hotel", so an
+     old listing that was not renamed yet keeps its 🏨),
+   - the search hint and the hero text no longer say "Hotel".
+
+   ADDED IN THE PREVIOUS VERSION: tricycle fare estimate in the route-info
    panel, and star ratings/reviews on every card.
 
-   FIXED IN THIS VERSION (destination icon "moving"):
+   FIXED EARLIER (destination icon "moving"):
    - The pin's rotated teardrop styling was set directly on the marker
      element. Mapbox positions a marker by writing its own `transform`
      onto that same element, which overwrote the rotation and left the
@@ -132,7 +140,8 @@ function defaultPin(category: string): string {
   switch (category.toLowerCase()) {
     case "gym":
       return "🏋️";
-    case "hotel":
+    case "accommodation":
+    case "hotel": // the old name: keeps working for a listing that has not been renamed yet
       return "🏨";
     default:
       return "📍";
@@ -582,7 +591,7 @@ export default function LifestylePage() {
             <input
               type="text"
               id="searchBar"
-              placeholder="Search Gym, Hotel…"
+              placeholder="Search Gym, Accommodation…"
               autoComplete="off"
               value={searchQuery}
               onChange={handleSearchChange}
@@ -623,8 +632,8 @@ export default function LifestylePage() {
       <section className="hero">
         <h2>Relax & Recharge in Calinan</h2>
         <p>
-          Discover gyms and hotels around the Calinan area. Enable location to
-          see distances and get directions.
+          Discover gyms and places to stay around the Calinan area. Enable
+          location to see distances and get directions.
         </p>
         <div
           id="location-status"

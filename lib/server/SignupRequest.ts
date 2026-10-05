@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/SignupRequest.ts   (NEW)
+   FILE: lib/server/SignupRequest.ts
 
    TECHNIQUE: DTO (DATA TRANSFER OBJECT) + FACTORY METHOD + IMMUTABILITY
    - DTO: one object that carries the sign-up data from the browser into our code.

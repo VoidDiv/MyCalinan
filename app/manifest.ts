@@ -1,6 +1,5 @@
 /* ============================================================
-   PWA MANIFEST  →  served at /manifest.webmanifest
-   Put this file at:  app/manifest.ts   (replace the existing one)
+   PWA MANIFEST  →  served at /manifest.webmanifest 
 
    Needs these files in /public:
      icons/icon-192.png
@@ -11,10 +10,6 @@
    app is starting. It matches the new logo's own background (#fdfdfc), so
    the logo sits on it with no visible square.
    theme_color is the colour of the phone's top bar — same green as the navbar.
-
-   Optional later: add screenshots (1280x720 "wide" and 540x960 "narrow") in
-   /public/screenshots and a  screenshots: [...]  list for Android's richer
-   install window.
    ============================================================ */
 
 import type { MetadataRoute } from "next";

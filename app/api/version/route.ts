@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: app/api/version/route.ts   (NEW)
+   FILE: app/api/version/route.ts 
    URL:  /api/version
 
    Tells the app which version is live right now. The phone compares it with

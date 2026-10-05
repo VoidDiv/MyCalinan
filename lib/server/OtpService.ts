@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/OtpService.ts   (NEW — replaces lib/otp.ts)
+   FILE: lib/server/OtpService.ts
 
    TECHNIQUES IN THIS FILE
    1) REPOSITORY PATTERN — OtpRepository (interface) + FirestoreOtpRepository.

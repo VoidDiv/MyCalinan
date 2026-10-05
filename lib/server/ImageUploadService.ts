@@ -1,6 +1,5 @@
 /* ============================================================
-   FILE: lib/server/ImageUploadService.ts   (NEW)
-
+   FILE: lib/server/ImageUploadService.ts 
    TECHNIQUES IN THIS FILE
    1) INTERFACE + POLYMORPHISM — FileStorage is a contract; FirebaseFileStorage
       is one version of it (another could save to a folder or to S3).

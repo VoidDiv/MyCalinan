@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/AuthService.ts   (NEW)
+   FILE: lib/server/AuthService.ts 
 
    TECHNIQUE: SINGLE RESPONSIBILITY + DEPENDENCY INJECTION
    - Single responsibility: this class does ONE job — answer "who is calling

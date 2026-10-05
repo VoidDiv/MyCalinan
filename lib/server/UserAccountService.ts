@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/server/UserAccountService.ts   (NEW)
+   FILE: lib/server/UserAccountService.ts
 
    TECHNIQUE: SERVICE CLASS + ENCAPSULATION + DEPENDENCY INJECTION
    - Service class: all "user account" work (does this email exist? create the

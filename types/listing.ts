@@ -1,5 +1,11 @@
 /* ============================================================
    FILE: types/listing.ts   (REPLACE whole file)
+
+   CHANGED IN THIS VERSION: the Lifestyle category "Hotel" is now
+   "Accommodation" (an inn, apartelle or lodge is a place to stay, not
+   only a hotel). Changed in two places below: the Lifestyle category list
+   and the map pin. After you deploy, run scripts/renameCategory.mjs once
+   so the listings already saved in Firestore say "Accommodation" too.
    ============================================================ */
 
 export type ExplorePage =
@@ -66,7 +72,7 @@ export const EXPLORE_PAGES: Record<
     pin: "🏋️",
     categories: [
       "Gym",
-      "Hotel",
+      "Accommodation", // was "Hotel": inns, apartelles and lodges
       "Salon & Barbershop", // NEW
     ],
   },
@@ -113,9 +119,9 @@ export const PAGE_COLLECTION: Record<ExplorePage, string> = {
 
 /* ── Map pins ─────────────────────────────────────────────
    Every page has a default pin, but some categories deserve
-   their own (a hotel or salon shouldn't get a dumbbell). */
+   their own (a place to stay or a salon shouldn't get a dumbbell). */
 export const CATEGORY_PINS: Record<string, string> = {
-  Hotel: "🏨",
+  Accommodation: "🏨",
   "Salon & Barbershop": "💇",
   Pharmacy: "💊",
   "Agri & Farm Supply": "🌾",

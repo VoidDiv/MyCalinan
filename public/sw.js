@@ -1,5 +1,5 @@
 /* ============================================================
-   MyCalinan service worker  →  put this file at  public/sw.js
+   MyCalinan service worker (SW)
 
    What it does
    - Saves every page the user opens (and the pages linked from the

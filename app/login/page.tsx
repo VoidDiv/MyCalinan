@@ -1,13 +1,5 @@
 /* ============================================================
-   FILE: app/login/page.tsx   (REPLACE whole file)
-
-   Same login logic as before (email + password → role → redirect, and
-   "Continue as Guest"), with the SAME bold design as the Sign Up page:
-   green background, gold top bar, logo badge, bold labels, big gold button.
-
-   - "Sign up here" is now a real green BUTTON inside a highlighted gold panel.
-   - Styles: the "su-*" classes from globals-signup-bold.css  +  the "lg-*" classes
-     from globals-login-bold.css (paste BOTH at the bottom of app/globals.css).
+   FILE: app/login/page.tsx
    ============================================================ */
 
 "use client";

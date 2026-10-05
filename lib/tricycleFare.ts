@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/tricycleFare.ts   (NEW)
+   FILE: lib/tricycleFare.ts
    Shared, editable-in-one-place tricycle fare estimate for the
    Calinan area. These are MINIMUM estimated fares only — actual
    drivers may charge more depending on distance, time of day,

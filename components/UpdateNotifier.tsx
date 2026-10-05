@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: components/UpdateNotifier.tsx   (NEW)
+   FILE: components/UpdateNotifier.tsx 
    Tells people on their phones when a newer MyCalinan is live.
 
    - Up to date  -> draws NOTHING. No banner, no reload, no flash. (It only asks

@@ -367,8 +367,8 @@ const LIFESTYLE: SeedListing[] = [
   lifestyle(
     "casa-imelda-inn",
     "Casa Imelda Inn",
-    "Hotel",
-    "Hotel",
+    "Accommodation",
+    "Accommodation",
     "🏨",
     "Small local lodging establishment offering a convenient stay for visitors exploring Calinan, known for its proximity to nature attractions and local commerce.",
     "Abayon, Calinan District",
@@ -380,8 +380,8 @@ const LIFESTYLE: SeedListing[] = [
   lifestyle(
     "sonreir-apartelle",
     "Sonreir Apartelle and Inn",
-    "Hotel",
-    "Hotel",
+    "Accommodation",
+    "Accommodation",
     "🏨",
     "Lodging establishment offering comfortable rooms for short stays and overnight accommodation for travelers along the Davao–Bukidnon route.",
     "Davao–Bukidnon Rd, Calinan District",
