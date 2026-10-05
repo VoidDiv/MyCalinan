@@ -1,11 +1,13 @@
 /* ============================================================
-   FILE: components/UpdateNotifier.tsx 
+   FILE: components/UpdateNotifier.tsx   (NEW)
    Tells people on their phones when a newer MyCalinan is live.
 
    - Up to date  -> draws NOTHING. No banner, no reload, no flash. (It only asks
                     the server a tiny question in the background.)
    - Out of date -> a small banner at the bottom: "Update your MyCalinan app"
-                    with [Update now] and [Later].
+                    with [Update now] and [Later]. It STAYS on the screen until the
+                    person taps one of them (it never hides by itself, and a later
+                    check that says "same version" does not take it away).
    - Breaking change (Vercel variable MYCALINAN_FORCE_UPDATE=1) -> a window that
                     can only be closed by updating (not on admin pages, so an
                     admin in the middle of a form is never blocked).
@@ -20,10 +22,13 @@
    It never asks while the phone is offline, and a failed check is silent.
 
    WHAT "Update now" DOES
-   1. forgets the saved offline copy of the page you are on (so the reload cannot
+   1. shows "Updating MyCalinan…" with a progress bar for at least 2.5 seconds
+      (so it is never a flash),
+   2. forgets the saved offline copy of the page you are on (so the reload cannot
       show the old page again),
-   2. asks the service worker to look for a newer sw.js,
-   3. reloads. Other offline pages refresh the next time they are opened online.
+   3. asks the service worker to look for a newer sw.js,
+   4. reloads, and then shows "MyCalinan is now up to date" for 5 seconds.
+      Other offline pages refresh the next time they are opened online.
    ============================================================ */
 
 "use client";
@@ -46,7 +51,13 @@ const MIN_GAP_MS = 60_000;
 const MIN_URGENT_GAP_MS = 3000;
 const INTERVAL_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 8000;
-const RELOAD_GIVE_UP_MS = 9000;
+const RELOAD_GIVE_UP_MS = 12000;
+/** "Updating…" stays on the screen at least this long, so the person can read it (the reload itself takes a split second). */
+const UPDATING_MIN_MS = 2500;
+/** How long "MyCalinan is now up to date" stays after the reload. */
+const UPDATED_TOAST_MS = 5000;
+/** sessionStorage: the version we are reloading INTO (so the new page knows the update worked). */
+const UPDATED_KEY = "mc_updated_to";
 /** sessionStorage: the version the person answered "Later" to (asked again next time the app is opened). */
 const DISMISS_KEY = "mc_update_dismissed";
 
@@ -89,6 +100,7 @@ export default function UpdateNotifier() {
   const [updating, setUpdating] = useState(false);
   const [updateFailed, setUpdateFailed] = useState(false);
   const [shown, setShown] = useState(false); // drives the gentle fade-in
+  const [justUpdated, setJustUpdated] = useState(false); // "MyCalinan is now up to date" after the reload
 
   const lastCheckRef = useRef(0);
   const checkingRef = useRef(false);
@@ -110,7 +122,9 @@ export default function UpdateNotifier() {
       if (!res.ok) return;
       const info = parseVersionInfo(await res.json());
       if (!info) return;
-      setLatest(isOutdated(CURRENT_VERSION, info.version) ? info : null);
+      // Once an update is known, the banner stays. A later "same version" answer (a deploy still settling,
+      // a server that answers from two versions for a moment) must NOT take it away; only a reload does.
+      if (isOutdated(CURRENT_VERSION, info.version)) setLatest(info);
     } catch {
       /* offline, slow or the server is busy: stay silent, try again later */
     } finally {
@@ -165,6 +179,21 @@ export default function UpdateNotifier() {
     };
   }, [check]);
 
+  useEffect(() => {
+    let target: string | null = null;
+    try {
+      target = sessionStorage.getItem(UPDATED_KEY);
+      if (target) sessionStorage.removeItem(UPDATED_KEY);
+    } catch {
+      /* private mode: no confirmation, nothing else is lost */
+    }
+    // only when this page really IS the version we were updating to (an old copy served again says nothing)
+    if (!target || target !== CURRENT_VERSION) return;
+    setJustUpdated(true);
+    const t = setTimeout(() => setJustUpdated(false), UPDATED_TOAST_MS);
+    return () => clearTimeout(t);
+  }, []);
+
   const forced = !!latest?.force && !isForceExempt(pathname);
   const visible = !!latest && (forced || dismissed !== latest.version);
 
@@ -189,7 +218,9 @@ export default function UpdateNotifier() {
   };
 
   const updateNow = async () => {
-    if (updating) return;
+    if (updating || !latest) return;
+    const target = latest.version;
+    const started = Date.now();
     setUpdating(true);
     setUpdateFailed(false);
     const giveUp = setTimeout(() => {
@@ -204,11 +235,28 @@ export default function UpdateNotifier() {
     } catch {
       /* not fatal: the reload below is what matters */
     }
+    // keep "Updating…" on the screen long enough to read, even when everything above took a split second
+    const left = UPDATING_MIN_MS - (Date.now() - started);
+    if (left > 0) await new Promise((resolve) => setTimeout(resolve, left));
+    try {
+      sessionStorage.setItem(UPDATED_KEY, target);
+    } catch {
+      /* private mode */
+    }
     window.location.reload();
     void giveUp; // if the reload never happens, the timer above re-enables the button
   };
 
-  if (!visible || !latest) return null;
+  if (!visible || !latest) {
+    if (!justUpdated) return null;
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[10000] flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="update-done" role="status" aria-live="polite">
+        <div className="pointer-events-auto rounded-full bg-green-900 px-4 py-2 text-sm font-semibold text-white shadow-xl ring-1 ring-black/10">
+          ✔ MyCalinan is now up to date
+        </div>
+      </div>
+    );
+  }
 
   const fade = `transition-all duration-300 motion-reduce:transition-none ${shown ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`;
 
@@ -228,8 +276,11 @@ export default function UpdateNotifier() {
             className="mt-4 w-full rounded-xl bg-green-800 py-2.5 text-sm font-bold text-white hover:bg-green-900 disabled:opacity-70"
             data-testid="update-now"
           >
-            {updating ? "Updating…" : "Update now"}
+            {updating ? "Updating MyCalinan… please wait" : "Update now"}
           </button>
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-green-100" data-testid="update-progress" aria-hidden="true">
+            <div className="h-full rounded-full bg-green-700 transition-[width] ease-linear" style={{ width: updating ? "100%" : "0%", transitionDuration: `${UPDATING_MIN_MS}ms` }} />
+          </div>
         </div>
       </div>
     );
@@ -247,8 +298,8 @@ export default function UpdateNotifier() {
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-xl" aria-hidden="true">🔄</span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">Update your MyCalinan app</p>
-            <p className="text-xs text-green-100">A new version is ready, with the latest features and fixes.</p>
+            <p className="text-sm font-bold">{updating ? "Updating MyCalinan… please wait" : "Update your MyCalinan app"}</p>
+            <p className="text-xs text-green-100">{updating ? "The app will restart by itself in a moment." : "A new version is ready, with the latest features and fixes."}</p>
             {updateFailed && <p className="mt-1 text-xs font-semibold text-amber-200" data-testid="update-failed">Could not update. Check your internet and try again.</p>}
           </div>
         </div>
@@ -272,6 +323,9 @@ export default function UpdateNotifier() {
             Later
           </button>
         </div>
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/25" data-testid="update-progress" aria-hidden="true">
+            <div className="h-full rounded-full bg-white transition-[width] ease-linear" style={{ width: updating ? "100%" : "0%", transitionDuration: `${UPDATING_MIN_MS}ms` }} />
+          </div>
       </div>
     </div>
   );
