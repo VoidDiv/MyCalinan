@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: components/LocationPicker.tsx   (NEW)
+   FILE: components/LocationPicker.tsx
    A small map for choosing the EXACT spot of a place. Used by:
    - Admin > Listings (add / edit / approve an establishment)
    - Business registration (the owner pins their own business)

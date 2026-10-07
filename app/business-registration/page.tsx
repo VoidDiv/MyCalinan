@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: app/business-registration/page.tsx   (REPLACE whole file)
+   FILE: app/business-registration/page.tsx
    PAGE: Business Registration Form (LOGGED-IN BUSINESS OWNERS)
    URL:  /business-registration
 

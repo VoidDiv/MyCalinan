@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: components/WelcomeTutorial.tsx   (REPLACE whole file)
+   FILE: components/WelcomeTutorial.tsx 
    The interactive "How to use MyCalinan" tour.
 
    - A welcome pop-up, then the page goes dark and ONE real button glows at a time

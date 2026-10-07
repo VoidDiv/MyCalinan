@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: app/adminpage/AdminListings/ListingModal.tsx   (REPLACE whole file)
+   FILE: app/adminpage/AdminListings/ListingModal.tsx  
    One editor for every Explore listing. Used to:
    - approve & publish a business application,
    - edit any listing already on Explore (built-in or not),

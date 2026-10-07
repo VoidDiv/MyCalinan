@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: lib/calibotWeather.ts   (REPLACE whole file)
+   FILE: lib/calibotWeather.ts
    Live weather for Calinan, Davao City, used by Calibot (app/api/chat/route.ts).
 
    How it works

@@ -1,5 +1,5 @@
 /* ============================================================
-   FILE: app/adminpage/AdminListings/page.tsx   (REPLACE whole file)
+   FILE: app/adminpage/AdminListings/page.tsx
    PAGE: Listings — Admin dashboard (ADMIN ONLY)
    URL:  /adminpage/AdminListings
    TABS: Applications     -> review business applications, approve & publish
