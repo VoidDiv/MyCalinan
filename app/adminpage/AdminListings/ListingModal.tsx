@@ -1,24 +1,26 @@
 /* ============================================================
-   FILE: app/adminpage/AdminListings/ListingModal.tsx  
+   FILE: app/adminpage/AdminListings/ListingModal.tsx
    One editor for every Explore listing. Used to:
    - approve & publish a business application,
    - edit any listing already on Explore (built-in or not),
    - add a brand-new establishment without an application.
 
-   CHANGED IN THIS VERSION (accurate coordinates):
-   - The old "Find" button put the FIRST geocoder result straight into the
-     latitude / longitude boxes. Those results are often 100-500 m off (and
-     Mapbox does not allow storing its search results). It is gone.
-   - New map picker (components/LocationPicker.tsx): tap the map or drag the
-     big ring onto the building, switch to 🛰 Satellite to see the roof, use
-     the crosshair or the nudge buttons. "Find" now only FLIES the map to the
-     place; you put the pin yourself.
+   NEW IN THIS VERSION (operating hours):
+   - "Operating hours" section (components/OperatingHoursEditor.tsx).
+     Tick "Show operating hours on Explore" to set days open and times;
+     leave it unticked and the Explore card says "Hours not listed".
+   - For a business application, the owner's hours are filled in already.
+   - onSave now receives the hours as a second argument
+     (null = no hours on file), so the callers can save them next to the
+     listing and keep the business application in step.
+
+   FROM BEFORE (accurate coordinates):
+   - Map picker (components/LocationPicker.tsx): tap the map or drag the
+     big ring onto the building, 🛰 Satellite view, crosshair and nudge
+     buttons. "Find" only FLIES the map to the place; you put the pin yourself.
    - The latitude / longitude boxes still work: type numbers and the pin moves.
    - Saving is refused if the spot is outside Davao City.
-   - YOUR LIVE LOCATION (blue dot + ±accuracy circle) is shown while you move the pin,
-     with "You are 42 m from the pin, to the south-east". Stand at the establishment,
-     check the dot is on the building, and use "📍 Pin at my location" if you want
-     the pin exactly where you stand. (The browser asks to share your location.)
+   - Your live location (blue dot + ±accuracy circle) is shown while you move the pin.
    ============================================================ */
 
 "use client";
@@ -33,6 +35,8 @@ import {
   type ListingData,
 } from "@/types/listing";
 import LocationPicker from "@/components/LocationPicker";
+import OperatingHoursEditor from "@/components/OperatingHoursEditor";
+import { emptyHours, validateHours, type OperatingHours } from "@/lib/OperatingHours";
 import { isInDavao } from "@/lib/geo";
 import { styles } from "./styles";
 
@@ -41,18 +45,22 @@ export interface ListingModalProps {
   submitLabel: string;
   /** Values to pre-fill (an existing listing, or defaults for a new one). */
   initial?: Partial<ListingData>;
+  /** Hours to pre-fill (null / undefined = no hours on file yet). */
+  initialHours?: OperatingHours | null;
   /** Small green hint shown under the title. */
   notice?: string;
   /** Photos from a business application the admin can pick from. */
   photoChoices?: string[];
   onClose: () => void;
-  onSave: (data: ListingData) => Promise<void>;
+  /** `hours` is null when the admin chose not to list any hours. */
+  onSave: (data: ListingData, hours: OperatingHours | null) => Promise<void>;
 }
 
 export default function ListingModal({
   title,
   submitLabel,
   initial,
+  initialHours,
   notice,
   photoChoices = [],
   onClose,
@@ -72,6 +80,8 @@ export default function ListingModal({
     lng: initial?.lng != null ? String(initial.lng) : "",
     published: initial?.published ?? true,
   });
+  const [hasHours, setHasHours] = useState<boolean>(!!initialHours);
+  const [hours, setHours] = useState<OperatingHours>(() => initialHours ?? emptyHours());
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -126,6 +136,10 @@ export default function ListingModal({
       return setErr("That spot is outside Davao City. Check the latitude and longitude (a minus sign or swapped numbers?).");
     }
     if (!f.image.trim()) return setErr("Add a photo — upload one or paste an image link.");
+    if (hasHours) {
+      const hoursError = validateHours(hours);
+      if (hoursError) return setErr(`Operating hours: ${hoursError}`);
+    }
 
     // Keep the original Google Maps search text unless the name/address changed
     const unchanged =
@@ -139,21 +153,24 @@ export default function ListingModal({
     setErr("");
     setBusy(true);
     try {
-      await onSave({
-        name: f.name.trim(),
-        page: f.page,
-        category,
-        tags: isEducation ? f.tags : [category],
-        tag: f.tag.trim() || (isEducation ? f.tags.join(" & ") : category),
-        pin: f.pin.trim() || pinFor(f.page, category),
-        description: f.description.trim(),
-        address: f.address.trim(),
-        image: f.image.trim(),
-        lat,
-        lng,
-        mapsQuery,
-        published: f.published,
-      });
+      await onSave(
+        {
+          name: f.name.trim(),
+          page: f.page,
+          category,
+          tags: isEducation ? f.tags : [category],
+          tag: f.tag.trim() || (isEducation ? f.tags.join(" & ") : category),
+          pin: f.pin.trim() || pinFor(f.page, category),
+          description: f.description.trim(),
+          address: f.address.trim(),
+          image: f.image.trim(),
+          lat,
+          lng,
+          mapsQuery,
+          published: f.published,
+        },
+        hasHours ? { ...hours, note: hours.note.trim() } : null
+      );
     } catch (e) {
       console.error(e);
       setErr("Could not save. Check your Firestore rules and that you are signed in as admin.");
@@ -274,6 +291,27 @@ export default function ListingModal({
         <div style={styles.hintText}>
           The pin and these two boxes always match. You can also type the numbers (right-click the spot in Google Maps to copy them).
         </div>
+
+        <label style={styles.fLabel}>Operating hours</label>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: ".85rem", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={hasHours}
+            onChange={(e) => setHasHours(e.target.checked)}
+            disabled={busy}
+          />
+          Show operating hours on Explore
+        </label>
+        <div style={styles.hintText}>
+          Only add hours you have confirmed (from the owner, a sign at the place, or a call). If you
+          leave this unticked, the Explore card says &ldquo;Hours not listed&rdquo; instead of
+          showing a wrong &ldquo;Open&rdquo; or &ldquo;Closed&rdquo;.
+        </div>
+        {hasHours && (
+          <div style={{ marginTop: 8 }}>
+            <OperatingHoursEditor value={hours} onChange={setHours} disabled={busy} />
+          </div>
+        )}
 
         <label style={styles.fLabel}>Photo</label>
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

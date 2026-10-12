@@ -9,11 +9,17 @@
    - Firebase Auth admin guard (wala nay localStorage)
    - Documents open in an in-app PreviewModal
 
-   NEW IN THIS VERSION (accurate location):
-   - The owner now pins their business on a map when registering
-     (address, lat, lng, locationMethod, locationAccuracyM). When you press
-     "Approve & Publish", that pin is already in the map picker: check it on
-     the 🛰 Satellite view (and drag it if it is off) instead of searching.
+   NEW IN THIS VERSION (operating hours):
+   - Each application card shows the hours the owner gave
+     (or "No hours given" for older applications).
+   - "Approve & Publish" / "Edit" pre-fills those hours in the listing
+     editor. Whatever you save is written to BOTH the Explore listing and
+     the application (`operatingHours`), so the owner's profile and the
+     Explore card always show the same hours.
+
+   FROM BEFORE (accurate location):
+   - The owner's map pin is pre-filled when you press "Approve & Publish":
+     check it on the 🛰 Satellite view (and drag it if it is off).
    - Each application card shows whether the owner pinned a location.
    ============================================================ */
 
@@ -29,6 +35,7 @@ import {
   serverTimestamp,
   writeBatch,
   deleteDoc,
+  deleteField,
 } from "firebase/firestore";
 import { ref as storageRef, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/Firebase";
@@ -41,6 +48,7 @@ import {
   toExploreDoc,
   type ListingData,
 } from "@/types/listing";
+import { sanitizeHours, summarizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import ListingModal from "./ListingModal";
 import ExplorePanel from "./ExplorePanel";
 import { styles } from "./styles";
@@ -56,6 +64,8 @@ type AdminBusiness = BusinessRegistration & {
   lng?: number;
   locationMethod?: "map" | "gps" | "typed";
   locationAccuracyM?: number;
+  // Days open + times (raw from Firestore; read it with sanitizeHours)
+  operatingHours?: unknown;
 };
 
 /** A file the admin can preview: a document, or a business picture. */
@@ -98,6 +108,17 @@ function ownerPinLabel(biz: AdminBusiness): string {
     return `📍 Pinned by the owner with GPS (±${Math.round(biz.locationAccuracyM)} m).`;
   }
   return "📍 Pinned by the owner on the map.";
+}
+
+const hoursOf = (biz: AdminBusiness): OperatingHours | null => sanitizeHours(biz.operatingHours);
+
+/* "🕒 Mon–Fri 8:00 AM – 5:00 PM · Sun Closed" */
+function hoursLabel(biz: AdminBusiness): string {
+  const hours = hoursOf(biz);
+  if (!hours) return "🕒 No operating hours given (older application).";
+  return `🕒 ${summarizeHours(hours)
+    .map((l) => `${l.days} ${l.hours}`)
+    .join(" · ")}`;
 }
 
 /* Starting values for the Approve & Publish / Edit form */
@@ -320,6 +341,9 @@ function BusinessCard({
           >
             {ownerPinLabel(biz)}
           </div>
+          <div style={{ ...styles.bizMeta, color: hoursOf(biz) ? "#1a5c38" : "#b9770e" }}>
+            {hoursLabel(biz)}
+          </div>
         </div>
         <span style={{ ...styles.tag, background: tag.background, color: tag.color }}>
           {biz.overallStatus}
@@ -447,7 +471,7 @@ export default function AdminListingsPage() {
 
   /* Approve (first publish) or edit. Writes into the existing category collection. */
   const saveListing = useCallback(
-    async (biz: AdminBusiness, data: ListingData) => {
+    async (biz: AdminBusiness, data: ListingData, hours: OperatingHours | null) => {
       const batch = writeBatch(db);
       const oldPage = biz.listing?.page;
       const moved = !!oldPage && oldPage !== data.page;
@@ -464,6 +488,8 @@ export default function AdminListingsPage() {
         doc(db, PAGE_COLLECTION[data.page], biz.id!),
         {
           ...toExploreDoc(data, biz.id!),
+          // null = no hours on file -> remove the field
+          operatingHours: hours ?? deleteField(),
           ...(firstPublish || moved ? { order: Date.now() } : {}),
           ...(firstPublish ? { createdAt: serverTimestamp() } : {}),
           updatedAt: serverTimestamp(),
@@ -471,12 +497,13 @@ export default function AdminListingsPage() {
         { merge: true }
       );
 
-      // Keep the private application in sync
+      // Keep the private application in sync (the owner sees these hours on their profile)
       batch.update(doc(db, "businesses", biz.id!), {
         overallStatus: "approved",
         businessName: data.name,
         rejectionReason: null,
         listing: data,
+        operatingHours: hours ?? deleteField(),
         ...(biz.overallStatus !== "approved"
           ? { reviewedAt: serverTimestamp(), reviewedBy: reviewer }
           : {}),
@@ -570,6 +597,11 @@ export default function AdminListingsPage() {
       hasOwnerPin(publishTarget)
         ? `${ownerPinLabel(publishTarget)} Check the pin on the 🛰 Satellite view and drag it if it is not on the building.`
         : "The owner did not pin a location. Put the pin on the building on the map below."
+    );
+    parts.push(
+      hoursOf(publishTarget)
+        ? "The owner's operating hours are filled in below. Check that they look right."
+        : "The owner did not give operating hours. Add them below if you know them."
     );
     return parts.join(" ");
   })();
@@ -679,10 +711,11 @@ export default function AdminListingsPage() {
           title={publishTarget.listing ? "Edit Listing" : "Approve & Publish to Explore"}
           submitLabel={publishTarget.listing ? "Save changes" : "Approve & Publish"}
           initial={publishInitial(publishTarget)}
+          initialHours={hoursOf(publishTarget)}
           notice={approveNotice}
           photoChoices={picsOf(publishTarget)}
           onClose={() => setPublishTarget(null)}
-          onSave={(data) => saveListing(publishTarget, data)}
+          onSave={(data, hours) => saveListing(publishTarget, data, hours)}
         />
       )}
       <RejectModal open={!!rejectTargetId} onCancel={() => setRejectTargetId(null)} onConfirm={confirmReject} />

@@ -4,7 +4,17 @@
    built-in establishments, listings published from business
    applications, and ones you add yourself.
 
-   ADDED IN THIS VERSION:
+   ADDED IN THIS VERSION (operating hours):
+   - Edit / Add listing now has an "Operating hours" section. Hours are saved
+     on the Explore doc as `operatingHours`; "no hours" removes the field.
+   - For listings that came from a business application, the hours are
+     also copied onto that application, so the owner sees the same hours
+     on their profile.
+   - Each row shows a one-line hours summary (or "🕒 No hours listed").
+   - New filter: "Missing hours (N)", to work through the listings that
+     still need confirmed hours.
+
+   FROM BEFORE:
    - "Reviews" button per row, opening the shared ReviewsModal in
      admin mode (isAdmin) so any review can be deleted (moderation).
    ============================================================ */
@@ -40,6 +50,7 @@ import {
   type ExplorePage,
   type ListingData,
 } from "@/types/listing";
+import { sanitizeHours, summarizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import ListingModal from "./ListingModal";
 import ReviewsModal from "@/components/ReviewsModal";
 import { styles } from "./styles";
@@ -81,6 +92,13 @@ function missingSeeds(
     .filter(
       ({ seed }) => !ids.has(seed.id) && !existing.some((r) => sameSpot(seed, r))
     );
+}
+
+/* "Mon–Fri 8:00 AM – 5:00 PM · Sun Closed" */
+function hoursOneLine(hours: OperatingHours | null): string {
+  return summarizeHours(hours)
+    .map((l) => `${l.days} ${l.hours}`)
+    .join(" · ");
 }
 
 /* ══════════════════════════════════════════
@@ -223,6 +241,7 @@ interface ExploreRow {
   order: number;
   ratingAvg: number;
   ratingCount: number;
+  operatingHours: OperatingHours | null;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -257,6 +276,7 @@ function toRow(page: ExplorePage, docId: string, d: Record<string, unknown>): Ex
     order: typeof d.order === "number" ? d.order : NO_ORDER,
     ratingAvg: typeof d.ratingAvg === "number" ? d.ratingAvg : 0,
     ratingCount: typeof d.ratingCount === "number" ? d.ratingCount : 0,
+    operatingHours: sanitizeHours(d.operatingHours),
   };
 }
 
@@ -322,7 +342,7 @@ function scoreFile(
   return Math.max(best, similarity(row.name, fb) * 0.95);
 }
 
-type VisFilter = "all" | "live" | "hidden" | "dupes" | "photos";
+type VisFilter = "all" | "live" | "hidden" | "dupes" | "photos" | "nohours";
 
 export default function ExplorePanel({
   photoLookup,
@@ -405,6 +425,11 @@ export default function ExplorePanel({
     return c;
   }, [allRows, rows]);
 
+  const noHoursCount = useMemo(
+    () => allRows.filter((r) => !r.operatingHours).length,
+    [allRows]
+  );
+
   /* Rows that have a twin on the same page (same name, same spot) */
   const dupKeys = useMemo(() => {
     const groups = new Map<string, ExploreRow[]>();
@@ -455,6 +480,7 @@ export default function ExplorePanel({
       if (visFilter === "hidden" && r.published) return false;
       if (visFilter === "dupes" && !dupKeys.has(r.key)) return false;
       if (visFilter === "photos" && !brokenSet.has(r.key)) return false;
+      if (visFilter === "nohours" && r.operatingHours) return false;
       if (!q) return true;
       return (
         r.name.toLowerCase().includes(q) ||
@@ -732,7 +758,11 @@ export default function ExplorePanel({
     }
   }
 
-  async function saveListing(target: ExploreRow | null, data: ListingData) {
+  async function saveListing(
+    target: ExploreRow | null,
+    data: ListingData,
+    hours: OperatingHours | null
+  ) {
     if (target) {
       // Legacy docs get adopted under "admin" the first time you edit them
       const source =
@@ -748,17 +778,26 @@ export default function ExplorePanel({
         doc(db, PAGE_COLLECTION[data.page], target.docId),
         {
           ...toExploreDoc(data, target.businessId, source),
+          // null = no hours on file -> remove the field
+          operatingHours: hours ?? deleteField(),
           order: target.order === NO_ORDER ? Date.now() : target.order,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
       await batch.commit();
-      if (target.businessId) await syncBusiness(target.businessId, { listing: data });
+      if (target.businessId) {
+        // The owner sees these hours on their profile too
+        await syncBusiness(target.businessId, {
+          listing: data,
+          operatingHours: hours ?? deleteField(),
+        });
+      }
     } else {
       const ref = doc(collection(db, PAGE_COLLECTION[data.page]));
       await setDoc(ref, {
         ...toExploreDoc(data, undefined, ADMIN_SOURCE),
+        ...(hours ? { operatingHours: hours } : {}),
         order: Date.now(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -913,6 +952,7 @@ export default function ExplorePanel({
           <option value="hidden">Hidden only</option>
           <option value="dupes">Possible duplicates ({dupKeys.size})</option>
           <option value="photos">Photo problems ({brokenRows.length})</option>
+          <option value="nohours">Missing hours ({noHoursCount})</option>
         </select>
         <button style={styles.approveBtnSolid} onClick={() => setEditing("new")}>
           <i className="fas fa-plus" /> Add listing
@@ -929,6 +969,8 @@ export default function ExplorePanel({
             ? "No possible duplicates found. 🎉"
             : visFilter === "photos"
             ? "No photo problems found. 🎉"
+            : visFilter === "nohours"
+            ? "Every listing has operating hours. 🎉"
             : "No listings match your filters."}
         </div>
       )}
@@ -997,6 +1039,19 @@ export default function ExplorePanel({
                       )}
                     </div>
                     <div style={styles.rowSub}>{row.address || row.tag}</div>
+                    <div
+                      style={{
+                        ...styles.rowSub,
+                        color: row.operatingHours ? "#1a5c38" : "#b9770e",
+                        maxWidth: 340,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={row.operatingHours ? hoursOneLine(row.operatingHours) : undefined}
+                    >
+                      🕒 {row.operatingHours ? hoursOneLine(row.operatingHours) : "No hours listed"}
+                    </div>
                   </td>
                   <td style={styles.td}>
                     {EXPLORE_PAGES[row.page].label} › {row.category || "—"}
@@ -1038,14 +1093,15 @@ export default function ExplorePanel({
               ? rowToListing(editingRow)
               : { page: pageFilter === "all" ? "food" : pageFilter, published: true }
           }
+          initialHours={editingRow?.operatingHours ?? null}
           notice={
             editingRow?.businessId
-              ? "This listing came from a business application. Changes here are also saved to that application."
+              ? "This listing came from a business application. Changes here (including hours) are also saved to that application, and the owner can update the hours from their profile."
               : undefined
           }
           photoChoices={editingRow?.businessId ? photoLookup(editingRow.businessId) : []}
           onClose={() => setEditing(null)}
-          onSave={(data) => saveListing(editingRow, data)}
+          onSave={(data, hours) => saveListing(editingRow, data, hours)}
         />
       )}
 
