@@ -2,22 +2,18 @@
    HOTSPOTS PAGE
    Replace the page.tsx inside your Hotspots folder.
 
-   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
-   panel, and star ratings/reviews on every card.
+   ADDED IN THIS VERSION (operating hours):
+   - Each listing's `operatingHours` (set in Admin > Listings or by the
+     owner) is read from Firestore and shown on the card: a live
+     "Open / Closing soon / Closed" badge in Philippine time plus a
+     tap-to-open weekly list (components/CardHours.tsx). Especially useful
+     here, since resorts, parks and attractions keep fixed visiting hours.
+   - Listings without hours look the same as before.
 
-   FIXED IN THIS VERSION (destination icon "moving"):
-   - The destination pin is now placed by an effect that only runs when
-     you choose a hotspot (View on Map / Get Directions). It used to be
-     placed inside a 100 ms setTimeout, which could silently fail if the
-     map wasn't ready yet, and whose "fly to zoom 15" could fire AFTER
-     the route was drawn and pull the camera back to the pin.
-   - "Get Directions" now shows the destination icon automatically and
-     fits the map to the whole route (you + destination) instead of
-     zooming to the pin. If the route can't be loaded, it flies to the
-     pin instead.
-   - The user dot is moved with setLngLat instead of being re-created on
-     every GPS update.
-   - "Get Directions" is only shown once "Locate Me" is active.
+   FROM BEFORE: tricycle fare estimate in the route-info panel, star
+   ratings/reviews on every card, the destination-pin fixes (pin placed by
+   an effect, route fits the view, user dot moved with setLngLat), and
+   "Get Directions" only shown once "Locate Me" is active.
    ============================================================ */
 
 "use client";
@@ -36,8 +32,10 @@ import React, {
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { sanitizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
+import CardHours from "@/components/CardHours";
 
 const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
@@ -45,6 +43,7 @@ mapboxgl.accessToken = token!;
 
 /* This page's Firestore collection name (also passed to useExploreListings below). */
 const EXPLORE_SECTION = "hotspots";
+const ACCENT = "#2e8b57";
 
 /* ============================================================
    DATA
@@ -65,6 +64,7 @@ interface Hotspot {
   lng: number;
   ratingAvg: number;
   ratingCount: number;
+  operatingHours: OperatingHours | null;
 }
 
 interface UserLocation {
@@ -200,7 +200,13 @@ export default function HotspotPage() {
   const allHotspots = useMemo<Hotspot[]>(
     () => [
       ...live.map((l) => {
-        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        // ratingAvg/ratingCount (lib/reviews.ts) and operatingHours (owner/admin)
+        // are extra fields stored on the listing doc
+        const extra = l as typeof l & {
+          ratingAvg?: number;
+          ratingCount?: number;
+          operatingHours?: unknown;
+        };
         return {
           id: l.docId,
           name: l.name,
@@ -214,6 +220,7 @@ export default function HotspotPage() {
           lng: l.lng,
           ratingAvg: extra.ratingAvg ?? 0,
           ratingCount: extra.ratingCount ?? 0,
+          operatingHours: sanitizeHours(extra.operatingHours),
         };
       }),
     ],
@@ -713,6 +720,7 @@ export default function HotspotPage() {
                 </p>
 
                 <span className="tag">{hotspot.tag}</span>
+                <CardHours hours={hotspot.operatingHours} accent={ACCENT} />
 
                 <div className={`dist-badge ${distance !== null ? "visible" : ""}`}>
                   <div className="dot" />

@@ -2,23 +2,18 @@
    HEALTHCARE PAGE
    Replace the page.tsx inside your Healthcare folder.
 
-   ADDED IN THIS VERSION: tricycle fare estimate in the route-info
-   panel, and star ratings/reviews on every card.
+   ADDED IN THIS VERSION (operating hours):
+   - Each listing's `operatingHours` (set by the owner or in
+     Admin > Listings) is now read from Firestore.
+   - Cards show a live badge ("Open · closes 5:00 PM", "Closing soon",
+     "Closed · opens 8:00 AM tomorrow"), worked out in Philippine time,
+     plus a tap-to-open "Opening hours" list for the whole week.
+   - Listings without hours look the same as before (no badge), so
+     nobody sees a guessed "Open" or "Closed".
 
-   FIXED IN THIS VERSION (destination icon "moving"):
-   - The destination pin used to be removed and re-created, and the
-     map re-flown to zoom 17, on EVERY GPS update (because userLocation
-     was a dependency of the marker effect). That made the pin jump and
-     wiped out the route view. Now the pin is only placed when you
-     choose a facility (View on Map / Get Directions) and stays put.
-   - "Get Directions" now shows the destination icon automatically and
-     fits the map to the whole route (you + destination) instead of
-     zooming to the pin.
-   - The user dot is moved with setLngLat instead of being re-created.
-   - The pin tip now sits exactly on the coordinates (offset fix).
-
-   SAFETY FIX: names and tags typed by the admin are escaped before they go
-   into the map popup HTML (see lib/escapeHtml.ts).
+   FROM BEFORE: tricycle fare estimate in the route-info panel, star
+   ratings/reviews on every card, the destination-pin fixes, and
+   escaping of admin-typed text in the map popup (lib/escapeHtml.ts).
    ============================================================ */
 
 "use client";
@@ -37,13 +32,16 @@ import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
 import { escapeHtml } from "@/lib/escapeHtml";
+import { sanitizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
+import { HoursTable, OpenStatusBadge } from "@/components/OperatingHoursDisplay";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 const ROUTE_SOURCE_ID = "healthcare-route";
 const ROUTE_LAYER_ID = "healthcare-route-line";
+const ACCENT = "#2b6b45";
 
 /* This page's Firestore collection name (also passed to useExploreListings below). */
 const EXPLORE_SECTION = "healthcare";
@@ -69,6 +67,7 @@ interface Clinic {
   description: string;
   ratingAvg: number;
   ratingCount: number;
+  operatingHours: OperatingHours | null;
 }
 
 interface ClinicWithDistance extends Clinic {
@@ -191,7 +190,13 @@ export default function HealthcarePage() {
   const allClinics = useMemo<Clinic[]>(
     () => [
       ...live.map((l) => {
-        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        // ratingAvg/ratingCount (lib/reviews.ts) and operatingHours (owner/admin)
+        // are extra fields stored on the listing doc
+        const extra = l as typeof l & {
+          ratingAvg?: number;
+          ratingCount?: number;
+          operatingHours?: unknown;
+        };
         return {
           id: l.docId,
           name: l.name,
@@ -204,6 +209,7 @@ export default function HealthcarePage() {
           description: l.description,
           ratingAvg: extra.ratingAvg ?? 0,
           ratingCount: extra.ratingCount ?? 0,
+          operatingHours: sanitizeHours(extra.operatingHours),
         };
       }),
     ],
@@ -342,7 +348,7 @@ export default function HealthcarePage() {
         type: "line",
         source: ROUTE_SOURCE_ID,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#2b6b45", "line-width": 5, "line-opacity": 0.85 },
+        paint: { "line-color": ACCENT, "line-width": 5, "line-opacity": 0.85 },
       });
       setTimeout(() => map.resize(), 50);
     });
@@ -393,7 +399,7 @@ export default function HealthcarePage() {
     if (clinicMarkerRef.current) clinicMarkerRef.current.remove();
 
     const el = document.createElement("div");
-    el.innerHTML = `<div style="background:#2b6b45;color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">🏥</span></div>`;
+    el.innerHTML = `<div style="background:${ACCENT};color:white;font-size:16px;width:36px;height:36px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,0.3);border:2px solid white;"><span style="transform:rotate(45deg)">🏥</span></div>`;
 
     const popup = new mapboxgl.Popup({ offset: 40, maxWidth: "250px" }).setHTML(
       buildClinicPopupHtml(selectedClinic, userLocationRef.current)
@@ -660,6 +666,22 @@ export default function HealthcarePage() {
               </h3>
               <p>{clinic.description}</p>
               <span className="tag">{clinic.tag}</span>
+
+              {/* OPERATING HOURS (only for listings that have them) */}
+              {clinic.operatingHours && (
+                <div style={{ margin: "8px 0 2px" }}>
+                  <OpenStatusBadge hours={clinic.operatingHours} />
+                  <details style={{ marginTop: 6, fontSize: ".78rem" }}>
+                    <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 600 }}>
+                      Opening hours
+                    </summary>
+                    <div style={{ marginTop: 6 }}>
+                      <HoursTable hours={clinic.operatingHours} />
+                    </div>
+                  </details>
+                </div>
+              )}
+
               <div className={`dist-badge${clinic.distKm !== null ? " visible" : ""}`}>
                 <div className="dot" />
                 <span className="dist-text">
@@ -680,7 +702,7 @@ export default function HealthcarePage() {
                   border: "none",
                   cursor: "pointer",
                   fontSize: ".78rem",
-                  color: "#2b6b45",
+                  color: ACCENT,
                 }}
               >
                 <StarRating value={clinic.ratingAvg} size={14} />
@@ -713,7 +735,7 @@ export default function HealthcarePage() {
 
         {!loading && visibleClinics.length === 0 && (
           <div id="empty-state" style={{ display: "flex" }}>
-            <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#2b6b45" strokeWidth={1.5}>
+            <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke={ACCENT} strokeWidth={1.5}>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

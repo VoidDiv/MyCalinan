@@ -2,31 +2,21 @@
    LIFESTYLE PAGE
    Replace the page.tsx inside your Lifestyle folder.
 
-   CHANGED IN THIS VERSION: the lodging category is now "Accommodation"
-   (it was "Hotel"). The page already builds its filter chips from the
-   categories that exist in Firestore, so the chip changes by itself once
-   the listings are renamed. What this file changes:
-   - the fallback map pin knows "Accommodation" (and still "Hotel", so an
-     old listing that was not renamed yet keeps its 🏨),
-   - the search hint and the hero text no longer say "Hotel".
+   ADDED IN THIS VERSION (operating hours):
+   - Each listing's `operatingHours` (set in Admin > Listings or by the
+     owner) is read from Firestore and shown on the card: a live
+     "Open / Closing soon / Closed" badge in Philippine time plus a
+     tap-to-open weekly list (components/CardHours.tsx). Accommodations
+     that are always open can be set to "Open 24 hours".
+   - Listings without hours look the same as before.
 
-   ADDED IN THE PREVIOUS VERSION: tricycle fare estimate in the route-info
-   panel, and star ratings/reviews on every card.
-
-   FIXED EARLIER (destination icon "moving"):
-   - The pin's rotated teardrop styling was set directly on the marker
-     element. Mapbox positions a marker by writing its own `transform`
-     onto that same element, which overwrote the rotation and left the
-     pin misshapen/misaligned. The teardrop is now an inner element (so
-     Mapbox's positioning can't touch it) and its tip sits exactly on the
-     coordinates.
-   - "Get Directions" now shows the destination icon automatically and
-     fits the map to the whole route (you + destination) instead of
-     zooming to the pin first. If the route can't be loaded, it flies to
-     the pin instead.
-   - The user dot is moved with setLngLat instead of being re-created on
-     every GPS update.
-   - "Get Directions" is only shown once "Locate Me" is active.
+   FROM BEFORE:
+   - The lodging category is "Accommodation" (the fallback pin still knows
+     the old "Hotel" name).
+   - Tricycle fare estimate in the route-info panel, star ratings/reviews
+     on every card, the destination-pin fixes (teardrop as an inner
+     element, route fits the view, user dot moved with setLngLat), and
+     "Get Directions" only shown once "Locate Me" is active.
    ============================================================ */
 
 "use client";
@@ -44,14 +34,17 @@ import {
 import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings"; // ← every listing comes from Firestore (admin add/edit/delete)
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
+import { sanitizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
+import CardHours from "@/components/CardHours";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 const ROUTE_SOURCE_ID = "lifestyle-route";
 const ROUTE_LAYER_ID = "lifestyle-route-line";
+const ACCENT = "#2e8b57";
 
 /* This page's Firestore collection name (also passed to useExploreListings below). */
 const EXPLORE_SECTION = "lifestyle";
@@ -78,6 +71,7 @@ export interface LocationItem {
   description: string;
   ratingAvg: number;
   ratingCount: number;
+  operatingHours: OperatingHours | null;
 }
 
 interface LocationWithDistance extends LocationItem {
@@ -217,12 +211,14 @@ export default function LifestylePage() {
   const allLocations = useMemo<LocationItem[]>(
     () => [
       ...live.map((l) => {
-        // `address` and `pin` are optional extras — fall back safely if the hook doesn't return them
+        // `address`, `pin`, ratings and operatingHours are optional extras —
+        // fall back safely if the hook doesn't return them
         const extra = l as typeof l & {
           address?: string;
           pin?: string;
           ratingAvg?: number;
           ratingCount?: number;
+          operatingHours?: unknown;
         };
         return {
           id: l.docId,
@@ -238,6 +234,7 @@ export default function LifestylePage() {
           description: l.description,
           ratingAvg: extra.ratingAvg ?? 0,
           ratingCount: extra.ratingCount ?? 0,
+          operatingHours: sanitizeHours(extra.operatingHours),
         };
       }),
     ],
@@ -718,6 +715,7 @@ export default function LifestylePage() {
                 {item.description}
               </p>
               <span className="tag">{item.tag}</span>
+              <CardHours hours={item.operatingHours} accent={ACCENT} />
               <div className={`dist-badge${item.distKm !== null ? " visible" : ""}`}>
                 <div className="dot" />
                 <span className="dist-text">

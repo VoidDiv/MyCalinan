@@ -4,31 +4,20 @@
    ADMIN LOCATION  : Admin > Listings > Explore > Community
    Replace the page.tsx inside your Community folder.
 
-   ADDED IN THIS VERSION:
-   - Estimated minimum tricycle fare shown in the route-info panel
-     (see lib/tricycleFare.ts to change the two numbers).
-   - Star rating badge + "Reviews" button on every card, opening
-     a shared ReviewsModal to browse, submit, or edit a review
-     (see lib/reviews.ts, components/StarRating.tsx,
-     components/ReviewsModal.tsx).
+   ADDED IN THIS VERSION (operating hours):
+   - Each listing's `operatingHours` (set in Admin > Listings or by the
+     owner) is read from Firestore and shown on the card: a live
+     "Open / Closing soon / Closed" badge in Philippine time plus a
+     tap-to-open weekly list (components/CardHours.tsx).
+   - Listings without hours look the same as before.
 
-   FIXED IN THIS VERSION (destination icon "moving"):
-   - The destination pin used to be removed and re-created, and the
-     map re-flown to zoom 17, on EVERY GPS update (because userLocation
-     was a dependency of the marker effect). That made the pin jump and
-     wiped out the route view. Now the pin is only placed when you
-     choose a place (View on Map / Get Directions) and stays put.
-   - "Get Directions" now shows the destination icon automatically and
-     fits the map to the whole route (you + destination) instead of
-     zooming to the pin.
-   - The user dot is moved with setLngLat instead of being re-created.
-   - The pin tip now sits exactly on the coordinates (offset fix).
-
-   CLEAN-UP + SAFETY FIX IN THIS VERSION:
-   - Names, tags and descriptions typed by the admin are escaped before they
-     go into the map popup HTML (see lib/escapeHtml.ts).
-   - Removed three leftover <link> tags (the old logo as favicon, a Poppins
-     font that nothing here uses, and /style/Community.css which no longer exists).
+   FROM BEFORE:
+   - Estimated minimum tricycle fare in the route-info panel
+     (lib/tricycleFare.ts), star ratings + Reviews modal on every card
+     (lib/reviews.ts, components/StarRating.tsx, components/ReviewsModal.tsx).
+   - Destination pin fixes (no more jumping on GPS updates, route fits the
+     view, user dot moved with setLngLat, pin tip offset fix).
+   - Admin-typed text escaped in the map popup (lib/escapeHtml.ts).
    ============================================================ */
 
 "use client";
@@ -48,8 +37,10 @@ import Link from "next/link";
 import { useExploreListings } from "@/hooks/useLiveListings";
 import { TRICYCLE_FARE_LABEL, TRICYCLE_FARE_NOTE } from "@/lib/tricycleFare";
 import { escapeHtml } from "@/lib/escapeHtml";
+import { sanitizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import StarRating from "@/components/StarRating";
 import ReviewsModal from "@/components/ReviewsModal";
+import CardHours from "@/components/CardHours";
 
 /* ── EXPLORE SECTION KEY (must match the section in Admin > Listings > Explore,
    and the Firestore collection name for this page) ── */
@@ -83,6 +74,7 @@ interface CommunityPlace {
   mapsQuery: string;
   ratingAvg: number;
   ratingCount: number;
+  operatingHours: OperatingHours | null;
 }
 
 interface CommunityPlaceWithDistance extends CommunityPlace {
@@ -243,8 +235,13 @@ export default function CommunityPage() {
   const allPlaces = useMemo<CommunityPlace[]>(
     () =>
       live.map((l) => {
-        // ratingAvg/ratingCount are denormalized onto the listing doc by lib/reviews.ts
-        const extra = l as typeof l & { ratingAvg?: number; ratingCount?: number };
+        // ratingAvg/ratingCount (lib/reviews.ts) and operatingHours (owner/admin)
+        // are extra fields stored on the listing doc
+        const extra = l as typeof l & {
+          ratingAvg?: number;
+          ratingCount?: number;
+          operatingHours?: unknown;
+        };
         return {
           id: l.docId,
           name: l.name,
@@ -258,6 +255,7 @@ export default function CommunityPage() {
           mapsQuery: l.mapsQueryEncoded,
           ratingAvg: extra.ratingAvg ?? 0,
           ratingCount: extra.ratingCount ?? 0,
+          operatingHours: sanitizeHours(extra.operatingHours),
         };
       }),
     [live]
@@ -710,6 +708,7 @@ export default function CommunityPage() {
               </h3>
               <p>{place.description}</p>
               <span className="tag">{place.tag}</span>
+              <CardHours hours={place.operatingHours} accent={PIN_COLOR} />
               <div className={`dist-badge${place.distKm !== null ? " visible" : ""}`}>
                 <div className="dot" />
                 <span className="dist-text">
