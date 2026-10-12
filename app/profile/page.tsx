@@ -1,3 +1,16 @@
+/* ============================================================
+   FILE: app/profile/page.tsx
+   PAGE: Owner profile — personal photo + "My Businesses"
+
+   NEW IN THIS VERSION (operating hours):
+   - Each business card shows its operating hours and a live
+     "Open · closes 5:00 PM" badge (components/OperatingHoursDisplay.tsx).
+   - "Edit hours" opens the same editor as the registration form and
+     saves through PATCH /api/business/hours (owner-only, checked on the
+     server). Businesses registered before hours existed show
+     "Hours not listed yet" with an "Add hours" button.
+   ============================================================ */
+
 "use client";
 
 import Image from "next/image";
@@ -9,6 +22,10 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/Firebase";
 import BusinessReviewsPanel from "@/components/BusinessReviewsPanel";
+import OperatingHoursEditor from "@/components/OperatingHoursEditor";
+import { HoursTable, OpenStatusBadge } from "@/components/OperatingHoursDisplay";
+import { emptyHours, validateHours, type OperatingHours } from "@/lib/OperatingHours";
+
 /* ── Shape returned by /api/business/profile (one entry per business
    the logged-in owner has submitted) ── */
 interface DocEntry {
@@ -25,6 +42,7 @@ interface BusinessSummary {
   overallStatus: "pending" | "approved" | "rejected";
   pictures: { name: string; url: string }[];
   documents: DocEntry[];
+  operatingHours: OperatingHours | null;
   rejectionReason: string | null;
   submittedAt: string | null;
 }
@@ -37,6 +55,17 @@ const STATUS_STYLES: Record<
   approved: { bg: "bg-green-100", text: "text-green-700", label: "Approved" },
   rejected: { bg: "bg-red-100", text: "text-red-700", label: "Rejected" },
 };
+
+/* The login token saved at sign-in expires after about an hour,
+   so always ask Firebase for a fresh one first. */
+async function getFreshToken(): Promise<string | null> {
+  await auth.authStateReady();
+  return (
+    (await auth.currentUser?.getIdToken()) ||
+    localStorage.getItem("mycalinan_token") ||
+    sessionStorage.getItem("mycalinan_token")
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -93,14 +122,7 @@ export default function ProfilePage() {
       setBusinessesLoading(true);
       setBusinessesError("");
       try {
-        // The login token saved at sign-in expires after about an hour, which made this
-        // list fail ("Could not load your businesses") for anyone who stayed logged in.
-        // So wait until Firebase knows who is signed in and ask it for a FRESH token.
-        await auth.authStateReady();
-        const token =
-          (await auth.currentUser?.getIdToken()) ||
-          localStorage.getItem("mycalinan_token") ||
-          sessionStorage.getItem("mycalinan_token");
+        const token = await getFreshToken();
 
         const response = await fetch("/api/business/profile", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -125,7 +147,7 @@ export default function ProfilePage() {
     fetchBusinesses();
   }, []);
 
-  /* ── Hide the "deleted" notice after a few seconds ── */
+  /* ── Hide the notice after a few seconds ── */
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(""), 4000);
@@ -150,6 +172,13 @@ export default function ProfilePage() {
     setDeleteTarget(biz);
   }
 
+  function handleHoursSaved(businessId: string, hours: OperatingHours) {
+    setBusinesses((prev) =>
+      prev.map((b) => (b.id === businessId ? { ...b, operatingHours: hours } : b))
+    );
+    setNotice("Operating hours saved.");
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
@@ -157,12 +186,7 @@ export default function ProfilePage() {
     setDeleting(true);
     setDeleteError("");
     try {
-      // The login token expires after about an hour, so ask Firebase for a fresh one
-      const freshToken = await auth.currentUser?.getIdToken();
-      const token =
-        freshToken ||
-        localStorage.getItem("mycalinan_token") ||
-        sessionStorage.getItem("mycalinan_token");
+      const token = await getFreshToken();
 
       const response = await fetch(`/api/business/${encodeURIComponent(target.id)}`, {
         method: "DELETE",
@@ -325,7 +349,12 @@ export default function ProfilePage() {
       {!businessesLoading && !businessesError && businesses.length > 0 && (
         <div className="space-y-5">
           {businesses.map((biz) => (
-            <BusinessCard key={biz.id} biz={biz} onDelete={askToDelete} />
+            <BusinessCard
+              key={biz.id}
+              biz={biz}
+              onDelete={askToDelete}
+              onHoursSaved={handleHoursSaved}
+            />
           ))}
         </div>
       )}
@@ -399,9 +428,11 @@ export default function ProfilePage() {
 function BusinessCard({
   biz,
   onDelete,
+  onHoursSaved,
 }: {
   biz: BusinessSummary;
   onDelete: (biz: BusinessSummary) => void;
+  onHoursSaved: (businessId: string, hours: OperatingHours) => void;
 }) {
   const tag = STATUS_STYLES[biz.overallStatus] ?? STATUS_STYLES.pending;
   const cover = biz.pictures[0]?.url;
@@ -464,6 +495,10 @@ function BusinessCard({
           <DocumentList documents={biz.documents} />
         )}
 
+        {biz.overallStatus !== "rejected" && (
+          <HoursSection biz={biz} onSaved={onHoursSaved} />
+        )}
+
         <BusinessReviewsPanel businessId={biz.id} />
 
         {/* ── Delete ── */}
@@ -477,6 +512,115 @@ function BusinessCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function HoursSection({
+  biz,
+  onSaved,
+}: {
+  biz: BusinessSummary;
+  onSaved: (businessId: string, hours: OperatingHours) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<OperatingHours>(() => biz.operatingHours ?? emptyHours());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function startEditing() {
+    setDraft(biz.operatingHours ?? emptyHours());
+    setError("");
+    setEditing(true);
+  }
+
+  async function save() {
+    const problem = validateHours(draft);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      const token = await getFreshToken();
+      const response = await fetch("/api/business/hours", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          businessId: biz.id,
+          operatingHours: { ...draft, note: draft.note.trim() },
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "Could not save your hours. Please try again.");
+        return;
+      }
+
+      onSaved(biz.id, data.operatingHours as OperatingHours);
+      setEditing(false);
+    } catch (err) {
+      console.error("Save hours failed:", err);
+      setError("Cannot connect to the server. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-canopy-100 p-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase text-ink-700">Operating Hours</span>
+        {!editing && (
+          <div className="flex items-center gap-2">
+            <OpenStatusBadge hours={biz.operatingHours} hideUnknown />
+            <button
+              type="button"
+              onClick={startEditing}
+              className="rounded-full border border-canopy-100 px-3 py-1 text-xs font-semibold text-ink-900 hover:bg-canopy-50"
+            >
+              <i className="fas fa-clock" /> {biz.operatingHours ? "Edit hours" : "Add hours"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!editing && <HoursTable hours={biz.operatingHours} />}
+
+      {editing && (
+        <>
+          <OperatingHoursEditor value={draft} onChange={setDraft} disabled={saving} />
+
+          {error && (
+            <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+          )}
+
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+              className="rounded-full border border-canopy-100 bg-white px-4 py-2 text-xs font-semibold text-ink-900 hover:bg-canopy-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="rounded-full bg-durian-500 px-4 py-2 text-xs font-semibold text-ink-900 hover:bg-durian-400 disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save hours"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

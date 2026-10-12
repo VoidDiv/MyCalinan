@@ -3,19 +3,17 @@
    PAGE: Business Registration Form (LOGGED-IN BUSINESS OWNERS)
    URL:  /business-registration
 
-   NEW IN THIS VERSION (accurate location):
-   - Step 2 now asks for the business ADDRESS and for the owner to PIN the
-     business on a map (components/LocationPicker.tsx): tap the map or drag
-     the big ring onto the building, switch to 🛰 Satellite to see the roof, or
-     press 📍 "Use my current location" when standing at the business (the
-     most precise GPS reading is used, and the ±accuracy is saved).
-   - Saved on the application: address, lat, lng, locationMethod
-     ("map" | "gps" | "typed") and, for GPS, locationAccuracyM.
-   - In Admin > Listings, the pin is pre-filled when the admin approves, so
-     the admin only has to check it (on the satellite view) instead of
-     searching for the place.
+   NEW IN THIS VERSION (operating hours):
+   - Step 2 now asks which days the business is open and its opening and
+     closing times (components/OperatingHoursEditor.tsx), with quick picks
+     (Mon–Fri, Mon–Sat, Every day), a 24-hours option, support for places
+     that close after midnight, and an optional note ("Closed on holidays").
+   - Saved on the application as `operatingHours` (see lib/operatingHours.ts).
+   - Owners can change their hours later from their Profile page.
 
-   FIXES FROM BEFORE (kept):
+   FROM BEFORE (kept):
+   - Business address + map pin (components/LocationPicker.tsx), saved as
+     address, lat, lng, locationMethod and, for GPS, locationAccuracyM.
    - The Step 1 "Email" field is saved (as `email`) next to the Firebase Auth
      account email (`ownerEmail`).
    - Business picture previews no longer leak object URLs.
@@ -34,6 +32,8 @@ import { storage, db, auth } from "@/lib/Firebase";
 import { CURRENT_YEAR, MAX_BUSINESS_PICTURES } from "@/types/business";
 import { REGISTRATION_GROUPS, encodeChoice, decodeChoice } from "@/types/listing";
 import LocationPicker, { type PickedLocation } from "@/components/LocationPicker";
+import OperatingHoursEditor from "@/components/OperatingHoursEditor";
+import { emptyHours, validateHours, type OperatingHours } from "@/lib/OperatingHours";
 import { isInDavao } from "@/lib/geo";
 
 /* ── Local form state ── */
@@ -120,6 +120,7 @@ export default function BusinessRegistrationPage() {
 
   const [form, setForm] = useState<FormState>(initialForm);
   const [location, setLocation] = useState<BusinessLocation>({ lat: null, lng: null });
+  const [hours, setHours] = useState<OperatingHours>(emptyHours);
 
   // Single-file documents
   const [businessPermit, setBusinessPermit] = useState<File | null>(null);
@@ -221,6 +222,8 @@ export default function BusinessRegistrationPage() {
     if (!isInDavao(location.lat, location.lng)) {
       return "The pin is outside Davao City. Please move it onto your business.";
     }
+    const hoursError = validateHours(hours);
+    if (hoursError) return hoursError;
     if (!businessPermit) return "Please upload your Business Permit.";
     if (!dti) return "Please upload your DTI/SEC Registration.";
     if (!barangayClearance) return "Please upload your Barangay Clearance.";
@@ -307,6 +310,9 @@ export default function BusinessRegistrationPage() {
         locationMethod: location.method ?? "map",
         // (Firestore does not accept "undefined", so this field is only added for a GPS pin)
         ...(location.accuracyM !== undefined ? { locationAccuracyM: location.accuracyM } : {}),
+
+        // Days open + opening/closing times (see lib/operatingHours.ts)
+        operatingHours: { ...hours, note: hours.note.trim() },
 
         documents: {
           businessPermit: { ...businessPermitUploaded, status: "pending", rejectionReason: null },
@@ -528,6 +534,18 @@ export default function BusinessRegistrationPage() {
                     setLocation({ lat: p.lat, lng: p.lng, method: p.method, accuracyM: p.method === "gps" ? p.accuracyM : undefined })
                   }
                 />
+              </div>
+            </div>
+
+            <div className="business-reg-input-group">
+              <label>Operating Hours</label>
+              <span className="business-reg-hint">
+                Tick the days you are open and set your opening and closing times. Visitors will see
+                whether you are open right now, so please keep these accurate. You can change them
+                later from your profile.
+              </span>
+              <div style={{ marginTop: 8 }}>
+                <OperatingHoursEditor value={hours} onChange={setHours} disabled={submitting} />
               </div>
             </div>
 

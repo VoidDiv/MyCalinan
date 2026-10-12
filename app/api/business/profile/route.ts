@@ -1,5 +1,17 @@
+/* ============================================================
+   FILE: app/api/business/profile/route.ts
+   GET /api/business/profile — the logged-in owner's businesses.
+   (Deleting a business is NOT here — it lives in app/api/business/[id]/route.ts,
+   and updating hours lives in app/api/business/hours/route.ts)
+
+   NEW IN THIS VERSION: each business now includes `operatingHours`
+   (cleaned up by lib/operatingHours.ts; null when none are on file,
+   e.g. businesses registered before hours were added).
+   ============================================================ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
+import { sanitizeHours } from "@/lib/OperatingHours";
 
 /* Friendly labels for each fixed document key stored under
    businesses/{id}.documents.* (see types/business.ts). */
@@ -11,8 +23,6 @@ const DOC_LABELS: Record<string, string> = {
   cedula: "Cedula",
 };
 
-/* GET /api/business/profile — the logged-in owner's businesses.
-   (Deleting a business is NOT here — it lives in app/api/business/[id]/route.ts) */
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
@@ -71,6 +81,8 @@ export async function GET(request: NextRequest) {
         overallStatus: data.overallStatus ?? "pending",
         pictures: documents.businessPictures?.urls ?? [],
         documents: docEntries,
+        // Days open + opening/closing times (null if none on file yet)
+        operatingHours: sanitizeHours(data.operatingHours),
         // Set by the admin dashboard when rejecting an application.
         rejectionReason: data.rejectionReason ?? null,
         submittedAt: data.submittedAt?.toDate
