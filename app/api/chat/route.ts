@@ -3,6 +3,17 @@
    CaliBot: answers questions about Calinan with the Anthropic Claude API,
    using MyCalinan's own data as the only source of facts.
 
+   NEW IN THIS VERSION
+   - FALLBACK MODE: if the AI cannot answer (no API credits left, missing key,
+     rate limit, timeout or any API error), CaliBot still replies with the
+     matching MyCalinan data: listings with their address and open/closed
+     status, officials, rules, fare, hotlines, document guides and weather.
+     The reply says it is a quick answer from the directory, and the JSON
+     includes `fallback: true` so the chat window can style it if wanted.
+   - Better answers: CaliBot now knows today's date and time in Philippine
+     time, and each listing's operating hours are given to it in plain words
+     with its live "Open / Closed" status, so "Is ... open now?" works.
+
    Where CaliBot's facts come from
    - Explore listings (Firestore: healthcare, education, food, ...), cached 10 min
    - Officials, rules and the tricycle fare  (lib/calibotKnowledge.ts)
@@ -17,7 +28,8 @@
 
    Chat log
    - Every answered question is saved to Firestore "calibot_logs"
-     (session_id, user_question, bot_response, sources, timestamp).
+     (session_id, user_question, bot_response, sources, timestamp, model).
+     Fallback answers are logged with model "fallback".
      No name, email or IP address is saved. Set CALIBOT_LOGS=off to stop it.
    ============================================================ */
 
@@ -27,6 +39,12 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { getStaticKnowledge } from "@/lib/calibotKnowledge";
 import { getWeatherIfAsked } from "@/lib/calibotWeather";
 import { getPageKnowledge } from "@/lib/calibotPages";
+import {
+  HOURS_TIMEZONE,
+  getOpenStatus,
+  sanitizeHours,
+  summarizeHours,
+} from "@/lib/OperatingHours";
 
 export const runtime = "nodejs";
 
@@ -43,6 +61,7 @@ interface RetrievedSource {
 
 type Doc = FirebaseFirestore.DocumentData;
 type CachedDoc = { id: string; data: Doc; haystack: string };
+type RankedRecord = { collection: string; id: string; name?: string; score: number; data: Doc };
 
 /* ------------------------- Config ------------------------- */
 
@@ -58,6 +77,10 @@ const DOCUMENT_LIMIT_PER_COLLECTION = 50;
 const CONTEXT_LIMIT = 10;
 const MAX_FIELD_CHARS = 400; // truncate long text fields in context
 const MIN_SCORE = 4; // ignore weak, noisy matches
+
+// Fallback mode (no AI available)
+const FALLBACK_MAX_PLACES = 5;
+const FALLBACK_MAX_TEXT_CHARS = 900;
 
 const LOG_COLLECTION = "calibot_logs";
 const MAX_LOGGED_REPLY_CHARS = 2000;
@@ -76,6 +99,18 @@ const SEARCHABLE_COLLECTIONS = [
   "hotspots", "community", "education", "finance",
   "food", "healthcare", "lifestyle", "shopping", "transport",
 ];
+
+const COLLECTION_LABELS: Record<string, string> = {
+  hotspots: "Hotspots",
+  community: "Community",
+  education: "Education",
+  finance: "Finance",
+  food: "Food & Dining",
+  healthcare: "Healthcare",
+  lifestyle: "Lifestyle",
+  shopping: "Shopping",
+  transport: "Transport & Utilities",
+};
 
 const COLLECTION_KEYWORDS: Record<string, string[]> = {
   healthcare: [
@@ -105,11 +140,14 @@ const STOPWORDS = new Set([
   "any", "can", "you", "your", "where", "what", "when", "how", "who", "which",
   "there", "here", "near", "nearby", "around", "about", "get", "find", "show",
   "tell", "please", "need", "want", "looking", "some", "all", "does", "not",
+  "open", "opens", "close", "closes", "closed", "now", "today", "time", "hours",
   "ang", "sa", "ug", "nga", "asa", "unsa", "unsay", "naa", "ba", "mga", "ko",
   "ni", "kani", "kung", "pila", "lang", "gyud", "diri", "dinhi", "ako",
+  "abli", "sirado", "karon", "oras",
 ]);
 
 // Fields the model never needs. Saves tokens (and avoids leaking internals).
+// operatingHours is not dropped: it is rewritten into plain words below.
 const DROP_FIELDS = new Set([
   "createdAt", "updatedAt", "coordsUpdatedAt", "imageUrl", "imagePath", "image", "imageSrc",
   "images", "photo", "photos", "lat", "lng", "public", "published", "order", "seeded",
@@ -206,10 +244,23 @@ function hasWord(text: string, word: string): boolean {
   return text.includes(` ${word} `) || text.includes(` ${alt} `);
 }
 
+/** "Mon–Fri 8:00 AM – 5:00 PM · Sun Closed (Closed on holidays)" — or null when no hours are on file. */
+function hoursInWords(raw: unknown): { hours: string; openNow: string } | null {
+  const hours = sanitizeHours(raw);
+  if (!hours) return null;
+  const summary = summarizeHours(hours)
+    .map((l) => `${l.days} ${l.hours}`)
+    .join(" · ");
+  return {
+    hours: hours.note ? `${summary} (${hours.note})` : summary,
+    openNow: getOpenStatus(hours).label,
+  };
+}
+
 function truncateFields(data: Doc): Doc {
   const out: Doc = {};
   for (const [key, value] of Object.entries(data)) {
-    if (DROP_FIELDS.has(key)) continue;
+    if (DROP_FIELDS.has(key) || key === "operatingHours") continue;
     out[key] =
       typeof value === "string" && value.length > MAX_FIELD_CHARS
         ? value.slice(0, MAX_FIELD_CHARS) + "..."
@@ -219,6 +270,11 @@ function truncateFields(data: Doc): Doc {
 }
 
 function sanitizeDocumentData(collectionName: string, id: string, data: Doc) {
+  const hours = hoursInWords(data.operatingHours);
+  const hoursFields = hours
+    ? { hours: hours.hours, openNow: hours.openNow }
+    : { hours: "not listed" };
+
   if (collectionName === "healthcare") {
     // Whitelist for healthcare (no images/coordinates).
     return {
@@ -233,9 +289,23 @@ function sanitizeDocumentData(collectionName: string, id: string, data: Doc) {
       mapsQuery: data.mapsQuery ?? null,
       ratingAvg: data.ratingAvg ?? null,
       ratingCount: data.ratingCount ?? null,
+      ...hoursFields,
     };
   }
-  return { id, ...truncateFields(data) };
+  return { id, ...truncateFields(data), ...hoursFields };
+}
+
+/** e.g. "Wednesday, October 14, 2026, 3:20 PM" in Philippine time. */
+function manilaNowText(): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: HOURS_TIMEZONE,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date());
 }
 
 /* ------------------------- Firestore (cached) ------------------------- */
@@ -307,8 +377,14 @@ function calculateRelevance(words: string[], doc: CachedDoc): number {
 
 async function buildContext(
   query: string,
-  collections: string[]
-): Promise<{ context: string; sources: RetrievedSource[]; matchedCollections: string[] }> {
+  collections: string[],
+  matchAllWhenNoWords: boolean
+): Promise<{
+  context: string;
+  sources: RetrievedSource[];
+  matchedCollections: string[];
+  records: RankedRecord[];
+}> {
   const words = getQueryWords(query);
 
   // Parallel reads (cached), instead of one after another.
@@ -319,17 +395,14 @@ async function buildContext(
     }))
   );
 
-  const results: {
-    collection: string;
-    id: string;
-    name?: string;
-    score: number;
-    data: Doc;
-  }[] = [];
+  const results: RankedRecord[] = [];
 
   for (const { collection, docs } of loaded) {
     for (const doc of docs) {
-      const score = calculateRelevance(words, doc);
+      // A question like "clinics open now?" has a category keyword but no search
+      // word left after the stopwords: then every record of that category counts.
+      const score =
+        words.length === 0 && matchAllWhenNoWords ? MIN_SCORE : calculateRelevance(words, doc);
       if (score < MIN_SCORE) continue;
       results.push({
         collection,
@@ -358,7 +431,68 @@ async function buildContext(
       ...(r.name ? { name: r.name } : {}),
     })),
     matchedCollections: Array.from(new Set(top.map((r) => r.collection))),
+    records: top,
   };
+}
+
+/* ------------------------- Fallback (no AI) ------------------------- */
+
+/** Cuts long text at a line or sentence boundary so it never ends mid-word. */
+function trimText(text: string, max: number): string {
+  const clean = text.trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const end = Math.max(cut.lastIndexOf("\n"), cut.lastIndexOf(". "));
+  return (end > max * 0.5 ? cut.slice(0, end + 1) : cut).trim() + " …";
+}
+
+/*
+ * Builds a useful reply from MyCalinan's own data when the AI is unavailable
+ * (no credits, missing key, rate limit, timeout). Nothing is invented: every
+ * line comes straight from the records CaliBot already found for the question.
+ */
+function buildFallbackReply(input: {
+  verified: string;
+  weatherText: string;
+  records: RankedRecord[];
+  matchedCollections: string[];
+}): string {
+  const parts: string[] = [];
+
+  if (input.records.length > 0) {
+    const lines = input.records.slice(0, FALLBACK_MAX_PLACES).map((r) => {
+      const d = r.data;
+      const name = typeof d.name === "string" ? d.name : "Unnamed place";
+      const tag = typeof d.tag === "string" && d.tag ? ` (${d.tag})` : "";
+      const address = typeof d.address === "string" && d.address ? ` — ${d.address}` : "";
+      const hours = hoursInWords(d.operatingHours);
+      const open = hours ? `. ${hours.openNow}` : "";
+      return `• ${name}${tag}${address}${open}`;
+    });
+    parts.push(`Here is what MyCalinan has on that:\n${lines.join("\n")}`);
+  }
+
+  if (input.verified) {
+    parts.push(trimText(input.verified, FALLBACK_MAX_TEXT_CHARS));
+  }
+
+  if (input.weatherText) {
+    parts.push(trimText(input.weatherText, 500));
+  }
+
+  if (parts.length === 0) {
+    const categories = input.matchedCollections.length
+      ? input.matchedCollections
+      : SEARCHABLE_COLLECTIONS;
+    parts.push(
+      `I couldn't find a direct match for that. Try one of these Explore categories: ${categories
+        .map((c) => COLLECTION_LABELS[c] ?? c)
+        .join(", ")}. You can also check Hotlines, Documents and Announcements.`
+    );
+  }
+
+  parts.push("(Quick answer from MyCalinan's directory. Full CaliBot answers will be back shortly.)");
+  return parts.join("\n\n");
 }
 
 /* ------------------------- Chat helpers ------------------------- */
@@ -375,6 +509,8 @@ function cleanHistory(history: unknown): ChatMessage[] {
         typeof (item as ChatMessage).text === "string"
     )
     .filter((item) => !(item.role === "assistant" && item.text.startsWith("Hey! I'm Calibot")))
+    // Fallback replies are directory dumps, not conversation: keep them out of the AI's history.
+    .filter((item) => !(item.role === "assistant" && item.text.includes("Quick answer from MyCalinan's directory")))
     .slice(-HISTORY_LIMIT)
     .map((item) => ({ ...item, text: item.text.slice(0, MAX_MESSAGE_CHARS) }));
 }
@@ -414,6 +550,7 @@ async function saveChatLog(entry: {
   reply: string;
   sources: RetrievedSource[];
   topics: string[];
+  model: string;
 }): Promise<void> {
   if (process.env.CALIBOT_LOGS === "off") return;
   try {
@@ -423,7 +560,7 @@ async function saveChatLog(entry: {
       bot_response: entry.reply.slice(0, MAX_LOGGED_REPLY_CHARS),
       sources: entry.sources.map((s) => ({ collection: s.collection, id: s.id, name: s.name ?? null })),
       topics: entry.topics,
-      model: MODEL,
+      model: entry.model,
       timestamp: FieldValue.serverTimestamp(),
     });
   } catch (error) {
@@ -454,6 +591,71 @@ function isRateLimited(ip: string): boolean {
   return false;
 }
 
+/* ------------------------- Anthropic call ------------------------- */
+
+/**
+ * Asks Claude. Returns the reply text, or null when the AI is unavailable for
+ * any reason (no credits, bad key, rate limit, timeout, network, empty reply),
+ * so the route can fall back to the directory answer instead of an error.
+ */
+async function askClaude(
+  apiKey: string | undefined,
+  systemPrompt: string,
+  messages: { role: "user" | "assistant"; content: string }[]
+): Promise<string | null> {
+  if (!apiKey) {
+    console.error("Missing ANTHROPIC_API_KEY — answering from the directory instead.");
+    return null;
+  }
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, system: systemPrompt, messages }),
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data) {
+      // e.g. 400 "credit balance is too low", 401 bad key, 429 rate/spend limit, 529 overloaded
+      console.error("Anthropic API error:", response.status, data?.error?.message ?? data);
+      return null;
+    }
+
+    let reply = Array.isArray(data.content)
+      ? data.content
+          .filter((b: { type?: string; text?: string }) => b.type === "text" && typeof b.text === "string")
+          .map((b: { text?: string }) => b.text)
+          .join("\n")
+          .trim()
+      : "";
+
+    if (!reply) return null;
+
+    // If the reply hit the token cap, don't leave a half sentence hanging.
+    if (data.stop_reason === "max_tokens") {
+      const lastEnd = Math.max(
+        reply.lastIndexOf("."),
+        reply.lastIndexOf("!"),
+        reply.lastIndexOf("?"),
+        reply.lastIndexOf("\n")
+      );
+      if (lastEnd > reply.length * 0.5) reply = reply.slice(0, lastEnd + 1);
+    }
+
+    return reply;
+  } catch (error) {
+    console.error("Anthropic API request failed:", error);
+    return null;
+  }
+}
+
 /* ------------------------- System prompt ------------------------- */
 
 const BASE_PROMPT = `You are Calibot, the official AI assistant of MyCalinan, a Smart Tourism and Community Information System for Calinan, Davao City.
@@ -474,7 +676,9 @@ RULES:
 11. Plain words only, no emojis. Do not begin a reply with "Sorry"; lead with what you know or can help with.
 12. Never end with an offer like "I can also share..." or "Let me know if...". End once the question is answered.
 13. For weather questions use ONLY the LIVE WEATHER DATA below. Say it is a forecast, give just what was asked (now, today, tomorrow), and for typhoons or official warnings point to PAGASA. If the weather data is unavailable, say so and do not guess.
-14. Reply in the same language the person used (English or Cebuano).`;
+14. Reply in the same language the person used (English or Cebuano).
+15. Opening hours: each record's "hours" field is its weekly schedule and "openNow" is its live status, already worked out in Philippine time. Use them for "is it open" and "what time" questions. If "hours" is "not listed", say the hours are not listed yet. Never guess hours.
+16. Use the CURRENT DATE AND TIME below for "today", "tomorrow" and "now".`;
 
 /* ------------------------- Route ------------------------- */
 
@@ -518,12 +722,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required." }, { status: 400 });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.error("Missing ANTHROPIC_API_KEY");
-      return NextResponse.json({ error: "CaliBot is not available right now." }, { status: 503 });
-    }
-
     const sessionId = cleanSessionId(body.sessionId);
     const history = cleanHistory(body.history);
 
@@ -560,11 +758,16 @@ export async function POST(request: NextRequest) {
     let context = "";
     let sources: RetrievedSource[] = [];
     let matchedCollections: string[] = [];
+    let records: RankedRecord[] = [];
 
     if (!staticOnly) {
       const collections =
         keywordCollections.length > 0 ? keywordCollections : SEARCHABLE_COLLECTIONS;
-      ({ context, sources, matchedCollections } = await buildContext(message, collections));
+      ({ context, sources, matchedCollections, records } = await buildContext(
+        message,
+        collections,
+        keywordCollections.length > 0
+      ));
     }
 
     const verified = [staticKnowledge.text, pageKnowledge.text].filter(Boolean).join("\n\n");
@@ -576,6 +779,7 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = [
       BASE_PROMPT,
+      `CURRENT DATE AND TIME (Philippines): ${manilaNowText()}`,
       verified ? `VERIFIED MYCALINAN DATA:\n${verified}` : "",
       weather.text ? `LIVE WEATHER DATA:\n${weather.text}` : "",
       categoriesHint,
@@ -583,64 +787,6 @@ export async function POST(request: NextRequest) {
     ]
       .filter(Boolean)
       .join("\n\n");
-
-    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        messages: buildApiMessages(history, message),
-      }),
-    });
-
-    const data = await anthropicResponse.json().catch(() => null);
-
-    if (!anthropicResponse.ok || !data) {
-      console.error("Anthropic API error:", anthropicResponse.status, data);
-      return NextResponse.json(
-        {
-          error:
-            "Calibot couldn't reach the AI service right now. Please try again in a moment, or browse MyCalinan's categories directly while you wait.",
-        },
-        { status: anthropicResponse.status === 429 ? 429 : 502 }
-      );
-    }
-
-    let reply = Array.isArray(data.content)
-      ? data.content
-          .filter((b: { type?: string; text?: string }) => b.type === "text" && typeof b.text === "string")
-          .map((b: { text?: string }) => b.text)
-          .join("\n")
-          .trim()
-      : "";
-
-    if (!reply) {
-      return NextResponse.json(
-        {
-          error:
-            "Calibot didn't have a clear answer for that. Try rephrasing, or ask about a specific category like healthcare, education, food, or transportation.",
-        },
-        { status: 502 }
-      );
-    }
-
-    // If the reply hit the token cap, don't leave a half sentence hanging.
-    if (data.stop_reason === "max_tokens") {
-      const lastEnd = Math.max(
-        reply.lastIndexOf("."),
-        reply.lastIndexOf("!"),
-        reply.lastIndexOf("?"),
-        reply.lastIndexOf("\n")
-      );
-      if (lastEnd > reply.length * 0.5) reply = reply.slice(0, lastEnd + 1);
-    }
 
     const topics = [
       ...matchedCollections,
@@ -653,10 +799,34 @@ export async function POST(request: NextRequest) {
       ...(weather.asked ? ["weather"] : []),
     ];
 
-    // Awaited on purpose: on Vercel, work left running after the response can be cut off.
-    await saveChatLog({ sessionId, question: message, reply, sources, topics });
+    // 3) Ask Claude. If the AI is unavailable (e.g. no credits), answer from the data instead.
+    const aiReply = await askClaude(
+      process.env.ANTHROPIC_API_KEY,
+      systemPrompt,
+      buildApiMessages(history, message)
+    );
 
-    return NextResponse.json({ reply, sources: sources.slice(0, 5) });
+    const fallback = aiReply === null;
+    const reply =
+      aiReply ??
+      buildFallbackReply({
+        verified,
+        weatherText: weather.text ?? "",
+        records,
+        matchedCollections,
+      });
+
+    // Awaited on purpose: on Vercel, work left running after the response can be cut off.
+    await saveChatLog({
+      sessionId,
+      question: message,
+      reply,
+      sources,
+      topics,
+      model: fallback ? "fallback" : MODEL,
+    });
+
+    return NextResponse.json({ reply, sources: sources.slice(0, 5), fallback });
   } catch (error) {
     console.error("Calibot API error:", error);
     return NextResponse.json(

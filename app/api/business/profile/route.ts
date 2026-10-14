@@ -1,12 +1,16 @@
 /* ============================================================
    FILE: app/api/business/profile/route.ts
    GET /api/business/profile — the logged-in owner's businesses.
-   (Deleting a business is NOT here — it lives in app/api/business/[id]/route.ts,
-   and updating hours lives in app/api/business/hours/route.ts)
 
-   NEW IN THIS VERSION: each business now includes `operatingHours`
-   (cleaned up by lib/operatingHours.ts; null when none are on file,
-   e.g. businesses registered before hours were added).
+   Related routes:
+   - app/api/business/update/route.ts          PATCH  edit business details
+   - app/api/business/delete-request/route.ts  POST   ask the admin to delete
+                                               DELETE cancel that request
+   - app/api/business/hours/route.ts           PATCH  operating hours
+
+   NEW IN THIS VERSION: each business also returns the editable details
+   (owner name, email, phone, address, description) for the Edit form, and
+   `deletionRequest` (pending / declined + reasons) for the delete-request flow.
    ============================================================ */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -23,35 +27,29 @@ const DOC_LABELS: Record<string, string> = {
   cedula: "Cedula",
 };
 
+const toIso = (v: unknown): string | null =>
+  v && typeof (v as { toDate?: () => Date }).toDate === "function"
+    ? (v as { toDate: () => Date }).toDate().toISOString()
+    : null;
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
-    const token = authHeader?.startsWith("Bearer ")
-      ? authHeader.slice(7)
-      : null;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
     if (!token) {
-      return NextResponse.json(
-        { error: "Not authenticated." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
     }
 
     let decoded;
     try {
       decoded = await adminAuth.verifyIdToken(token);
     } catch {
-      return NextResponse.json(
-        { error: "Invalid or expired session." },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid or expired session." }, { status: 401 });
     }
 
-    // Business documents use an auto-generated ID; the owner's UID is
-    // stored in the "ownerId" field. An owner can register more than one
-    // business, so we fetch ALL of them (not just the first) and sort by
-    // most recently submitted first — this is what powers the "history"
-    // list on the profile page.
+    // An owner can register more than one business, so fetch ALL of them,
+    // most recently submitted first.
     const businessQuery = await adminDb
       .collection("businesses")
       .where("ownerId", "==", decoded.uid)
@@ -62,9 +60,6 @@ export async function GET(request: NextRequest) {
       const data = docSnap.data();
       const documents = data.documents ?? {};
 
-      // Build a flat, friendly list of the fixed single-file documents
-      // (business permit, DTI, etc.) — excludes businessPictures, which
-      // is handled separately below since it's an array of photos.
       const docEntries = Object.entries(DOC_LABELS)
         .filter(([key]) => documents[key]?.url)
         .map(([key, label]) => ({
@@ -72,6 +67,18 @@ export async function GET(request: NextRequest) {
           url: documents[key].url as string,
           status: (documents[key].status as string) ?? "pending",
         }));
+
+      const del = data.deletionRequest;
+      const deletionRequest =
+        del && (del.status === "pending" || del.status === "declined")
+          ? {
+              status: del.status as "pending" | "declined",
+              reason: (del.reason as string) ?? "",
+              adminNote: (del.adminNote as string | null) ?? null,
+              requestedAt: toIso(del.requestedAt),
+              reviewedAt: toIso(del.reviewedAt),
+            }
+          : null;
 
       return {
         id: docSnap.id,
@@ -81,13 +88,18 @@ export async function GET(request: NextRequest) {
         overallStatus: data.overallStatus ?? "pending",
         pictures: documents.businessPictures?.urls ?? [],
         documents: docEntries,
+        // Editable details (Edit form)
+        fullName: data.fullName ?? "",
+        email: data.email ?? "",
+        phoneNumber: data.phoneNumber ?? "",
+        address: data.address ?? "",
+        description: data.description ?? "",
         // Days open + opening/closing times (null if none on file yet)
         operatingHours: sanitizeHours(data.operatingHours),
         // Set by the admin dashboard when rejecting an application.
         rejectionReason: data.rejectionReason ?? null,
-        submittedAt: data.submittedAt?.toDate
-          ? data.submittedAt.toDate().toISOString()
-          : null,
+        deletionRequest,
+        submittedAt: toIso(data.submittedAt),
       };
     });
 
