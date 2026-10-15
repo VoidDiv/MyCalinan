@@ -4,25 +4,28 @@
    built-in establishments, listings published from business
    applications, and ones you add yourself.
 
-   ADDED IN THIS VERSION (operating hours):
-   - Edit / Add listing now has an "Operating hours" section. Hours are saved
-     on the Explore doc as `operatingHours`; "no hours" removes the field.
-   - For listings that came from a business application, the hours are
-     also copied onto that application, so the owner sees the same hours
-     on their profile.
-   - Each row shows a one-line hours summary (or "🕒 No hours listed").
-   - New filter: "Missing hours (N)", to work through the listings that
-     still need confirmed hours.
+   ADDED IN THIS VERSION (new built-in listings):
+   - Built-ins added later (data/exploreSeedAdditions.ts, e.g. Calinan Fire
+     Station and Calinan Police Station) now show in a "New built-in
+     listings" banner, even on pages that were already imported.
+     "Import" adds them; "Skip" hides them for good.
+   - Deleting a built-in listing remembers its ID (Firestore:
+     appConfig/exploreSeeds.skipped), so it is never offered again.
+   - Built-ins listed in ALWAYS_OPEN_SEED_IDS are imported with
+     "Open 24 hours" already set.
 
    FROM BEFORE:
-   - "Reviews" button per row, opening the shared ReviewsModal in
-     admin mode (isAdmin) so any review can be deleted (moderation).
+   - Operating hours in Edit / Add listing, hours line on each row,
+     "Missing hours" filter, hours synced to business applications.
+   - "Reviews" button per row (admin moderation).
+   - Import built-ins, legacy duplicate cleanup, photo check and fix.
    ============================================================ */
 
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  arrayUnion,
   collection,
   deleteDoc,
   deleteField,
@@ -41,6 +44,7 @@ import {
 } from "firebase/storage";
 import { db, storage } from "@/lib/Firebase";
 import { EXPLORE_SEED } from "@/data/exploreSeed";
+import { EXPLORE_SEED_ADDITIONS, ALWAYS_OPEN_SEED_IDS } from "@/data/exploreSeedAdditions";
 import {
   ADMIN_SOURCE,
   EXPLORE_PAGES,
@@ -50,7 +54,7 @@ import {
   type ExplorePage,
   type ListingData,
 } from "@/types/listing";
-import { sanitizeHours, summarizeHours, type OperatingHours } from "@/lib/OperatingHours";
+import { emptyHours, sanitizeHours, summarizeHours, type OperatingHours } from "@/lib/OperatingHours";
 import ListingModal from "./ListingModal";
 import ReviewsModal from "@/components/ReviewsModal";
 import { styles } from "./styles";
@@ -58,9 +62,14 @@ import { styles } from "./styles";
 const PAGES = Object.keys(EXPLORE_PAGES) as ExplorePage[];
 const NO_ORDER = Number.MAX_SAFE_INTEGER;
 
-/* ── All built-in listings, from the single merged seed file ── */
+/* ── All built-in listings: the original seed file + later additions ── */
 type SeedListing = ListingData & { id: string };
-const ALL_SEED: Partial<Record<ExplorePage, SeedListing[]>> = EXPLORE_SEED;
+const ALL_SEED: Partial<Record<ExplorePage, SeedListing[]>> = Object.fromEntries(
+  PAGES.map((p) => [p, [...(EXPLORE_SEED[p] ?? []), ...(EXPLORE_SEED_ADDITIONS[p] ?? [])]])
+);
+
+/* Built-in IDs the admin skipped or deleted (never offered again) */
+const SEED_CONFIG = doc(db, "appConfig", "exploreSeeds");
 
 /* Two entries count as the same place if the name matches and they are
    within roughly 20 m of each other (or one has no coordinates). */
@@ -92,6 +101,19 @@ function missingSeeds(
     .filter(
       ({ seed }) => !ids.has(seed.id) && !existing.some((r) => sameSpot(seed, r))
     );
+}
+
+/* The Firestore document for one built-in listing */
+function seedDoc(seed: SeedListing, order: number) {
+  const { id, ...data } = seed;
+  return {
+    ...toExploreDoc(data, undefined, ADMIN_SOURCE),
+    ...(ALWAYS_OPEN_SEED_IDS.has(id) ? { operatingHours: { ...emptyHours(), alwaysOpen: true } } : {}),
+    seeded: true,
+    order,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
 }
 
 /* "Mon–Fri 8:00 AM – 5:00 PM · Sun Closed" */
@@ -314,6 +336,16 @@ async function syncBusiness(businessId: string, patch: Record<string, unknown>) 
   }
 }
 
+/* Remember built-in IDs that should never be offered again (best effort). */
+async function rememberSkipped(ids: string[]) {
+  if (ids.length === 0) return;
+  try {
+    await setDoc(SEED_CONFIG, { skipped: arrayUnion(...ids), updatedAt: serverTimestamp() }, { merge: true });
+  } catch (e) {
+    console.warn("Could not save skipped built-ins:", e);
+  }
+}
+
 /* File names a listing's photo is expected to have (from its seed + current link) */
 function wantedFor(row: ExploreRow): { full: string; base: string }[] {
   const list: { full: string; base: string }[] = [];
@@ -353,6 +385,11 @@ export default function ExplorePanel({
   const [rows, setRows] = useState<Partial<Record<ExplorePage, ExploreRow[]>>>({});
   const [loaded, setLoaded] = useState<ExplorePage[]>([]);
   const [loadError, setLoadError] = useState(false);
+
+  // Built-in IDs the admin skipped or deleted
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [skippedLoaded, setSkippedLoaded] = useState(false);
+  const [newSeedBusy, setNewSeedBusy] = useState(false);
 
   const [pageFilter, setPageFilter] = useState<ExplorePage | "all">("all");
   const [visFilter, setVisFilter] = useState<VisFilter>("all");
@@ -398,6 +435,22 @@ export default function ExplorePanel({
       )
     );
     return () => unsubs.forEach((u) => u());
+  }, []);
+
+  /* Live list of skipped built-in IDs */
+  useEffect(() => {
+    return onSnapshot(
+      SEED_CONFIG,
+      (snap) => {
+        const list = snap.exists() ? snap.get("skipped") : [];
+        setSkippedIds(new Set(Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : []));
+        setSkippedLoaded(true);
+      },
+      (err) => {
+        console.warn("Could not read appConfig/exploreSeeds:", err);
+        setSkippedLoaded(true);
+      }
+    );
   }, []);
 
   useEffect(() => {
@@ -521,6 +574,18 @@ export default function ExplorePanel({
     [pagesToImport, rows]
   );
 
+  /* Built-ins added later (data/exploreSeedAdditions.ts) on pages that were
+     already imported, minus anything the admin skipped or deleted. */
+  const newSeeds = useMemo(() => {
+    if (!allLoaded || !skippedLoaded) return [];
+    return PAGES.filter((p) => !pagesToImport.includes(p) && (rows[p] ?? []).some((r) => r.seeded))
+      .flatMap((page) =>
+        missingSeeds(page, rows[page] ?? [])
+          .filter(({ seed }) => !skippedIds.has(seed.id))
+          .map(({ seed }) => ({ page, seed }))
+      );
+  }, [allLoaded, skippedLoaded, pagesToImport, rows, skippedIds]);
+
   /* ── Actions ── */
 
   async function importBuiltIns() {
@@ -531,18 +596,11 @@ export default function ExplorePanel({
     try {
       let added = 0;
       for (const page of pagesToImport) {
-        const todo = missingSeeds(page, rows[page] ?? []);
+        const todo = missingSeeds(page, rows[page] ?? []).filter(({ seed }) => !skippedIds.has(seed.id));
         let batch = writeBatch(db);
         let ops = 0;
         for (const { seed, index } of todo) {
-          const { id, ...data } = seed;
-          batch.set(doc(db, PAGE_COLLECTION[page], id), {
-            ...toExploreDoc(data, undefined, ADMIN_SOURCE),
-            seeded: true,
-            order: index,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
+          batch.set(doc(db, PAGE_COLLECTION[page], seed.id), seedDoc(seed, index));
           added++;
           if (++ops === 400) {
             await batch.commit();
@@ -566,6 +624,38 @@ export default function ExplorePanel({
       importingRef.current = false;
       setImporting(false);
     }
+  }
+
+  /* Import the newly added built-ins (they go to the end of their page). */
+  async function importNewSeeds() {
+    if (newSeedBusy || newSeeds.length === 0) return;
+    const targets = [...newSeeds];
+    setNewSeedBusy(true);
+    try {
+      const batch = writeBatch(db);
+      targets.forEach(({ page, seed }, i) => {
+        batch.set(doc(db, PAGE_COLLECTION[page], seed.id), seedDoc(seed, Date.now() + i));
+      });
+      await batch.commit();
+      setNotice({
+        ok: true,
+        text: `Added ${targets.map((t) => `“${t.seed.name}”`).join(", ")} to Explore.`,
+      });
+    } catch (e) {
+      console.error(e);
+      setNotice({ ok: false, text: "Could not import the new built-in listings. Check your admin sign-in and Firestore rules." });
+    } finally {
+      setNewSeedBusy(false);
+    }
+  }
+
+  /* Hide the newly added built-ins for good. */
+  async function skipNewSeeds() {
+    if (newSeedBusy || newSeeds.length === 0) return;
+    setNewSeedBusy(true);
+    await rememberSkipped(newSeeds.map((s) => s.seed.id));
+    setNewSeedBusy(false);
+    setNotice({ ok: true, text: "Skipped. These built-in listings won't be offered again." });
   }
 
   /* Delete every Legacy row that has a Built-in twin (one click). */
@@ -837,6 +927,8 @@ export default function ExplorePanel({
       if (deleting.businessId) {
         await syncBusiness(deleting.businessId, { listing: deleteField() });
       }
+      // A deleted built-in is never offered for import again
+      if (deleting.seeded) await rememberSkipped([deleting.docId]);
       setNotice({ ok: true, text: `“${deleting.name}” was deleted from Explore.` });
     } catch (e) {
       console.error(e);
@@ -872,6 +964,28 @@ export default function ExplorePanel({
           <button style={styles.approveBtnSolid} onClick={importBuiltIns} disabled={importing}>
             {importing ? "Importing…" : `Import ${importTotal} listings`}
           </button>
+        </div>
+      )}
+
+      {newSeeds.length > 0 && (
+        <div style={{ ...styles.importBanner, background: "#eef6f0", borderColor: "#cfe3d6", color: "#1a5c38" }}>
+          <div>
+            <strong>
+              {newSeeds.length} new built-in listing{newSeeds.length === 1 ? "" : "s"}
+            </strong>
+            <br />
+            {newSeeds.map(({ page, seed }) => `${seed.name} (${EXPLORE_PAGES[page].label})`).join(", ")}.
+            Import to add {newSeeds.length === 1 ? "it" : "them"} to Explore, or skip if you don&apos;t want{" "}
+            {newSeeds.length === 1 ? "it" : "them"}.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={styles.smallBtn} onClick={skipNewSeeds} disabled={newSeedBusy}>
+              Skip
+            </button>
+            <button style={styles.approveBtnSolid} onClick={importNewSeeds} disabled={newSeedBusy}>
+              {newSeedBusy ? "Working…" : `Import ${newSeeds.length}`}
+            </button>
+          </div>
         </div>
       )}
 
